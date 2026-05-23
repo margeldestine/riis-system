@@ -1,0 +1,16 @@
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+
+app:
+  security:
+    jwt:
+      secret: ${jwt.secret:PLEASE_SET_JWT_SECRET}
+      issuer: ${JWT_ISSUER:riis-backend}
+      access-token-ttl-seconds: ${JWT_ACCESS_TOKEN_TTL_SECONDS:3600}
