@@ -50,4 +50,17 @@ public interface ResearchOutputRepository extends JpaRepository<ResearchOutput, 
 	)
 	List<ResearchOutput> findSimilarOutputs(@Param("embedding") float[] embedding, @Param("limit") int limit);
 	long countByTitleIgnoreCaseAndInstitutionIdAndStatusNot(String title, String institutionId, String status);
+
+    long countByStatus(String status);
+
+    @Query("SELECT COUNT(DISTINCT ro.institution.id) FROM ResearchOutput ro WHERE ro.status = :status AND ro.completionYear = :year")
+    long countDistinctInstitutionByStatusAndCompletionYear(@Param("status") String status, @Param("year") int year);
+
+    @Query("SELECT ro.researchType, COUNT(ro) FROM ResearchOutput ro WHERE ro.status = :status GROUP BY ro.researchType")
+    List<Object[]> countByStatusGroupByResearchType(@Param("status") String status);
+
+    @Query("SELECT ro.completionYear, ro.researchType, COUNT(ro) FROM ResearchOutput ro WHERE ro.status = :status GROUP BY ro.completionYear, ro.researchType ORDER BY ro.completionYear ASC")
+    List<Object[]> countByStatusGroupByYearAndType(@Param("status") String status);
+
+    Page<ResearchOutput> findByStatus(String status, Pageable pageable);
 }

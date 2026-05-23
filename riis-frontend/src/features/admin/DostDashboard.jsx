@@ -3,6 +3,7 @@ import { CheckCircle2, Loader2 } from 'lucide-react'
 import apiClient from '../../services/apiClient'
 import DashboardLayout from './DashboardLayout'
 import AnalyticsDashboard from './AnalyticsDashboard'
+import { dostNavItems } from './PendingSubmissionsPage'
 
 function extractApiErrorMessage(error) {
   const data = error?.response?.data
@@ -287,7 +288,11 @@ export default function DostDashboard() {
 
   return (
     <>
-      <DashboardLayout>
+      <DashboardLayout
+        navItems={dostNavItems}
+        userName="DOST Administrator"
+        organization="DOST Region VII"
+      >
         <AnalyticsDashboard
           pendingCount={pendingUsers.length}
           pendingStatus={pendingStatus}

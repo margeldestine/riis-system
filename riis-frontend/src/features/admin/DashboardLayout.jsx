@@ -114,8 +114,18 @@ export default function DashboardLayout({
         </div>
       </aside>
 
-      <main className="flex-1 overflow-y-auto bg-[#F4F6F9] p-[32px]">
-        {children}
+      <main className="flex-1 overflow-y-auto bg-[#F4F6F9] flex flex-col">
+        <div className="flex-1 p-[32px]">
+          {children}
+        </div>
+        <footer className="px-8 py-4 border-t border-slate-200 bg-white flex items-center justify-between text-xs text-slate-400">
+          <span className="font-semibold text-[#1A1A2E]">DASIG</span>
+          <div className="flex items-center gap-4">
+            <span className="hover:text-slate-600 cursor-pointer">Privacy Policy</span>
+            <span className="hover:text-slate-600 cursor-pointer">Technical Support</span>
+            <span className="text-[#C9A84C] font-semibold">DOST</span>
+          </div>
+        </footer>
       </main>
     </div>
   )

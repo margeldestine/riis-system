@@ -7,18 +7,25 @@ const apiClient = axios.create({
   },
 })
 
+const PUBLIC_ROUTES = [
+  '/search',
+  '/institutions',
+  '/auth/',
+]
+
 apiClient.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('token'); 
-    if (token) {
-      config.headers['Authorization'] = `Bearer ${token}`;
+    const isPublic = PUBLIC_ROUTES.some(route => config.url?.startsWith(route))
+    if (!isPublic) {
+      const token = localStorage.getItem('token')
+      if (token) {
+        config.headers['Authorization'] = `Bearer ${token}`
+      }
     }
-    return config;
+    return config
   },
-  (error) => {
-    return Promise.reject(error);
-  }
-);
+  (error) => Promise.reject(error)
+)
 
 apiClient.interceptors.response.use(
   (response) => response,

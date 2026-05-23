@@ -68,4 +68,46 @@ public class EmailNotificationService {
 		} catch (Exception ignored) {
 		}
 	}
+
+    @Async
+    public void sendReviewStatusEmail(String toEmail, String referenceNumber, String action, String comment) {
+        if (toEmail == null || toEmail.isBlank()) return;
+        if (referenceNumber == null || referenceNumber.isBlank()) return;
+
+        try {
+            JavaMailSender mailSender = mailSenderProvider.getIfAvailable();
+            if (mailSender == null) return;
+
+            String subject;
+            String body;
+
+            switch (action) {
+                case "APPROVED" -> {
+                    subject = "Research Output Approved: " + referenceNumber;
+                    body = "Your research output submission has been approved and is now publicly visible.\n\nReference Number: " + referenceNumber;
+                }
+                case "REJECTED" -> {
+                    subject = "Research Output Rejected: " + referenceNumber;
+                    body = "Your research output submission has been rejected.\n\nReference Number: " + referenceNumber
+                            + "\n\nReason:\n" + (comment != null ? comment : "No reason provided.");
+                }
+                case "REQUIRES_CORRECTION" -> {
+                    subject = "Correction Required: " + referenceNumber;
+                    body = "Your research output submission requires correction before it can be approved.\n\nReference Number: " + referenceNumber
+                            + "\n\nCorrection Notes:\n" + (comment != null ? comment : "Please review and resubmit.");
+                }
+                default -> {
+                    subject = "Submission Update: " + referenceNumber;
+                    body = "Your submission status has been updated.\n\nReference Number: " + referenceNumber;
+                }
+            }
+
+            SimpleMailMessage message = new SimpleMailMessage();
+            message.setTo(toEmail);
+            message.setSubject(subject);
+            message.setText(body);
+            mailSender.send(message);
+        } catch (Exception ignored) {
+        }
+    }
 }

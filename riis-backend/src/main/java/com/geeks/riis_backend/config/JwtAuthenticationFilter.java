@@ -35,15 +35,28 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 		this.userRepository = userRepository;
 	}
 
-	@Override
-	protected void doFilterInternal(
-			HttpServletRequest request,
-			HttpServletResponse response,
-			FilterChain filterChain
-	) throws ServletException, IOException {
-		String path = request.getRequestURI();
-		String method = request.getMethod();
-		boolean isSubmissionsRequest = path != null && path.startsWith("/api/v1/submissions");
+    private static final List<String> PUBLIC_PATHS = List.of(
+            "/api/v1/search",
+            "/api/v1/auth/",
+            "/api/v1/institutions"
+    );
+
+    @Override
+    protected void doFilterInternal(
+            HttpServletRequest request,
+            HttpServletResponse response,
+            FilterChain filterChain
+    ) throws ServletException, IOException {
+        String path = request.getRequestURI();
+        String method = request.getMethod();
+
+        boolean isPublicPath = path != null && PUBLIC_PATHS.stream().anyMatch(path::startsWith);
+        if (isPublicPath) {
+            filterChain.doFilter(request, response);
+            return;
+        }
+
+        boolean isSubmissionsRequest = path != null && path.startsWith("/api/v1/submissions");
 
 		String authHeader = request.getHeader(HttpHeaders.AUTHORIZATION);
 		if (isSubmissionsRequest) {

@@ -33,4 +33,19 @@ public class AuditLogService {
 
 		auditLogEntryRepository.save(entry);
 	}
+
+    public void logReviewAction(String recordId, String actorId, String action, String comment) {
+        User actor = userRepository.findById(actorId).orElse(null);
+
+        AuditLogEntry entry = AuditLogEntry.builder()
+                .actor(actor)
+                .actionType("SUBMISSION_" + action)
+                .targetType("RESEARCH_OUTPUT")
+                .targetId(recordId)
+                .comment(comment != null ? comment : "")
+                .metadataJson(JsonNodeFactory.instance.objectNode())
+                .build();
+
+        auditLogEntryRepository.save(entry);
+    }
 }
