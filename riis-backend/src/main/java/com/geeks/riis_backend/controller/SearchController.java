@@ -24,6 +24,11 @@ public class SearchController {
         ));
     }
 
+    @GetMapping("/{id}")
+    public ResponseEntity<Map<String, Object>> getById(@PathVariable String id) {
+        return ResponseEntity.ok(searchService.getById(id));
+    }
+
     @GetMapping("/related/{id}")
     public ResponseEntity<List<Map<String, Object>>> getRelated(@PathVariable String id) {
         return ResponseEntity.ok(searchService.getRelated(id));

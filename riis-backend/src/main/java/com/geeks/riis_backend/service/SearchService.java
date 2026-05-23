@@ -1,5 +1,6 @@
 package com.geeks.riis_backend.service;
 
+import com.geeks.riis_backend.exception.ResourceNotFoundException;
 import com.geeks.riis_backend.model.ResearchOutput;
 import com.geeks.riis_backend.repository.ResearchOutputRepository;
 import lombok.RequiredArgsConstructor;
@@ -35,6 +36,20 @@ public class SearchService {
         response.put("total", cards.size());
         response.put("fallback", true);
         return response;
+    }
+
+    public Map<String, Object> getById(String id) {
+        ResearchOutput o = researchOutputRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Record not found: " + id));
+        Map<String, Object> card = toCard(o);
+        card.put("abstractText", o.getAbstractText());
+        card.put("subjectDc", o.getSubjectDc());
+        card.put("coverageDc", o.getCoverageDc());
+        card.put("rightsDc", o.getRightsDc());
+        card.put("publisherDc", o.getPublisherDc());
+        card.put("contributorDc", o.getContributorDc());
+        card.put("s3PdfKey", o.getS3PdfKey());
+        return card;
     }
 
     public List<Map<String, Object>> getRelated(String id) {

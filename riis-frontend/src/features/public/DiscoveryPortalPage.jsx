@@ -28,7 +28,8 @@ function TypeBadge({ type }) {
 }
 
 function ResultCard({ result, onSelect }) {
-  const authors = Array.isArray(result.authors)
+  const navigate = useNavigate()
+   const authors = Array.isArray(result.authors)
     ? result.authors.map(a => a.fullName).filter(Boolean).join(', ')
     : ''
 
@@ -111,7 +112,7 @@ function ResultCard({ result, onSelect }) {
         <div className="shrink-0 flex flex-col gap-2">
           <button
             type="button"
-            onClick={() => onSelect(result)}
+            onClick={() => navigate(`/research/${result.id}`)}
             className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition whitespace-nowrap"
           >
             View Details
@@ -353,9 +354,9 @@ export default function DiscoveryPortalPage({ embedded = false }) {
           <button type="button" className="text-sm font-semibold text-[#1A1A2E] border-b-2 border-[#1A1A2E] pb-0.5">
             Browse Research
           </button>
-          <button type="button" className="text-sm text-slate-500 hover:text-[#1A1A2E]">
-            HEI Directory
-          </button>
+          <button type="button" onClick={() => navigate('/discover')} className="text-sm text-slate-500 hover:text-[#1A1A2E]">
+          HEI Directory
+        </button>
         </div>
         <div className="flex items-center gap-3">
           <button
@@ -376,39 +377,45 @@ export default function DiscoveryPortalPage({ embedded = false }) {
       </nav>}
 
       {/* Hero section */}
-      <div className="relative bg-[#1A1A2E] px-8 py-16 text-center overflow-hidden">
+      {/* Hero section */}
+      {/* Hero section */}
+      <div className="relative px-8 py-16 text-center overflow-hidden" style={{ background: '#1a3a6b' }}>
         <div
-          className="absolute inset-0 opacity-20"
+          className="absolute inset-0"
           style={{
-            backgroundImage: 'url(https://images.unsplash.com/photo-1541339907198-e08756dedf3f?w=1200&q=60)',
+            backgroundImage: 'url(/DOST_Building.png)',
             backgroundSize: 'cover',
-            backgroundPosition: 'center',
+            backgroundPosition: '50% 30%',
+            opacity: 0.25,
+            mixBlendMode: 'luminosity',
           }}
         />
+        <div className="absolute inset-0" style={{ background: 'rgba(15, 40, 90, 0.72)' }} />
         <div className="relative z-10">
-          <h1 className="text-4xl font-bold text-white">Explore Research Outputs</h1>
-          <p className="mt-2 text-sm text-slate-300">from Region VII HEIs</p>
-          <p className="mt-3 text-sm text-slate-400 max-w-xl mx-auto">
+          <h1 className="text-4xl font-bold text-white" style={{ fontFamily: 'Georgia, serif' }}>Explore Research Outputs</h1>
+          <p className="mt-2 text-sm" style={{ color: 'rgba(255,255,255,0.7)' }}>from Region VII HEIs</p>
+          <p className="mt-3 text-sm max-w-xl mx-auto" style={{ color: 'rgba(255,255,255,0.6)', lineHeight: 1.7 }}>
             Search through thousands of research papers, projects, and innovations from Higher Education Institutions
             across Central Visayas. Discover groundbreaking work in science, technology, and social development.
           </p>
 
-          <div className="mt-6 mx-auto max-w-2xl flex gap-2">
-            <div className="flex-1 flex items-center gap-3 rounded-xl bg-white px-4 py-3 shadow-lg">
-              <Search className="h-5 w-5 text-slate-400 shrink-0" />
+          <div className="mt-6 mx-auto flex gap-2" style={{ maxWidth: 700 }}>
+            <div className="flex-1 flex items-center gap-3 px-4 py-3 shadow-lg" style={{ background: 'rgba(255,255,255,0.12)', border: '1.5px solid rgba(255,255,255,0.25)', borderRadius: 12 }}>
+              <Search className="h-5 w-5 shrink-0" style={{ color: 'rgba(255,255,255,0.6)' }} />
               <input
                 type="text"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') handleSearch() }}
                 placeholder="Search by title, author, keyword, or institution..."
-                className="flex-1 text-sm text-slate-700 placeholder-slate-400 outline-none bg-transparent"
+                style={{ flex: 1, fontSize: 14, background: 'transparent', border: 'none', outline: 'none', color: '#fff' }}
               />
             </div>
             <button
               type="button"
               onClick={() => handleSearch()}
-              className="rounded-xl bg-emerald-600 px-6 py-3 text-sm font-semibold text-white hover:bg-emerald-700 transition"
+              className="rounded-xl px-6 py-3 text-sm font-semibold text-white transition"
+              style={{ backgroundColor: '#1a6e3c', borderRadius: 12 }}
             >
               Search
             </button>
@@ -419,7 +426,7 @@ export default function DiscoveryPortalPage({ embedded = false }) {
             {[
               { label: `${total > 0 ? total : '—'} Approved Records` },
               { label: `${institutions.length} HEIs` },
-              { label: '6 Provinces' },
+              { label: '2 Provinces' },
               { label: 'Marine Science', key: 'Marine Science' },
             ].map(({ label, key }) => (
               <button

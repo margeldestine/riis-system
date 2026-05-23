@@ -12,6 +12,9 @@ import { heiNavItems } from './features/hei/HeiDashboard'
 import HeiResearchProfiles from './features/hei/HeiResearchProfiles'
 import InstitutionProfilePage from './features/hei/InstitutionProfilePage'
 import HeiManagementPage from './features/admin/HeiManagementPage'
+import HeiDirectoryPage from './features/public/HeiDirectoryPage'
+import PublicInstitutionProfilePage from './features/public/PublicInstitutionProfilePage'
+import ResearchOutputDetailPage from './features/public/ResearchOutputDetailPage'
 
 
 function HeiPlaceholderPage({ activeLabel, title }) {
@@ -52,10 +55,14 @@ function App() {
       <Routes>
         <Route path="/login" element={<Login />} />
         <Route path="/" element={<DiscoveryPortalPage />} />
+        <Route path="/discover" element={<HeiDirectoryPage />} />
+        <Route path="/institutions/:id" element={<PublicInstitutionProfilePage />} />
+        <Route path="/research/:id" element={<ResearchOutputDetailPage />} />
         <Route path="/register" element={<Register />} />
         <Route path="/hei/dashboard" element={<HeiDashboard />} />
         <Route path="/hei/submission-portal" element={<HeiSubmissionPortalPage />} />
         <Route path="/hei/submission-history" element={<SubmissionHistory />} />
+        <Route path="/institutions/:id" element={<PublicInstitutionProfilePage />} />
         <Route
           path="/hei/research-profiles"
           element={<HeiResearchProfiles />}
@@ -72,8 +79,8 @@ function App() {
         <Route path="/dost/dashboard" element={<DostDashboard />} />
         <Route path="/dost/submissions" element={<PendingSubmissionsPage />} />
         <Route path="/dost/user-management" element={<AccountApprovalQueue />} />
-        <Route path="/discover" element={<DiscoveryPortalPage />} />
         <Route path="/dost/hei-management" element={<HeiManagementPage />} />
+        <Route path="/discover" element={<DiscoveryPortalPage />} />
       </Routes>
     </BrowserRouter>
   )

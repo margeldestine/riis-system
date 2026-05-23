@@ -7,6 +7,7 @@ import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
+import org.springframework.data.repository.query.Param;
 
 @Repository
 public interface InstitutionRepository extends JpaRepository<Institution, String> {
@@ -21,4 +22,7 @@ public interface InstitutionRepository extends JpaRepository<Institution, String
 
 	@Query("select new com.geeks.riis_backend.dto.InstitutionDropdownItem(i.id, i.name, i.emailDomain) from Institution i where i.whitelistStatus = 'ACTIVE' order by i.name asc")
 	List<InstitutionDropdownItem> findActiveDropdownItems();
+
+	@Query("SELECT COUNT(ro) FROM ResearchOutput ro WHERE ro.institution.id = :institutionId AND ro.status = 'APPROVED'")
+	long countApprovedOutputs(@Param("institutionId") String institutionId);
 }

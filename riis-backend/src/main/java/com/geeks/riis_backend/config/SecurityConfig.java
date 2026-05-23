@@ -62,7 +62,8 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/auth/**").permitAll()
                         .requestMatchers("/error").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/search").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/v1/search/related/**").permitAll()
+						.requestMatchers(HttpMethod.GET, "/api/v1/search/related/**").permitAll()
+						.requestMatchers(HttpMethod.GET, "/api/v1/search/**").permitAll()
                         .requestMatchers("/api/v1/institutions/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/v1/submissions").hasAnyAuthority("ROLE_HEI_STAFF", "HEI_STAFF", "ROLE_HEI", "HEI", "ROLE_DOST_ADMIN", "DOST_ADMIN")
 						.requestMatchers(HttpMethod.POST, "/api/v1/submissions/upload-url").hasAnyAuthority("ROLE_HEI_STAFF", "HEI_STAFF", "ROLE_HEI", "HEI", "ROLE_DOST_ADMIN", "DOST_ADMIN")
@@ -72,6 +73,7 @@ public class SecurityConfig {
 						.requestMatchers("/api/v1/admin/**").hasRole("DOST_ADMIN")
                         .requestMatchers("/api/v1/analytics/**").hasRole("DOST_ADMIN")
                         .requestMatchers("/api/v1/admin/submissions/**").hasRole("DOST_ADMIN")
+
 						.anyRequest().authenticated()
 				);
 

@@ -6,5 +6,6 @@ public record InstitutionSummaryDTO(
         String type,
         String province,
         String emailDomain,
-        String whitelistStatus
+        String whitelistStatus,
+        long approvedOutputCount
 ) {}

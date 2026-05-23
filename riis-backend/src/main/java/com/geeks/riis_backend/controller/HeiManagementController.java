@@ -50,7 +50,8 @@ public class HeiManagementController {
                 saved.getType(),
                 saved.getProvince(),
                 saved.getEmailDomain(),
-                saved.getWhitelistStatus()
+                saved.getWhitelistStatus(),
+                0L
         );
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }

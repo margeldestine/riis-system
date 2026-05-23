@@ -157,7 +157,7 @@ export default function Login() {
             alt=""
             className="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-25"
           />
-          <div className="relative z-10 flex flex-col justify-between gap-12">
+          <div className="relative z-10 flex flex-col items-center justify-center gap-12 h-full text-center">
             <div className="flex items-center gap-4">
               <img
                 src={dostLogo}
@@ -173,8 +173,7 @@ export default function Login() {
                 </p>
               </div>
             </div>
-
-            <div className="max-w-xl">
+              <div className="max-w-xl flex flex-col items-center text-center">
               <div className="mb-6 h-px w-14 bg-white/20" />
               <p className="mb-4 text-xs font-semibold uppercase tracking-[0.28em] text-[#e8a020]">
                 DOST Research Information System
@@ -192,20 +191,20 @@ export default function Login() {
                 reporting standards.
               </p>
 
-              <div className="mt-10 flex gap-10">
-                <div>
+              <div className="mt-10 flex justify-center gap-10">
+                <div className="text-center">
                   <p className="text-2xl font-semibold text-white">0</p>
                   <p className="text-[11px] font-medium uppercase tracking-widest text-white/50">
                     Submissions
                   </p>
                 </div>
-                <div>
+                <div className="text-center">
                   <p className="text-2xl font-semibold text-white">0</p>
                   <p className="text-[11px] font-medium uppercase tracking-widest text-white/50">
                     Institutions
                   </p>
                 </div>
-                <div>
+                <div className="text-center">
                   <p className="text-2xl font-semibold text-emerald-400">
                     Active
                   </p>
@@ -214,18 +213,18 @@ export default function Login() {
                   </p>
                 </div>
               </div>
-            </div>
 
-            <div className="pt-6">
-              <button
-                type="button"
-                className="h-12 w-full max-w-sm rounded-md bg-white/95 px-6 text-sm font-semibold text-[#0d2847] shadow-sm transition hover:bg-white"
-                onClick={() => navigate('/register')}
-              >
-                Register now
-              </button>
+              <div className="mt-10">
+                <button
+                  type="button"
+                  className="h-12 w-full max-w-sm rounded-md bg-white/95 px-6 text-sm font-semibold text-[#0d2847] shadow-sm transition hover:bg-white"
+                  onClick={() => navigate('/register')}
+                >
+                  Register now
+                </button>
+              </div>
             </div>
-          </div>
+            </div>
         </section>
 
         <section className="flex items-center bg-[#f8fafc] px-10 py-12 lg:px-16">
