@@ -7,11 +7,7 @@ const apiClient = axios.create({
   },
 })
 
-const PUBLIC_ROUTES = [
-  '/search',
-  '/institutions',
-  '/auth/',
-]
+const PUBLIC_ROUTES = ['/search', '/institutions', '/auth/']
 
 apiClient.interceptors.request.use(
   (config) => {
@@ -30,6 +26,9 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
+    // Silently ignore intentional request cancellations (AbortController)
+    if (axios.isCancel(error)) return Promise.reject(error)
+
     console.error('DEBUG: Request failed with status:', error.response?.status)
     console.error('DEBUG: Full error details:', error)
     return Promise.reject(error)

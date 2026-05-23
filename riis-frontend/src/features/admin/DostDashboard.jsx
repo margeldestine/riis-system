@@ -197,7 +197,10 @@ export default function DostDashboard() {
     setError('')
 
     try {
-      const response = await apiClient.get('/admin/users/pending', { signal })
+      const response = await apiClient.get('/admin/users', {
+        params: { role: 'HEI_STAFF', status: 'PENDING' },
+        signal,
+      })
       const users = Array.isArray(response.data) ? response.data : []
       setUsers(users)
       setStatus('success')

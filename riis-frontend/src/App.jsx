@@ -2,14 +2,17 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import Login from './features/auth/Login'
 import Register from './features/auth/Register'
 import DostDashboard from './features/admin/DostDashboard'
+import DiscoveryPortalPage from './features/public/DiscoveryPortalPage'
 import PendingSubmissionsPage from './features/admin/PendingSubmissionsPage'
+import AccountApprovalQueue from './features/admin/AccountApprovalQueuePage'
 import HeiDashboard, { HeiSubmissionPortalPage } from './features/hei/HeiDashboard'
 import SubmissionHistory from './features/hei/SubmissionHistory'
 import DashboardLayout from './features/admin/DashboardLayout'
 import { heiNavItems } from './features/hei/HeiDashboard'
 import HeiResearchProfiles from './features/hei/HeiResearchProfiles'
 import InstitutionProfilePage from './features/hei/InstitutionProfilePage'
-import DiscoveryPortalPage from './features/public/DiscoveryPortalPage'
+import HeiManagementPage from './features/admin/HeiManagementPage'
+
 
 function HeiPlaceholderPage({ activeLabel, title }) {
   return (
@@ -68,7 +71,9 @@ function App() {
         />
         <Route path="/dost/dashboard" element={<DostDashboard />} />
         <Route path="/dost/submissions" element={<PendingSubmissionsPage />} />
+        <Route path="/dost/user-management" element={<AccountApprovalQueue />} />
         <Route path="/discover" element={<DiscoveryPortalPage />} />
+        <Route path="/dost/hei-management" element={<HeiManagementPage />} />
       </Routes>
     </BrowserRouter>
   )

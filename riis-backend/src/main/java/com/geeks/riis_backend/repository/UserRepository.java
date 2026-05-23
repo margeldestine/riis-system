@@ -12,26 +12,32 @@ import org.springframework.stereotype.Repository;
 @Repository
 public interface UserRepository extends JpaRepository<User, String> {
 
+	@Query("""
+            SELECT new com.geeks.riis_backend.dto.PendingUserResponse(
+                u.id,
+                u.fullName,
+                u.email,
+                u.status,
+                i.name,
+                i.type,
+                i.province,
+                u.department,
+                u.position,
+                u.employeeId,
+                u.createdAt
+            )
+            FROM User u
+            LEFT JOIN u.institution i
+            WHERE u.role   = :role
+              AND u.status = :status
+            ORDER BY u.createdAt ASC
+            """)
+	List<PendingUserResponse> findByRoleAndStatusForQueue(
+			@Param("role")   String role,
+			@Param("status") String status
+	);
+
 	Optional<User> findByEmail(String email);
 
 	boolean existsByEmail(String email);
-
-	@Query("select u from User u where u.institution.id = :institutionId")
-	List<User> findByInstitutionId(@Param("institutionId") String institutionId);
-
-	@Query("""
-			select new com.geeks.riis_backend.dto.PendingUserResponse(
-				u.id,
-				u.fullName,
-				u.email,
-				i.name,
-				u.department,
-				u.position
-			)
-			from User u
-			left join u.institution i
-			where u.status = :status
-			order by u.createdAt asc
-			""")
-	List<PendingUserResponse> findUsersByStatusForPendingList(@Param("status") String status);
 }

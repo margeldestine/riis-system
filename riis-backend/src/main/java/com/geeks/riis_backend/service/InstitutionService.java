@@ -2,129 +2,173 @@ package com.geeks.riis_backend.service;
 
 import com.geeks.riis_backend.dto.InstitutionDropdownItem;
 import com.geeks.riis_backend.dto.InstitutionProfileDTO;
-import com.geeks.riis_backend.dto.InstitutionStatsDTO;
 import com.geeks.riis_backend.dto.InstitutionSummaryDTO;
-import com.geeks.riis_backend.dto.PublicAuthorDTO;
-import com.geeks.riis_backend.dto.PublicOutputCardDTO;
-import com.geeks.riis_backend.dto.ThemeKeywordDTO;
+import com.geeks.riis_backend.dto.RegisterHEIDTO;
+import com.geeks.riis_backend.exception.BadRequestException;
 import com.geeks.riis_backend.exception.ResourceNotFoundException;
+import com.geeks.riis_backend.model.AuditLogEntry;
 import com.geeks.riis_backend.model.Institution;
+import com.geeks.riis_backend.model.User;
+import com.geeks.riis_backend.repository.AuditLogEntryRepository;
 import com.geeks.riis_backend.repository.InstitutionRepository;
-import com.geeks.riis_backend.repository.ResearchOutputRepository;
+import com.geeks.riis_backend.repository.UserRepository;
+import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
+import java.util.UUID;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 @Service
 @RequiredArgsConstructor
 @Transactional
 public class InstitutionService {
 
-    private final InstitutionRepository institutionRepository;
-    private final ResearchOutputRepository researchOutputRepository;
+    private static final Pattern DOMAIN_PATTERN =
+            Pattern.compile("^@[a-z0-9.-]+\\.[a-z]{2,}$");
 
-    @Transactional(readOnly = true)
-    public Institution getInstitutionById(String id) {
-        return institutionRepository
-                .findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Institution not found: " + id));
-    }
+    private final InstitutionRepository   institutionRepository;
+    private final UserRepository          userRepository;
+    private final AuditLogEntryRepository auditLogEntryRepository;
 
+    // -----------------------------------------------------------------------
+    // Used by public InstitutionController — register dropdown
+    // -----------------------------------------------------------------------
     @Transactional(readOnly = true)
     public List<InstitutionDropdownItem> getAllActiveInstitutions() {
         return institutionRepository.findActiveDropdownItems();
     }
 
+    // -----------------------------------------------------------------------
+    // Used by public InstitutionController — get by ID
+    // -----------------------------------------------------------------------
     @Transactional(readOnly = true)
-    public List<InstitutionSummaryDTO> listAll(String province) {
-        List<Institution> institutions = province != null && !province.isBlank()
-                ? institutionRepository.findByProvinceIgnoreCase(province.trim())
-                : institutionRepository.findAll();
-
-        return institutions.stream().map(inst -> {
-            int count = researchOutputRepository.countByInstitutionIdAndStatus(inst.getId(), "APPROVED");
-            return new InstitutionSummaryDTO(
-                    inst.getId(),
-                    inst.getName(),
-                    inst.getType(),
-                    inst.getProvince(),
-                    inst.getContactEmail(),
-                    count
-            );
-        }).toList();
+    public Institution getInstitutionById(String id) {
+        return institutionRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Institution not found: " + id));
     }
 
+    // -----------------------------------------------------------------------
+    // Used by public InstitutionController — list with optional province filter
+    // -----------------------------------------------------------------------
+    @Transactional(readOnly = true)
+    public List<InstitutionSummaryDTO> listAll(String province) {
+        List<Institution> list = (province != null && !province.isBlank())
+                ? institutionRepository.findByProvinceIgnoreCase(province)
+                : institutionRepository.findAll();
+
+        return list.stream()
+                .map(i -> new InstitutionSummaryDTO(
+                        i.getId(), i.getName(), i.getType(),
+                        i.getProvince(), i.getEmailDomain(), i.getWhitelistStatus()
+                ))
+                .collect(Collectors.toList());
+    }
+
+    // -----------------------------------------------------------------------
+    // Used by HEIManagementController — list all (no filter)
+    // -----------------------------------------------------------------------
+    @Transactional(readOnly = true)
+    public List<InstitutionSummaryDTO> listAll() {
+        return listAll(null);
+    }
+
+    // -----------------------------------------------------------------------
+    // Used by public InstitutionController — institution profile page
+    // -----------------------------------------------------------------------
     @Transactional(readOnly = true)
     public InstitutionProfileDTO buildProfileDTO(String institutionId, Pageable pageable) {
-        Institution institution = institutionRepository.findById(institutionId)
+        Institution inst = institutionRepository.findById(institutionId)
                 .orElseThrow(() -> new ResourceNotFoundException("Institution not found: " + institutionId));
-
-        Page<PublicOutputCardDTO> outputs = researchOutputRepository
-                .findByInstitutionIdAndStatus(institutionId, "APPROVED", pageable)
-                .map(output -> {
-                    String excerpt = output.getAbstractText() == null ? null
-                            : output.getAbstractText().length() > 200
-                            ? output.getAbstractText().substring(0, 200) + "..."
-                            : output.getAbstractText();
-
-                    List<PublicAuthorDTO> authors = output.getAuthors() == null ? List.of()
-                            : output.getAuthors().stream()
-                            .map(a -> new PublicAuthorDTO(a.getFullName(), a.getOrcidId()))
-                            .toList();
-
-                    return new PublicOutputCardDTO(
-                            output.getId(),
-                            output.getTitle(),
-                            output.getDoi(),
-                            output.getResearchType(),
-                            output.getCompletionYear(),
-                            output.getFundingSource(),
-                            excerpt,
-                            authors
-                    );
-                });
-
-        int totalApproved = researchOutputRepository
-                .countByInstitutionIdAndStatus(institutionId, "APPROVED");
-
-        long uniqueAuthors = researchOutputRepository
-                .findByInstitutionIdAndStatus(institutionId, "APPROVED", Pageable.unpaged())
-                .stream()
-                .flatMap(o -> o.getAuthors() == null
-                        ? java.util.stream.Stream.empty()
-                        : o.getAuthors().stream())
-                .map(a -> a.getFullName() == null ? "" : a.getFullName().trim().toLowerCase())
-                .distinct()
-                .count();
-
-        Map<String, Integer> typeDistribution = researchOutputRepository
-                .findByInstitutionIdAndStatus(institutionId, "APPROVED", Pageable.unpaged())
-                .stream()
-                .collect(Collectors.groupingBy(
-                        o -> o.getResearchType() == null ? "Unknown" : o.getResearchType(),
-                        Collectors.collectingAndThen(Collectors.counting(), Long::intValue)
-                ));
-
-        InstitutionStatsDTO stats = new InstitutionStatsDTO(
-                totalApproved,
-                (int) uniqueAuthors,
-                typeDistribution
-        );
-
         return new InstitutionProfileDTO(
-                institution.getId(),
-                institution.getName(),
-                institution.getType(),
-                institution.getProvince(),
-                institution.getContactEmail(),
-                stats,
-                outputs,
-                List.of()
+                inst.getId(),
+                inst.getName(),
+                inst.getType(),
+                inst.getProvince(),
+                inst.getContactEmail(),
+                null,
+                org.springframework.data.domain.Page.empty(),
+                java.util.List.of()
         );
+    }
+
+    // -----------------------------------------------------------------------
+    // Used by HEIManagementController — register a new HEI
+    // -----------------------------------------------------------------------
+    public Institution registerHEI(RegisterHEIDTO dto, String adminEmail) {
+        String domain = dto.emailDomain().trim().toLowerCase();
+
+        if (!DOMAIN_PATTERN.matcher(domain).matches()) {
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Invalid email domain format. Must be like @domain.edu.ph");
+        }
+
+        if (institutionRepository.findByEmailDomain(domain).isPresent()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "An institution with this email domain is already registered.");
+        }
+
+        User admin = adminEmail != null
+                ? userRepository.findByEmail(adminEmail).orElse(null)
+                : null;
+
+        Institution institution = Institution.builder()
+                .name(dto.name().trim())
+                .type(dto.type())
+                .province(dto.province())
+                .emailDomain(domain)
+                .contactEmail(domain.substring(1))
+                .whitelistStatus(dto.status() != null && !dto.status().isBlank() ? dto.status() : "ACTIVE")
+                .registeredBy(admin)
+                .build();
+
+        try {
+            Institution saved = institutionRepository.save(institution);
+            writeAuditLog("REGISTER_HEI", saved.getId(), adminEmail, null);
+            return saved;
+        } catch (DataIntegrityViolationException ex) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "An institution with this email domain is already registered.");
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Used by HEIManagementController — toggle whitelist status
+    // -----------------------------------------------------------------------
+    public void updateStatus(UUID id, String newStatus, String adminEmail) {
+        Institution inst = institutionRepository.findById(id.toString())
+                .orElseThrow(() -> new ResourceNotFoundException("Institution not found: " + id));
+
+        if (newStatus == null || newStatus.isBlank()) {
+            throw new BadRequestException("Status is required.");
+        }
+
+        inst.setWhitelistStatus(newStatus.toUpperCase());
+        institutionRepository.save(inst);
+        writeAuditLog("UPDATE_HEI_STATUS", inst.getId(), adminEmail, newStatus);
+    }
+
+
+    private void writeAuditLog(String actionType, String targetId, String adminEmail, String comment) {
+        User admin = adminEmail != null
+                ? userRepository.findByEmail(adminEmail).orElse(null)
+                : null;
+
+        AuditLogEntry entry = AuditLogEntry.builder()
+                .actor(admin)
+                .actionType(actionType)
+                .targetType("INSTITUTION")
+                .targetId(targetId)
+                .comment(comment)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        auditLogEntryRepository.save(entry);
     }
 }
