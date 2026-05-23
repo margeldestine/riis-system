@@ -24,7 +24,7 @@ public class S3Config {
 	) {
 		S3Presigner.Builder builder = S3Presigner.builder()
 				.region(Region.of(region))
-				.serviceConfiguration(S3Configuration.builder().pathStyleAccessEnabled(true).build());
+				.serviceConfiguration(S3Configuration.builder().pathStyleAccessEnabled(true).chunkedEncodingEnabled(false).build());
 
 		if (accessKey != null && !accessKey.isBlank() && secretKey != null && !secretKey.isBlank()) {
 			AwsBasicCredentials credentials = AwsBasicCredentials.create(accessKey.trim(), secretKey.trim());
@@ -49,7 +49,7 @@ public class S3Config {
 	) {
 		var builder = S3Client.builder()
 				.region(Region.of(region))
-				.serviceConfiguration(S3Configuration.builder().pathStyleAccessEnabled(true).build());
+				.serviceConfiguration(S3Configuration.builder().pathStyleAccessEnabled(true).chunkedEncodingEnabled(false).build());
 
 		if (accessKey != null && !accessKey.isBlank() && secretKey != null && !secretKey.isBlank()) {
 			AwsBasicCredentials credentials = AwsBasicCredentials.create(accessKey.trim(), secretKey.trim());

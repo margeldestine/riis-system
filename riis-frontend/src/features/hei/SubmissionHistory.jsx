@@ -76,12 +76,12 @@ export default function SubmissionHistory() {
   const [items, setItems] = useState([])
   const [status, setStatus] = useState('idle')
   const [error, setError] = useState('')
+  const [pdfStatus, setPdfStatus] = useState('idle')
+  const [activePdfId, setActivePdfId] = useState(null)
 
   const [search, setSearch] = useState('')
-  const [submittedBy, setSubmittedBy] = useState('ALL')
-  const [statusFilter, setStatusFilter] = useState('ALL')
-  const [typeFilter, setTypeFilter] = useState('ALL')
-  const [yearFilter, setYearFilter] = useState('ALL')
+  const [page, setPage] = useState(0)
+  const [totalPages, setTotalPages] = useState(1)
 
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [selectedId, setSelectedId] = useState(null)
@@ -96,51 +96,32 @@ export default function SubmissionHistory() {
       setStatus('loading')
       setError('')
 
-      const params = {
-        q: search || undefined,
-        submittedBy: submittedBy !== 'ALL' ? submittedBy : undefined,
-        status: statusFilter !== 'ALL' ? statusFilter : undefined,
-        type: typeFilter !== 'ALL' ? typeFilter : undefined,
-        year: yearFilter !== 'ALL' ? yearFilter : undefined,
-      }
-
       try {
-        const response = await apiClient.get('/submissions', { params, signal })
-        console.log('Raw History Response:', response.data)
-        const resolved = response.data?.content || response.data || []
-        setItems(Array.isArray(resolved) ? resolved : [])
+        const response = await apiClient.get('/submissions', {
+          params: { page, size: 10, keyword: search || undefined },
+          signal,
+        })
+
+        const payload = response.data
+        const resolvedItems = Array.isArray(payload)
+          ? payload
+          : payload?.content || []
+
+        setItems(Array.isArray(resolvedItems) ? resolvedItems : [])
+        setTotalPages(
+          Math.max(
+            1,
+            Number(
+              Array.isArray(payload) ? 1 : payload?.totalPages,
+            ) || 1,
+          ),
+        )
         setStatus('success')
       } catch (err) {
-        const code = err?.response?.status
         if (signal?.aborted) return
 
-        if ([404, 405, 501].includes(code)) {
-          try {
-            const legacy = await apiClient.get('/research/my-submissions', { signal })
-            const raw = Array.isArray(legacy.data) ? legacy.data : []
-            const filtered = raw.filter((row) => {
-              const title = (row?.title || '').toString().toLowerCase()
-              const matchesSearch = search ? title.includes(search.toLowerCase()) : true
-              return matchesSearch
-            })
-            setItems(filtered)
-            setStatus('success')
-            return
-          } catch (legacyErr) {
-            if (signal?.aborted) return
-            setItems([])
-            setStatus('error')
-            setError(
-              extractApiErrorMessage(
-                legacyErr,
-                'Unable to load your submission history right now.',
-              ),
-            )
-            return
-          }
-        }
-
         setItems([])
+        setTotalPages(1)
         setStatus('error')
         setError(
           extractApiErrorMessage(
@@ -150,7 +131,7 @@ export default function SubmissionHistory() {
         )
       }
     },
-    [search, statusFilter, submittedBy, typeFilter, yearFilter],
+    [page, search],
   )
 
   useEffect(() => {
@@ -172,9 +153,32 @@ export default function SubmissionHistory() {
     return { total, approved, pending, requiresCorrection }
   }, [items])
 
-  const years = useMemo(() => {
-    const currentYear = new Date().getFullYear()
-    return Array.from({ length: 8 }).map((_, idx) => String(currentYear - idx))
+  const handleViewPdf = useCallback(async (submissionId) => {
+    if (!submissionId) return
+
+    setPdfStatus('loading')
+    setActivePdfId(submissionId)
+
+    try {
+      const response = await apiClient.get(`/submissions/${submissionId}/download-url`)
+      const downloadUrl =
+        response.data?.downloadUrl ||
+        response.data?.url ||
+        response.data?.presignedUrl
+
+      if (!downloadUrl) {
+        throw new Error('Download URL response is missing downloadUrl.')
+      }
+
+      const newWindow = window.open(downloadUrl, '_blank', 'noopener,noreferrer')
+      if (newWindow) newWindow.opener = null
+    } catch (err) {
+      console.error('Failed to fetch PDF URL', err)
+      setError(extractApiErrorMessage(err, 'Failed to fetch PDF download URL.'))
+    } finally {
+      setPdfStatus('idle')
+      setActivePdfId(null)
+    }
   }, [])
 
   return (
@@ -246,7 +250,10 @@ export default function SubmissionHistory() {
                   <Search className="h-4 w-4 text-slate-400" />
                   <input
                     value={search}
-                    onChange={(event) => setSearch(event.target.value)}
+                    onChange={(event) => {
+                      setSearch(event.target.value)
+                      setPage(0)
+                    }}
                     placeholder="Search submissions..."
                     className="w-full border-0 bg-transparent p-0 text-sm placeholder:text-slate-400 outline-none"
                   />
@@ -260,57 +267,6 @@ export default function SubmissionHistory() {
               >
                 New Submission
               </button>
-            </div>
-
-            <div className="mt-4 grid gap-3 md:grid-cols-4">
-              <select
-                value={submittedBy}
-                onChange={(event) => setSubmittedBy(event.target.value)}
-                className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 outline-none transition focus:border-[#1A1A2E] focus:ring-1 focus:ring-[#1A1A2E]"
-              >
-                <option value="ALL">Submitted by:</option>
-                <option value="ME">Me</option>
-              </select>
-
-              <select
-                value={statusFilter}
-                onChange={(event) => setStatusFilter(event.target.value)}
-                className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 outline-none transition focus:border-[#1A1A2E] focus:ring-1 focus:ring-[#1A1A2E]"
-              >
-                <option value="ALL">All Statuses</option>
-                <option value="APPROVED">Approved</option>
-                <option value="PENDING_REVIEW">Pending Review</option>
-                <option value="UNDER_REVIEW">Under Review</option>
-                <option value="REQUIRES_CORRECTION">Requires Correction</option>
-                <option value="REJECTED">Rejected</option>
-                <option value="DRAFT">Draft</option>
-              </select>
-
-              <select
-                value={typeFilter}
-                onChange={(event) => setTypeFilter(event.target.value)}
-                className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 outline-none transition focus:border-[#1A1A2E] focus:ring-1 focus:ring-[#1A1A2E]"
-              >
-                <option value="ALL">All Types</option>
-                <option value="Funded Project">Funded Project</option>
-                <option value="Journal Article">Journal Article</option>
-                <option value="Conference Paper">Conference Paper</option>
-                <option value="Innovation Output">Innovation Output</option>
-                <option value="Community Extension Research">Community Extension Research</option>
-              </select>
-
-              <select
-                value={yearFilter}
-                onChange={(event) => setYearFilter(event.target.value)}
-                className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600 outline-none transition focus:border-[#1A1A2E] focus:ring-1 focus:ring-[#1A1A2E]"
-              >
-                <option value="ALL">All Years</option>
-                {years.map((year) => (
-                  <option key={year} value={year}>
-                    {year}
-                  </option>
-                ))}
-              </select>
             </div>
 
           {error ? (
@@ -388,6 +344,23 @@ export default function SubmissionHistory() {
                         >
                           View
                         </button>
+                        {item?.attachmentKey ||
+                        item?.attachment?.fileKey ||
+                        item?.attachment?.fileName ||
+                        item?.attachmentName ||
+                        item?.attachmentUrl ? (
+                          <>
+                            <span className="px-2 text-slate-300">|</span>
+                            <button
+                              type="button"
+                              onClick={() => handleViewPdf(item?.id)}
+                              disabled={pdfStatus === 'loading' && activePdfId === item?.id}
+                              className="text-blue-600 hover:text-blue-800 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                              {pdfStatus === 'loading' && activePdfId === item?.id ? 'Opening…' : 'View PDF'}
+                            </button>
+                          </>
+                        ) : null}
                         <span className="px-2 text-slate-300">|</span>
                         <button
                           type="button"
@@ -411,6 +384,27 @@ export default function SubmissionHistory() {
                 )}
               </tbody>
             </table>
+          </div>
+          <div className="mt-4 flex items-center justify-between">
+            <button
+              type="button"
+              onClick={() => setPage((prev) => Math.max(0, prev - 1))}
+              disabled={page === 0 || status === 'loading'}
+              className="rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Previous
+            </button>
+            <p className="text-sm text-slate-500">
+              Page {Math.min(page + 1, totalPages)} of {totalPages}
+            </p>
+            <button
+              type="button"
+              onClick={() => setPage((prev) => Math.min(totalPages - 1, prev + 1))}
+              disabled={page >= totalPages - 1 || status === 'loading'}
+              className="rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Next
+            </button>
           </div>
           </div>
         </section>

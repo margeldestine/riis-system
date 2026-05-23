@@ -9,17 +9,24 @@ const apiClient = axios.create({
 
 apiClient.interceptors.request.use(
   (config) => {
-    const rawToken = localStorage.getItem('token')
-    const token = rawToken ? rawToken.replace(/^Bearer\s+/i, '').trim() : ''
-    console.log('Attached Token:', token)
-
+    const token = localStorage.getItem('token'); 
     if (token) {
-      config.headers.Authorization = `Bearer ${token}`
+      config.headers['Authorization'] = `Bearer ${token}`;
     }
-
-    return config
+    return config;
   },
-  (error) => Promise.reject(error),
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    console.error('DEBUG: Request failed with status:', error.response?.status)
+    console.error('DEBUG: Full error details:', error)
+    return Promise.reject(error)
+  },
 )
 
 export { apiClient }

@@ -8,7 +8,7 @@ import {
   FolderKanban,
   Users,
 } from 'lucide-react'
-import { NavLink } from 'react-router-dom'
+import { NavLink, useNavigate } from 'react-router-dom'
 
 const defaultNavItems = [
   { icon: BarChart3, label: 'Analytics Dashboard' },
@@ -59,6 +59,17 @@ export default function DashboardLayout({
   organization = 'DOST Region VII',
   navItems = defaultNavItems,
 }) {
+  const navigate = useNavigate()
+
+  const handleSignOut = () => {
+    localStorage.removeItem('token')
+    localStorage.removeItem('institutionName')
+    localStorage.removeItem('userInstitution')
+    localStorage.removeItem('userRole')
+    localStorage.removeItem('userId')
+    navigate('/login')
+  }
+
   return (
     <div className="flex h-screen bg-[#F4F6F9] font-sans text-[#1A1A2E]">
       <aside className="hidden h-screen w-[240px] shrink-0 bg-[#0D1B2A] px-5 py-5 lg:flex lg:flex-col">
@@ -94,6 +105,7 @@ export default function DashboardLayout({
         <div className="mt-auto pt-6">
           <button
             type="button"
+            onClick={handleSignOut}
             className="flex w-full items-center justify-between rounded-md px-3 py-3 text-sm font-medium text-[#C9A84C] transition hover:bg-white/5"
           >
             <span>Sign Out</span>

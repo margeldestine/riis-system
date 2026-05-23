@@ -42,54 +42,60 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 			FilterChain filterChain
 	) throws ServletException, IOException {
 		String path = request.getRequestURI();
-		if (path != null && path.startsWith("/api/v1/submissions")) {
-			request.setAttribute(JWT_FAILURE_REASON_ATTRIBUTE, "JWT filter executed but authentication not established.");
+		String method = request.getMethod();
+		boolean isSubmissionsRequest = path != null && path.startsWith("/api/v1/submissions");
+
+		String authHeader = request.getHeader(HttpHeaders.AUTHORIZATION);
+		if (isSubmissionsRequest) {
+			logger.info("JWT Filter: {} {} (Authorization header present={})", method, path, authHeader != null);
 		}
+
+		if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+			if (isSubmissionsRequest) {
+				logger.info("JWT Filter: No Bearer token found.");
+			}
+			filterChain.doFilter(request, response);
+			return;
+		}
+
 		if (SecurityContextHolder.getContext().getAuthentication() != null) {
-			filterChain.doFilter(request, response);
-			return;
-		}
-
-		String header = request.getHeader(HttpHeaders.AUTHORIZATION);
-		String normalizedHeader = header == null ? null : header.trim();
-		if (normalizedHeader == null || !normalizedHeader.toLowerCase().startsWith("bearer ")) {
-			setJwtFailureReasonIfSubmissionsRequest(request, header == null
-					? "Authorization header missing"
-					: "Authorization header malformed (expected: Bearer <token>)");
-			logMissingOrMalformedAuthHeader(request, header);
-			filterChain.doFilter(request, response);
-			return;
-		}
-
-		String token = normalizedHeader.substring("bearer ".length()).trim();
-		if (token.isEmpty()) {
-			setJwtFailureReasonIfSubmissionsRequest(request, "Authorization header malformed (empty token)");
-			logMissingOrMalformedAuthHeader(request, header);
-			filterChain.doFilter(request, response);
-			return;
-		}
-		if ("null".equalsIgnoreCase(token) || "undefined".equalsIgnoreCase(token)) {
-			setJwtFailureReasonIfSubmissionsRequest(request, "Authorization header malformed (token is null/undefined)");
-			logMissingOrMalformedAuthHeader(request, header);
-			filterChain.doFilter(request, response);
-			return;
-		}
-		if (token.length() >= 2 && token.startsWith("\"") && token.endsWith("\"")) {
-			token = token.substring(1, token.length() - 1).trim();
-		}
-		if (token.isEmpty()) {
-			setJwtFailureReasonIfSubmissionsRequest(request, "Authorization header malformed (empty token)");
-			logMissingOrMalformedAuthHeader(request, header);
+			if (isSubmissionsRequest) {
+				logger.info("JWT Filter: SecurityContext already has authentication; skipping.");
+			}
 			filterChain.doFilter(request, response);
 			return;
 		}
 
 		try {
-			Claims claims = jwtService.parseAndValidate(token);
-			String subject = claims.getSubject();
+			String jwt = authHeader.substring("Bearer ".length()).trim();
+			if (jwt.isBlank() || "null".equalsIgnoreCase(jwt) || "undefined".equalsIgnoreCase(jwt)) {
+				if (isSubmissionsRequest) {
+					logger.warn("JWT Filter: Bearer token is blank/null/undefined.");
+				}
+				filterChain.doFilter(request, response);
+				return;
+			}
+			if (jwt.length() >= 2 && jwt.startsWith("\"") && jwt.endsWith("\"")) {
+				jwt = jwt.substring(1, jwt.length() - 1).trim();
+			}
+			if (jwt.isBlank()) {
+				if (isSubmissionsRequest) {
+					logger.warn("JWT Filter: Bearer token is blank after trimming quotes.");
+				}
+				filterChain.doFilter(request, response);
+				return;
+			}
+
+			if (isSubmissionsRequest) {
+				logger.info("JWT Filter: Bearer token received (length={})", jwt.length());
+			}
+
+			Claims claims = jwtService.parseAndValidate(jwt);
+			String subject = claims == null ? null : claims.getSubject();
 			if (subject == null || subject.isBlank()) {
-				logAuthFailure(request, "JWT subject is missing/blank");
-				request.setAttribute(JWT_FAILURE_REASON_ATTRIBUTE, "JWT subject is missing/blank");
+				if (isSubmissionsRequest) {
+					logger.warn("JWT Filter: JWT subject is missing/blank.");
+				}
 				filterChain.doFilter(request, response);
 				return;
 			}
@@ -100,8 +106,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 				userOptional = userRepository.findByEmail(normalizedSubject.toLowerCase());
 			}
 			if (userOptional.isEmpty()) {
-				logAuthFailure(request, "No user found for JWT subject");
-				request.setAttribute(JWT_FAILURE_REASON_ATTRIBUTE, "No user found for JWT subject");
+				if (isSubmissionsRequest) {
+					logger.warn("JWT Filter: No user found for JWT subject.");
+				}
 				filterChain.doFilter(request, response);
 				return;
 			}
@@ -126,19 +133,21 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 				}
 			}
 
-			UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+			UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
 					user.getId(),
 					null,
 					authorities
 			);
-			authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-			SecurityContextHolder.getContext().setAuthentication(authentication);
-			logAuthSuccess(request, user.getId(), user.getRole());
-			request.removeAttribute(JWT_FAILURE_REASON_ATTRIBUTE);
-		} catch (Exception ignored) {
-			String reason = ignored.getClass().getSimpleName() + ": " + safeMessage(ignored.getMessage());
-			logAuthFailure(request, reason);
-			request.setAttribute(JWT_FAILURE_REASON_ATTRIBUTE, reason);
+			authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+			SecurityContextHolder.getContext().setAuthentication(authToken);
+
+			if (isSubmissionsRequest) {
+				logger.info("JWT Filter: SecurityContext set for user: {} (role={})", user.getId(), role);
+			}
+		} catch (Exception e) {
+			if (isSubmissionsRequest) {
+				logger.error("JWT Filter: Error during authentication", e);
+			}
 			SecurityContextHolder.clearContext();
 		}
 

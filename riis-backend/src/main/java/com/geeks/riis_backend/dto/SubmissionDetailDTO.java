@@ -8,6 +8,8 @@ public record SubmissionDetailDTO(
 		String referenceNumber,
 		String title,
 		String researchType,
+		String fundingSource,
+		String publicationVenue,
 		Integer completionYear,
 		LocalDateTime submittedAt,
 		String status,

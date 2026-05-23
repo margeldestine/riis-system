@@ -6,6 +6,8 @@ import HeiDashboard, { HeiSubmissionPortalPage } from './features/hei/HeiDashboa
 import SubmissionHistory from './features/hei/SubmissionHistory'
 import DashboardLayout from './features/admin/DashboardLayout'
 import { heiNavItems } from './features/hei/HeiDashboard'
+import HeiResearchProfiles from './features/hei/HeiResearchProfiles'
+import InstitutionProfilePage from './features/hei/InstitutionProfilePage'
 
 function HeiPlaceholderPage({ activeLabel, title }) {
   return (
@@ -38,7 +40,11 @@ function App() {
         <Route path="/hei/submission-history" element={<SubmissionHistory />} />
         <Route
           path="/hei/research-profiles"
-          element={<HeiPlaceholderPage activeLabel="HEI Research Profiles" title="HEI Research Profiles" />}
+          element={<HeiResearchProfiles />}
+        />
+        <Route
+          path="/hei/institutions/:id"
+          element={<InstitutionProfilePage />}
         />
         <Route
           path="/hei/browse-research"

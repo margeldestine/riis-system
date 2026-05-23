@@ -9,15 +9,122 @@ import {
   ChevronRight,
   Info
 } from 'lucide-react'
-import { useFieldArray, useForm, useWatch } from 'react-hook-form'
+import { Controller, useFieldArray, useForm, useWatch } from 'react-hook-form'
 import { z } from 'zod'
 import { useLocation, useNavigate } from 'react-router-dom'
+import axios from 'axios'
 import apiClient from '../../services/apiClient'
 
 const currentYear = new Date().getFullYear()
 const doiPattern = /^10\.\d{4,9}\/[-._;()/:A-Z0-9]+$/i
 const orcidPattern = /^(\d{4}-){3}\d{3}[\dX]$/i
 const conferenceUrlPattern = /^https?:\/\/.+/i
+
+function formatOrcidInput(value) {
+  const digits = (value ?? '').toString().replace(/\D/g, '').slice(0, 16)
+  const chunks = digits.match(/.{1,4}/g) || []
+  return chunks.join('-')
+}
+
+function formatDoiInput(value) {
+  const trimmed = (value ?? '').toString().trim()
+  if (!trimmed) return ''
+
+  const withoutPrefix = trimmed
+    .replace(/^https?:\/\/(dx\.)?doi\.org\//i, '')
+    .replace(/^doi:\s*/i, '')
+    .trim()
+
+  if (!withoutPrefix) return ''
+  if (/^10\.\S+/i.test(withoutPrefix)) return withoutPrefix
+  if (/^10\d/.test(withoutPrefix)) return `10.${withoutPrefix.slice(2)}`
+  if (/^\d{4,9}\/\S+/i.test(withoutPrefix)) return `10.${withoutPrefix}`
+  return withoutPrefix
+}
+
+function formatConferenceUrlInput(value) {
+  const trimmed = (value ?? '').toString().trim()
+  if (!trimmed) return ''
+
+  if (/^[a-zA-Z][a-zA-Z\d+.-]*:\/\//.test(trimmed)) return trimmed
+  if (!/[./]/.test(trimmed)) return trimmed
+
+  return `https://${trimmed.replace(/^\/+/, '')}`
+}
+
+function decodeBase64Url(value) {
+  const padded = value.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(value.length / 4) * 4, '=')
+  return atob(padded)
+}
+
+function getJwtExpMs(token) {
+  if (!token || typeof token !== 'string') return null
+  const parts = token.split('.')
+  if (parts.length < 2) return null
+
+  try {
+    const payload = JSON.parse(decodeBase64Url(parts[1]))
+    const expSeconds = Number(payload?.exp)
+    if (!Number.isFinite(expSeconds)) return null
+    return expSeconds * 1000
+  } catch {
+    return null
+  }
+}
+
+function isTokenExpiringSoon(token, thresholdMs) {
+  const expMs = getJwtExpMs(token)
+  if (!expMs) return false
+  return expMs - Date.now() <= thresholdMs
+}
+
+function extractTokenFromResponse(data) {
+  if (!data) return ''
+  if (typeof data === 'string') return data.replace(/^Bearer\s+/i, '').trim()
+
+  const token =
+    data.token ||
+    data.accessToken ||
+    data.jwt ||
+    data.idToken ||
+    data?.data?.token ||
+    data?.data?.accessToken ||
+    ''
+
+  return typeof token === 'string'
+    ? token.replace(/^Bearer\s+/i, '').trim()
+    : ''
+}
+
+async function ensureFreshToken() {
+  const token = localStorage.getItem('token') || ''
+  if (!token) return ''
+
+  if (!isTokenExpiringSoon(token, 5 * 60 * 1000)) return token
+
+  const response = await fetch('http://localhost:8080/api/v1/auth/refresh', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    credentials: 'include',
+    body: JSON.stringify({}),
+  })
+
+  if (!response.ok) {
+    throw new Error(`Failed to refresh token: ${response.status}`)
+  }
+
+  const data = await response.json().catch(() => null)
+  const nextToken = extractTokenFromResponse(data)
+  if (!nextToken) {
+    throw new Error('Refresh succeeded but no token was returned by the server.')
+  }
+
+  localStorage.setItem('token', nextToken)
+  return nextToken
+}
 
 const stepDefinitions = [
   {
@@ -198,8 +305,49 @@ function extractApiErrorMessage(error, fallbackMessage) {
 
 function FieldMessage({ message }) {
   if (!message) return null
-
   return <p className="mt-2 text-sm text-red-600">{message}</p>
+}
+
+function ErrorSummaryBanner({ errors, onDismiss }) {
+  if (!errors || errors.length === 0) return null
+
+  const scrollToField = (fieldName) => {
+    const el = document.getElementById(`field-${fieldName}`)
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      el.focus()
+    }
+  }
+
+  return (
+    <div className="mt-5 rounded-md border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-700">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="font-bold">Submission blocked — correct the following:</p>
+          <ul className="mt-2 list-disc pl-5 space-y-1">
+            {errors.map((err, index) => (
+              <li key={index}>
+                <button
+                  type="button"
+                  onClick={() => scrollToField(err.field)}
+                  className="text-left text-red-700 hover:text-red-900"
+                >
+                  {err.message}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="shrink-0 text-red-400 hover:text-red-600"
+        >
+          ✕
+        </button>
+      </div>
+    </div>
+  )
 }
 
 function StepProgress({ currentStep }) {
@@ -271,8 +419,9 @@ function BasicInfoStep({ register, errors }) {
           </label>
           <input
             {...register('title')}
+            id="field-title"
             placeholder="Enter the full research title"
-            className="w-full rounded-md border border-slate-200 bg-[#FFFFFF] p-3 text-sm placeholder:text-slate-400 outline-none transition focus:border-[#1A1A2E] focus:ring-1 focus:ring-[#1A1A2E]"
+            className={`w-full rounded-md border p-3 text-sm placeholder:text-slate-400 outline-none transition focus:ring-1 ${errors.title ? 'border-red-400 focus:border-red-400 focus:ring-red-400' : 'border-slate-200 bg-[#FFFFFF] focus:border-[#1A1A2E] focus:ring-[#1A1A2E]'}`}
           />
           <FieldMessage message={errors.title?.message} />
         </div>
@@ -283,7 +432,7 @@ function BasicInfoStep({ register, errors }) {
           </label>
           <select
             {...register('researchType')}
-            className="w-full rounded-md border border-slate-200 bg-[#FFFFFF] p-3 text-sm outline-none transition focus:border-[#1A1A2E] focus:ring-1 focus:ring-[#1A1A2E]"
+            className={`w-full rounded-md border p-3 text-sm outline-none transition focus:ring-1 ${errors.researchType ? 'border-red-400 focus:border-red-400 focus:ring-red-400' : 'border-slate-200 bg-[#FFFFFF] focus:border-[#1A1A2E] focus:ring-[#1A1A2E]'}`}
           >
             <option value="">Select research type</option>
             {researchTypes.map((option) => (
@@ -304,7 +453,7 @@ function BasicInfoStep({ register, errors }) {
             type="number"
             max={currentYear}
             placeholder={`Up to ${currentYear}`}
-            className="w-full rounded-md border border-slate-200 bg-[#FFFFFF] p-3 text-sm placeholder:text-slate-400 outline-none transition focus:border-[#1A1A2E] focus:ring-1 focus:ring-[#1A1A2E]"
+            className={`w-full rounded-md border p-3 text-sm placeholder:text-slate-400 outline-none transition focus:ring-1 ${errors.completionYear ? 'border-red-400 focus:border-red-400 focus:ring-red-400' : 'border-slate-200 bg-[#FFFFFF] focus:border-[#1A1A2E] focus:ring-[#1A1A2E]'}`}
           />
           <FieldMessage message={errors.completionYear?.message} />
         </div>
@@ -316,7 +465,7 @@ function BasicInfoStep({ register, errors }) {
           <input
             {...register('fundingSource')}
             placeholder="Funding agency or grant source"
-            className="w-full rounded-md border border-slate-200 bg-[#FFFFFF] p-3 text-sm placeholder:text-slate-400 outline-none transition focus:border-[#1A1A2E] focus:ring-1 focus:ring-[#1A1A2E]"
+            className={`w-full rounded-md border p-3 text-sm placeholder:text-slate-400 outline-none transition focus:ring-1 ${errors.fundingSource ? 'border-red-400 focus:border-red-400 focus:ring-red-400' : 'border-slate-200 bg-[#FFFFFF] focus:border-[#1A1A2E] focus:ring-[#1A1A2E]'}`}
           />
           <FieldMessage message={errors.fundingSource?.message} />
         </div>
@@ -328,7 +477,7 @@ function BasicInfoStep({ register, errors }) {
           <input
             {...register('publicationVenue')}
             placeholder="Journal, conference, repository, or current status"
-            className="w-full rounded-md border border-slate-200 bg-[#FFFFFF] p-3 text-sm placeholder:text-slate-400 outline-none transition focus:border-[#1A1A2E] focus:ring-1 focus:ring-[#1A1A2E]"
+            className={`w-full rounded-md border p-3 text-sm placeholder:text-slate-400 outline-none transition focus:ring-1 ${errors.publicationVenue ? 'border-red-400 focus:border-red-400 focus:ring-red-400' : 'border-slate-200 bg-[#FFFFFF] focus:border-[#1A1A2E] focus:ring-[#1A1A2E]'}`}
           />
           <FieldMessage message={errors.publicationVenue?.message} />
         </div>
@@ -345,6 +494,7 @@ function BasicInfoStep({ register, errors }) {
 }
 
 function TeamAffiliationStep({
+  control,
   register,
   errors,
   authorFields,
@@ -390,19 +540,33 @@ function TeamAffiliationStep({
                     <input
                       {...register(`authors.${index}.fullName`)}
                       placeholder="Author full name"
-                      className="w-full rounded-md border border-slate-200 bg-[#FFFFFF] p-3 text-sm placeholder:text-slate-400 outline-none transition focus:border-[#1A1A2E] focus:ring-1 focus:ring-[#1A1A2E]"
+                      className={`w-full rounded-md border p-3 text-sm placeholder:text-slate-400 outline-none transition focus:ring-1 ${errors.authors?.[index]?.fullName ? 'border-red-400 focus:border-red-400 focus:ring-red-400' : 'border-slate-200 bg-[#FFFFFF] focus:border-[#1A1A2E] focus:ring-[#1A1A2E]'}`}
                     />
                     <FieldMessage message={errors.authors?.[index]?.fullName?.message} />
                   </div>
 
                   <div className="space-y-2">
-                    <label className="mb-2 block text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                    <label className="mb-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">
                       ORCID iD
+                      <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium normal-case tracking-normal text-slate-400">optional</span>
                     </label>
-                    <input
-                      {...register(`authors.${index}.orcidId`)}
-                      placeholder="0000-0000-0000-0000"
-                      className="w-full rounded-md border border-slate-200 bg-[#FFFFFF] p-3 text-sm placeholder:text-slate-400 outline-none transition focus:border-[#1A1A2E] focus:ring-1 focus:ring-[#1A1A2E]"
+                    <Controller
+                      control={control}
+                      name={`authors.${index}.orcidId`}
+                      render={({ field: controllerField }) => (
+                        <input
+                          {...controllerField}
+                          value={controllerField.value ?? ''}
+                          onChange={(event) => {
+                            controllerField.onChange(
+                              formatOrcidInput(event.target.value),
+                            )
+                          }}
+                          placeholder="0000-0000-0000-0000"
+                          maxLength={19}
+                          className="w-full rounded-md border border-slate-200 bg-[#FFFFFF] p-3 text-sm placeholder:text-slate-400 outline-none transition focus:border-[#1A1A2E] focus:ring-1 focus:ring-[#1A1A2E]"
+                        />
+                      )}
                     />
                     <FieldMessage message={errors.authors?.[index]?.orcidId?.message} />
                   </div>
@@ -432,7 +596,7 @@ function TeamAffiliationStep({
             </label>
             <select
               {...register('principalInvestigator')}
-              className="w-full rounded-md border border-slate-200 bg-[#FFFFFF] p-3 text-sm outline-none transition focus:border-[#1A1A2E] focus:ring-1 focus:ring-[#1A1A2E]"
+              className={`w-full rounded-md border p-3 text-sm outline-none transition focus:ring-1 ${errors.principalInvestigator ? 'border-red-400 focus:border-red-400 focus:ring-red-400' : 'border-slate-200 bg-[#FFFFFF] focus:border-[#1A1A2E] focus:ring-[#1A1A2E]'}`}
             >
               <option value="">Select principal investigator</option>
               {authorOptions.map((option) => (
@@ -451,7 +615,7 @@ function TeamAffiliationStep({
             <input
               {...register('institutionalAffiliation')}
               readOnly
-              className="w-full rounded-md border border-slate-200 bg-slate-50 p-3 text-sm text-[#1A1A2E] outline-none"
+              className={`w-full rounded-md border p-3 text-sm text-[#1A1A2E] outline-none ${errors.institutionalAffiliation ? 'border-red-400' : 'border-slate-200 bg-slate-50'}`}
             />
             <FieldMessage message={errors.institutionalAffiliation?.message} />
           </div>
@@ -488,7 +652,7 @@ function KeywordsInput({
       <label className="mb-2 block text-[11px] font-bold uppercase tracking-wider text-slate-500">
         Keywords <span className="text-[#C9A84C]">*</span>
       </label>
-      <div className="rounded-md border border-slate-200 bg-[#FFFFFF] px-4 py-3 transition focus-within:border-[#1A1A2E] focus-within:ring-1 focus-within:ring-[#1A1A2E]">
+      <div className={`rounded-md border px-4 py-3 transition focus-within:ring-1 ${error ? 'border-red-400 focus-within:border-red-400 focus-within:ring-red-400' : 'border-slate-200 bg-[#FFFFFF] focus-within:border-[#1A1A2E] focus-within:ring-[#1A1A2E]'}`}>
         <div className="flex flex-wrap gap-2">
           {keywords.map((keyword) => (
             <span
@@ -547,9 +711,10 @@ function ResearchDetailsStep({
           </label>
           <textarea
             {...register('abstractText')}
+            id="field-abstractText"
             rows={9}
-            placeholder="Write a concise abstract describing the research context, methodology, and findings."
-            className="w-full rounded-md border border-slate-200 bg-[#FFFFFF] p-3 text-sm placeholder:text-slate-400 outline-none transition focus:border-[#1A1A2E] focus:ring-1 focus:ring-[#1A1A2E]"
+            placeholder="Write a concise abstract"
+            className={`w-full rounded-md border p-3 text-sm placeholder:text-slate-400 outline-none transition focus:ring-1 ${errors.abstractText ? 'border-red-400 focus:border-red-400 focus:ring-red-400' : 'border-slate-200 bg-[#FFFFFF] focus:border-[#1A1A2E] focus:ring-[#1A1A2E]'}`}
           />
           <div className="mt-1 flex justify-end">
             <span
@@ -588,8 +753,9 @@ function AttachmentDropzone({ attachment, onFileSelect, error }) {
 
   return (
     <div className="mt-4 space-y-2">
-      <label className="mb-2 block text-[11px] font-bold uppercase tracking-wider text-slate-500">
+      <label className="mb-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">
         Full Paper PDF
+        <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium normal-case tracking-normal text-slate-400">optional</span>
       </label>
       <div
         onDragOver={(event) => {
@@ -635,6 +801,7 @@ function AttachmentDropzone({ attachment, onFileSelect, error }) {
 }
 
 function DublinCoreMetadataStep({
+  control,
   register,
   errors,
   attachment,
@@ -651,9 +818,9 @@ function DublinCoreMetadataStep({
             </label>
             <select
               {...register('subjectDc')}
-              className="w-full rounded-md border border-slate-200 bg-[#FFFFFF] p-3 text-sm outline-none transition focus:border-[#1A1A2E] focus:ring-1 focus:ring-[#1A1A2E]"
-            >
-              <option value="">Select S&amp;T theme</option>
+              className={`w-full rounded-md border p-3 text-sm outline-none transition focus:ring-1 ${errors.subjectDc ? 'border-red-400 focus:border-red-400 focus:ring-red-400' : 'border-slate-200 bg-[#FFFFFF] focus:border-[#1A1A2E] focus:ring-[#1A1A2E]'}`}
+          >
+            <option value="">Select S&amp;T theme</option>
               {themeOptions.map((option) => (
                 <option key={option} value={option}>
                   {option}
@@ -670,9 +837,9 @@ function DublinCoreMetadataStep({
             <input
               {...register('coverageDc')}
               placeholder="Region VII, institution, or relevant locale"
-              className="w-full rounded-md border border-slate-200 bg-[#FFFFFF] p-3 text-sm placeholder:text-slate-400 outline-none transition focus:border-[#1A1A2E] focus:ring-1 focus:ring-[#1A1A2E]"
-            />
-            <FieldMessage message={errors.coverageDc?.message} />
+              className={`w-full rounded-md border p-3 text-sm placeholder:text-slate-400 outline-none transition focus:ring-1 ${errors.coverageDc ? 'border-red-400 focus:border-red-400 focus:ring-red-400' : 'border-slate-200 bg-[#FFFFFF] focus:border-[#1A1A2E] focus:ring-[#1A1A2E]'}`}
+          />
+          <FieldMessage message={errors.coverageDc?.message} />
           </div>
 
           <div className="space-y-2">
@@ -682,32 +849,58 @@ function DublinCoreMetadataStep({
             <input
               {...register('rightsDc')}
               placeholder="Copyright, usage notes, or permissions"
-              className="w-full rounded-md border border-slate-200 bg-[#FFFFFF] p-3 text-sm placeholder:text-slate-400 outline-none transition focus:border-[#1A1A2E] focus:ring-1 focus:ring-[#1A1A2E]"
-            />
-            <FieldMessage message={errors.rightsDc?.message} />
+              className={`w-full rounded-md border p-3 text-sm placeholder:text-slate-400 outline-none transition focus:ring-1 ${errors.rightsDc ? 'border-red-400 focus:border-red-400 focus:ring-red-400' : 'border-slate-200 bg-[#FFFFFF] focus:border-[#1A1A2E] focus:ring-[#1A1A2E]'}`}
+          />
+          <FieldMessage message={errors.rightsDc?.message} />
           </div>
 
           <div className="space-y-2">
-            <label className="mb-2 block text-[11px] font-bold uppercase tracking-wider text-slate-500">
+            <label className="mb-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">
               DOI
+              <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium normal-case tracking-normal text-slate-400">optional</span>
             </label>
-            <input
-              {...register('doi')}
-              placeholder="10.1234/example"
-              className="w-full rounded-md border border-slate-200 bg-[#FFFFFF] p-3 text-sm placeholder:text-slate-400 outline-none transition focus:border-[#1A1A2E] focus:ring-1 focus:ring-[#1A1A2E]"
+            <Controller
+              control={control}
+              name="doi"
+              render={({ field: controllerField }) => (
+                <input
+                  {...controllerField}
+                  value={controllerField.value ?? ''}
+                  onChange={(event) => {
+                    controllerField.onChange(
+                      formatDoiInput(event.target.value),
+                    )
+                  }}
+                  placeholder="10.1234/example"
+                  className="w-full rounded-md border border-slate-200 bg-[#FFFFFF] p-3 text-sm placeholder:text-slate-400 outline-none transition focus:border-[#1A1A2E] focus:ring-1 focus:ring-[#1A1A2E]"
+                />
+              )}
             />
             <FieldMessage message={errors.doi?.message} />
           </div>
         </div>
 
         <div className="space-y-2">
-          <label className="mb-2 block text-[11px] font-bold uppercase tracking-wider text-slate-500">
+          <label className="mb-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">
             Conference URL
+            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium normal-case tracking-normal text-slate-400">optional</span>
           </label>
-          <input
-            {...register('conferenceUrl')}
-            placeholder="https://conference.example.org/paper"
-            className="w-full rounded-md border border-slate-200 bg-[#FFFFFF] p-3 text-sm placeholder:text-slate-400 outline-none transition focus:border-[#1A1A2E] focus:ring-1 focus:ring-[#1A1A2E]"
+          <Controller
+            control={control}
+            name="conferenceUrl"
+            render={({ field: controllerField }) => (
+              <input
+                {...controllerField}
+                value={controllerField.value ?? ''}
+                onChange={(event) => {
+                  controllerField.onChange(
+                    formatConferenceUrlInput(event.target.value),
+                  )
+                }}
+                placeholder="https://conference.example.org/paper"
+                className="w-full rounded-md border border-slate-200 bg-[#FFFFFF] p-3 text-sm placeholder:text-slate-400 outline-none transition focus:border-[#1A1A2E] focus:ring-1 focus:ring-[#1A1A2E]"
+              />
+            )}
           />
           <FieldMessage message={errors.conferenceUrl?.message} />
         </div>
@@ -794,6 +987,7 @@ export default function SubmissionPortal({ onSubmitted }) {
   const [keywordInput, setKeywordInput] = useState('')
   const [submitError, setSubmitError] = useState('')
   const [fieldBanner, setFieldBanner] = useState('')
+  const [bannerErrors, setBannerErrors] = useState([])
   const [isFinalSubmitting, setIsFinalSubmitting] = useState(false)
   const [editSubmissionId, setEditSubmissionId] = useState(null)
 
@@ -865,6 +1059,7 @@ export default function SubmissionPortal({ onSubmitted }) {
   const resetWizard = () => {
     setSubmitError('')
     setFieldBanner('')
+    setBannerErrors([])
     setCurrentStep(1)
     setKeywordInput('')
     reset({
@@ -1016,7 +1211,18 @@ export default function SubmissionPortal({ onSubmitted }) {
   const handleContinue = async () => {
     const step = stepDefinitions.find((item) => item.id === currentStep)
     const isValid = await trigger(step?.fields, { shouldFocus: true })
-    if (!isValid) return
+    if (!isValid) {
+      const currentErrors = step?.fields
+        .map((field) => {
+          const err = errors[field]
+          if (!err) return null
+          return { field, message: err?.message || `${field} is invalid.` }
+        })
+        .filter(Boolean)
+      setBannerErrors(currentErrors)
+      return
+    }
+    setBannerErrors([])
     setCurrentStep((value) => Math.min(value + 1, stepDefinitions.length))
   }
 
@@ -1062,6 +1268,10 @@ export default function SubmissionPortal({ onSubmitted }) {
 
     if (mapped) {
       setFieldBanner('Please review the highlighted fields and correct the submission details.')
+      setBannerErrors(fieldErrors.map(item => ({
+        field: item?.field || item?.name || item?.path || '',
+        message: item?.message || item?.defaultMessage || item?.error || ''
+      })).filter(e => e.message))
     }
 
     return mapped
@@ -1069,98 +1279,93 @@ export default function SubmissionPortal({ onSubmitted }) {
 
   const maybeUploadAttachment = async (file) => {
     if (!file) return null
+    const token = await ensureFreshToken()
 
     try {
-      const uploadResponse = await apiClient.post('/submissions/upload-url', {
-        fileName: file.name,
-        contentType: file.type || 'application/pdf',
-      })
+      const formData = new FormData()
+      formData.append('file', file, file.name)
 
-      const uploadUrl =
-        uploadResponse.data?.uploadUrl ||
-        uploadResponse.data?.url ||
-        uploadResponse.data?.presignedUrl
+      const uploadResponse = await fetch(
+        'http://localhost:8080/api/v1/submissions/upload',
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          body: formData,
+        },
+      )
 
-      const fileKey =
-        uploadResponse.data?.fileKey ||
-        uploadResponse.data?.attachmentKey ||
-        uploadResponse.data?.s3Key ||
-        uploadResponse.data?.key ||
-        uploadResponse.data?.objectKey
-
-      if (!uploadUrl || !fileKey) {
-        throw new Error('Upload URL response is missing uploadUrl/fileKey.')
+      if (!uploadResponse.ok) {
+        throw new Error(`Failed to upload file: ${uploadResponse.status}`)
       }
 
-      const uploadResult = await fetch(uploadUrl, {
-        method: 'PUT',
-        body: file,
-        headers: {
-          'Content-Type': file.type || 'application/pdf',
-        },
-      })
+      const data = await uploadResponse.json()
+      console.log('DEBUG: Upload response data:', data);
+      const fileKey = data?.objectKey || data?.fileKey || data?.s3Key
+      const fileUrl = data?.uploadUrl || null
 
-      if (!uploadResult.ok) {
-        throw new Error('Failed to upload file to S3 storage.')
+      if (!fileKey && !fileUrl) {
+        throw new Error('Upload response is missing fileKey/fileUrl.')
       }
 
       return {
         fileName: file.name,
-        fileKey,
+        fileKey: fileKey,
+        fileUrl,
       }
     } catch (error) {
-      if ([404, 405, 501].includes(error?.response?.status)) {
-        return {
-          fileName: file.name,
-        }
-      }
-
+      console.error('DEBUG: File Upload Failed:', error)
+      if (error?.response) console.error('DEBUG: Response:', error.response.data)
       throw error
     }
   }
 
   const submitToBackend = async (values) => {
-    const attachmentMeta = await maybeUploadAttachment(values.attachment)
+    let attachmentMeta = null
 
+    try {
+      attachmentMeta = await maybeUploadAttachment(values.attachment)
+      if (values.attachment && !attachmentMeta) {
+        alert('Failed to upload attachment. Please try again.')
+        throw new Error('Attachment upload failed.')
+      }
+    } catch (error) {
+      alert('Failed to upload attachment. Please try again.')
+      throw error
+    }
+ 
     const aggregatePayload = {
       title: values.title,
       researchType: values.researchType,
       completionYear: values.completionYear,
       fundingSource: values.fundingSource,
-      publicationVenueStatus: values.publicationVenue,
+      publicationVenue: values.publicationVenue,
       principalInvestigator: values.principalInvestigator,
       institutionalAffiliation: values.institutionalAffiliation,
       authors: values.authors,
       abstractText: values.abstractText,
       keywords: values.keywords,
-      subjectDc: values.subjectDc,
+      sAndTTheme: values.subjectDc,
       coverageDc: values.coverageDc,
       rightsDc: values.rightsDc,
       doi: values.doi || null,
       conferenceUrl: values.conferenceUrl || null,
-      attachment: attachmentMeta,
-      attachmentKey: attachmentMeta?.fileKey || attachmentMeta?.s3Key || null,
-    }
-
-    try {
-      if (editSubmissionId) {
-        return await apiClient.put(`/submissions/${editSubmissionId}`, aggregatePayload)
+      attachmentKey: attachmentMeta?.fileKey || null,
+    };
+ 
+    // Explicitly get token and add to headers
+    const token = localStorage.getItem('token');
+    
+    // Use axios directly to be absolutely sure of the headers
+    const response = await axios.post('http://localhost:8080/api/v1/submissions', aggregatePayload, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
       }
-
-      return await apiClient.post('/submissions', aggregatePayload)
-    } catch (error) {
-      const status = error?.response?.status
-      if (!editSubmissionId && [403, 404, 405, 501].includes(status)) {
-        return apiClient.post('/research/submit', {
-          title: values.title,
-          abstractText: values.abstractText,
-          authors: values.authors.map((author) => author.fullName.trim()),
-          sAndTTheme: values.subjectDc,
-        })
-      }
-      throw error
-    }
-  }
+    });
+    return response;
+  };
 
   const onFinalSubmit = async (values) => {
     setSubmitError('')
@@ -1172,11 +1377,11 @@ export default function SubmissionPortal({ onSubmitted }) {
       resetWizard()
       onSubmitted?.()
     } catch (error) {
+      console.error('Submission error:', error)
       if (error?.response?.status === 422 && applyBackendFieldErrors(error)) {
         setSubmitError('Submission validation failed.')
       } else {
         const status = error?.response?.status
-        const localToken = localStorage.getItem('token')
         const message = extractApiErrorMessage(
           error,
           status === 401
@@ -1186,17 +1391,6 @@ export default function SubmissionPortal({ onSubmitted }) {
               : 'Unable to submit the research output right now.',
         )
         setSubmitError(message)
-        if (status === 401) {
-          const hint = localToken
-            ? `A token was attached, but the server still returned 401. This usually means the backend rejected the JWT (invalid signature/expired/wrong secret/issuer).${error?.response?.data?.detail ? `\n\nBackend detail: ${error.response.data.detail}` : ''}`
-            : 'No token was attached. This means the frontend does not have a saved token (login did not store it).'
-          alert(`${message}\n\n${hint}`)
-          navigate('/login', {
-            state: { successMessage: 'Please sign in to continue your submission.' },
-          })
-        } else if (status === 403) {
-          alert(message)
-        }
       }
     } finally {
       setIsFinalSubmitting(false)
@@ -1205,9 +1399,11 @@ export default function SubmissionPortal({ onSubmitted }) {
 
   const onFinalSubmitError = (formErrors) => {
     console.error('Zod Validation Blocked Submission:', formErrors)
-    alert(
-      'Cannot submit: Please check previous steps for validation errors (e.g., minimum keyword counts, missing fields, or invalid formats). Check the console for exact fields.',
-    )
+    const errors = Object.entries(formErrors).map(([field, error]) => ({
+      field,
+      message: error?.message || `${field} is invalid.`
+    }))
+    setBannerErrors(errors)
   }
 
   const renderStep = () => {
@@ -1217,6 +1413,7 @@ export default function SubmissionPortal({ onSubmitted }) {
       case 2:
         return (
           <TeamAffiliationStep
+            control={control}
             register={register}
             errors={errors}
             authorFields={authorFields}
@@ -1241,6 +1438,7 @@ export default function SubmissionPortal({ onSubmitted }) {
       case 4:
         return (
           <DublinCoreMetadataStep
+            control={control}
             register={register}
             errors={errors}
             attachment={watchedAttachment}
@@ -1282,9 +1480,9 @@ export default function SubmissionPortal({ onSubmitted }) {
         <div className="px-8 py-6">
           <StepProgress currentStep={currentStep} />
 
-          {(submitError || fieldBanner) ? (
+          {submitError ? (
             <div className="mt-5 rounded-[8px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {fieldBanner || submitError}
+              {submitError}
             </div>
           ) : null}
 
@@ -1295,6 +1493,15 @@ export default function SubmissionPortal({ onSubmitted }) {
             {renderStep()}
           </div>
         </div>
+
+        {bannerErrors.length > 0 ? (
+          <div className="px-8">
+            <ErrorSummaryBanner
+              errors={bannerErrors}
+              onDismiss={() => setBannerErrors([])}
+            />
+          </div>
+        ) : null}
 
         <div className="mt-8 flex items-center justify-between border-t border-slate-100 px-8 pb-6 pt-4">
           <button

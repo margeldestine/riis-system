@@ -59,7 +59,7 @@ public class SubmissionService {
 			));
 		}
 
-		ValidationResult validationResult = validationService.validate(dto);
+		ValidationResult validationResult = validationService.validate(dto, institution.getId());
 		if (!validationResult.passed()) {
 			throw new SubmissionValidationException(validationResult.errors());
 		}
@@ -83,10 +83,12 @@ public class SubmissionService {
 				.keywords(keywords)
 				.doi(dto.doi() == null ? null : dto.doi().trim())
 				.subjectDc(dto.sAndTTheme())
+				.coverageDc(dto.coverageDc())
+				.rightsDc(dto.rightsDc())
 				.researchType(isBlank(dto.researchType()) ? DEFAULT_RESEARCH_TYPE : dto.researchType().trim())
 				.fundingSource(dto.fundingSource())
 				.publicationVenue(dto.publicationVenue())
-				.s3PdfKey(dto.s3PdfKey())
+				.s3PdfKey(dto.attachmentKey())
 				.status(STATUS_PENDING_REVIEW)
 				.authors(authors)
 				.build();
@@ -109,8 +111,25 @@ public class SubmissionService {
 	}
 
 	@Transactional(readOnly = true)
-	public Page<SubmissionSummaryDTO> listSubmissions(String userId, SubmissionFilterDTO filter, Pageable pageable) {
+	public Page<SubmissionSummaryDTO> listSubmissions(String userId, SubmissionFilterDTO filter, Pageable pageable, String keyword) {
 		String institutionId = getInstitutionIdForUser(userId);
+
+		if (!isBlank(keyword)) {
+			return researchOutputRepository.findByInstitutionIdAndTitleContainingIgnoreCaseOrAuthorsContainingIgnoreCase(
+					institutionId,
+					keyword.trim(),
+					keyword.trim(),
+					pageable
+			).map(output -> new SubmissionSummaryDTO(
+					output.getId(),
+					output.getReferenceNumber(),
+					output.getTitle(),
+					output.getResearchType(),
+					output.getCompletionYear(),
+					output.getCreatedAt(),
+					output.getStatus()
+			));
+		}
 
 		var spec = SubmissionSpecifications.forInstitution(institutionId)
 				.and(SubmissionSpecifications.withFilters(filter));
@@ -154,6 +173,8 @@ public class SubmissionService {
 				output.getReferenceNumber(),
 				output.getTitle(),
 				output.getResearchType(),
+				output.getFundingSource(),
+				output.getPublicationVenue(),
 				output.getCompletionYear(),
 				output.getCreatedAt(),
 				output.getStatus(),
@@ -197,7 +218,7 @@ public class SubmissionService {
 			throw new ResponseStatusException(HttpStatus.CONFLICT, "Submission is not in REQUIRES_CORRECTION status.");
 		}
 
-		ValidationResult validationResult = validationService.validate(dto);
+		ValidationResult validationResult = validationService.validate(dto, institution.getId());
 		if (!validationResult.passed()) {
 			throw new SubmissionValidationException(validationResult.errors());
 		}
@@ -207,10 +228,12 @@ public class SubmissionService {
 		output.setAbstractText(dto.abstractText().trim());
 		output.setDoi(dto.doi() == null ? null : dto.doi().trim());
 		output.setSubjectDc(dto.sAndTTheme());
+		output.setCoverageDc(dto.coverageDc());
+		output.setRightsDc(dto.rightsDc());
 		output.setResearchType(isBlank(dto.researchType()) ? DEFAULT_RESEARCH_TYPE : dto.researchType().trim());
 		output.setFundingSource(dto.fundingSource());
 		output.setPublicationVenue(dto.publicationVenue());
-		output.setS3PdfKey(dto.s3PdfKey());
+		output.setS3PdfKey(dto.attachmentKey());
 		output.setKeywords(dto.keywords() == null ? null : dto.keywords().stream()
 				.filter(value -> value != null && !value.isBlank())
 				.map(String::trim)
@@ -255,6 +278,23 @@ public class SubmissionService {
 			throw new ResourceNotFoundException("Institution not found for user: " + userId);
 		}
 		return institution.getId();
+	}
+
+	@Transactional(readOnly = true)
+	public String getSubmissionAttachmentKey(String userId, String submissionId) {
+		String institutionId = getInstitutionIdForUser(userId);
+
+		var spec = SubmissionSpecifications.forInstitution(institutionId)
+				.and((root, query, cb) -> cb.equal(root.get("id"), submissionId));
+
+		ResearchOutput output = researchOutputRepository.findOne(spec)
+				.orElseThrow(() -> new ResourceNotFoundException("Submission not found: " + submissionId));
+
+		String attachmentKey = output.getS3PdfKey();
+		if (attachmentKey == null || attachmentKey.isBlank()) {
+			throw new ResourceNotFoundException("No attachment found for submission: " + submissionId);
+		}
+		return attachmentKey;
 	}
 
 	private Set<Author> mapAuthors(List<SubmissionAuthorRequest> authors) {

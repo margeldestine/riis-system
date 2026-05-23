@@ -9,14 +9,26 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
 import org.springframework.stereotype.Service;
+import com.geeks.riis_backend.repository.ResearchOutputRepository;
+import java.util.Set;
 
 @Service
 public class ValidationService {
 
+    private final ResearchOutputRepository researchOutputRepository;
+
+    public ValidationService(ResearchOutputRepository researchOutputRepository) {
+        this.researchOutputRepository = researchOutputRepository;
+    }
+
 	private static final Pattern DOI_PATTERN = Pattern.compile("^10\\.\\d{4,9}/[-._;()/:A-Z0-9]+$", Pattern.CASE_INSENSITIVE);
 	private static final Pattern ORCID_PATTERN = Pattern.compile("^\\d{4}-\\d{4}-\\d{4}-\\d{3}[\\dX]$", Pattern.CASE_INSENSITIVE);
 
-	public ValidationResult validate(SubmissionRequest dto) {
+	private static final Set<String> ALLOWED_RESEARCH_TYPES = Set.of(
+			"Funded Project", "Journal Article", "Conference Paper", "Innovation Output", "Community Extension Research"
+	);
+
+	public ValidationResult validate(SubmissionRequest dto, String institutionId) {
 		List<FieldError> errors = new ArrayList<>();
 
 		if (dto == null) {
@@ -57,6 +69,10 @@ public class ValidationService {
 			errors.add(new FieldError("keywords", "Keywords must contain 3 to 10 items."));
 		}
 
+		if (!isBlank(dto.researchType()) && !ALLOWED_RESEARCH_TYPES.contains(dto.researchType().trim())) {
+			errors.add(new FieldError("researchType", "Research type must be one of: Funded Project, Journal Article, Conference Paper, Innovation Output, Community Extension Research."));
+		}
+
 		if (!isBlank(dto.doi()) && !DOI_PATTERN.matcher(dto.doi().trim()).matches()) {
 			errors.add(new FieldError("doi", "DOI format is invalid."));
 		}
@@ -81,6 +97,15 @@ public class ValidationService {
 				if (!isBlank(author.orcid()) && !ORCID_PATTERN.matcher(author.orcid().trim()).matches()) {
 					errors.add(new FieldError("authors[" + i + "].orcid", "ORCID format is invalid."));
 				}
+			}
+		}
+
+		if (!isBlank(dto.title()) && institutionId != null) {
+			long duplicateCount = researchOutputRepository.countByTitleIgnoreCaseAndInstitutionIdAndStatusNot(
+					dto.title().trim(), institutionId, "ARCHIVED"
+			);
+			if (duplicateCount > 0) {
+				errors.add(new FieldError("title", "A research output with this title already exists in your institution. Please verify this is not a duplicate."));
 			}
 		}
 

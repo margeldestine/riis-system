@@ -17,6 +17,8 @@ public interface InstitutionRepository extends JpaRepository<Institution, String
 
 	List<Institution> findByWhitelistStatus(String whitelistStatus);
 
+    List<Institution> findByProvinceIgnoreCase(String province);
+
 	@Query("select new com.geeks.riis_backend.dto.InstitutionDropdownItem(i.id, i.name, i.emailDomain) from Institution i where i.whitelistStatus = 'ACTIVE' order by i.name asc")
 	List<InstitutionDropdownItem> findActiveDropdownItems();
 }

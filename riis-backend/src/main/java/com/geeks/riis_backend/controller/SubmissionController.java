@@ -12,8 +12,10 @@ import com.geeks.riis_backend.service.SubmissionService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -39,6 +41,7 @@ public class SubmissionController {
 	}
 
 	@PostMapping
+	@PreAuthorize("hasAnyAuthority('HEI_STAFF', 'ROLE_HEI_STAFF')")
 	public ResponseEntity<SubmissionResponse> createSubmission(@RequestBody SubmissionRequest request) {
 		String userId = getAuthenticatedUserId();
 		SubmissionResponse response = submissionService.submit(userId, request);
@@ -46,37 +49,69 @@ public class SubmissionController {
 	}
 
 	@PostMapping("/upload-url")
+	@PreAuthorize("hasAnyAuthority('HEI_STAFF', 'ROLE_HEI_STAFF')")
 	public ResponseEntity<UploadUrlResponse> createUploadUrl(@RequestBody UploadUrlRequest request) {
 		String userId = getAuthenticatedUserId();
 		String institutionId = submissionService.getInstitutionIdForUser(userId);
+
+		// Proper logging (imports should be at the top of the file)
+		org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(SubmissionController.class);
+		logger.info("Controller: Current authorities: " + SecurityContextHolder.getContext().getAuthentication().getAuthorities());
 
 		S3UploadService.PresignedUpload presigned = s3UploadService.createPresignedPutUrl(
 				institutionId,
 				request == null ? null : request.fileName(),
 				request == null ? null : request.contentType()
 		);
-
 		return ResponseEntity.ok(new UploadUrlResponse(presigned.uploadUrl(), presigned.objectKey()));
 	}
 
+	@PostMapping("/upload")
+	@PreAuthorize("hasAnyAuthority('HEI_STAFF', 'ROLE_HEI_STAFF')")
+	public ResponseEntity<UploadUrlResponse> uploadFile(@RequestParam("file") org.springframework.web.multipart.MultipartFile file) {
+		String userId = getAuthenticatedUserId();
+		String institutionId = submissionService.getInstitutionIdForUser(userId);
+
+		S3UploadService.PresignedUpload upload = s3UploadService.uploadFile(institutionId, file);
+		return ResponseEntity.ok(new UploadUrlResponse(upload.uploadUrl(), upload.objectKey()));
+	}
+
 	@GetMapping
+	@PreAuthorize("hasAnyAuthority('HEI_STAFF', 'ROLE_HEI_STAFF')")
 	public ResponseEntity<Page<SubmissionSummaryDTO>> listSubmissions(
-			@RequestParam(defaultValue = "0") int page,
-			@RequestParam(defaultValue = "20") int size,
+			@RequestParam(required = false) String keyword,
+			Pageable pageable,
 			SubmissionFilterDTO filter
 	) {
 		String userId = getAuthenticatedUserId();
-		Pageable pageable = PageRequest.of(Math.max(page, 0), Math.min(Math.max(size, 1), 200));
-		return ResponseEntity.ok(submissionService.listSubmissions(userId, filter, pageable));
+		Pageable safePageable = PageRequest.of(
+				Math.max(pageable == null ? 0 : pageable.getPageNumber(), 0),
+				Math.min(Math.max(pageable == null ? 20 : pageable.getPageSize(), 1), 200),
+				(pageable == null || pageable.getSort() == null || pageable.getSort().isUnsorted())
+						? Sort.by(Sort.Direction.DESC, "createdAt")
+						: pageable.getSort()
+		);
+		return ResponseEntity.ok(submissionService.listSubmissions(userId, filter, safePageable, keyword));
 	}
 
 	@GetMapping("/{id}")
+	@PreAuthorize("hasAnyAuthority('HEI_STAFF', 'ROLE_HEI_STAFF')")
 	public ResponseEntity<SubmissionDetailDTO> getSubmissionById(@PathVariable("id") String id) {
 		String userId = getAuthenticatedUserId();
 		return ResponseEntity.ok(submissionService.getSubmissionDetail(userId, id));
 	}
 
+	@GetMapping("/{id}/download-url")
+	@PreAuthorize("hasAnyAuthority('HEI_STAFF', 'ROLE_HEI_STAFF')")
+	public ResponseEntity<DownloadUrlResponse> getDownloadUrl(@PathVariable("id") String id) {
+		String userId = getAuthenticatedUserId();
+		String attachmentKey = submissionService.getSubmissionAttachmentKey(userId, id);
+		String downloadUrl = s3UploadService.generateDownloadUrl(attachmentKey);
+		return ResponseEntity.ok(new DownloadUrlResponse(downloadUrl));
+	}
+
 	@PutMapping("/{id}")
+	@PreAuthorize("hasAnyAuthority('HEI_STAFF', 'ROLE_HEI_STAFF')")
 	public ResponseEntity<SubmissionResponse> resubmit(@PathVariable("id") String id, @RequestBody SubmissionRequest request) {
 		String userId = getAuthenticatedUserId();
 		return ResponseEntity.ok(submissionService.resubmit(userId, id, request));
@@ -94,4 +129,6 @@ public class SubmissionController {
 		}
 		return userId;
 	}
+
+	public record DownloadUrlResponse(String downloadUrl) {}
 }

@@ -26,7 +26,7 @@ public class JwtService {
 	public JwtService(
 			@Value("${jwt.secret:${app.security.jwt.secret}}") String secret,
 			@Value("${app.security.jwt.issuer}") String issuer,
-			@Value("${app.security.jwt.access-token-ttl-seconds:86400}") long accessTokenTtlSeconds
+			@Value("${app.security.jwt.access-token-ttl-seconds:3600}") long accessTokenTtlSeconds
 	) {
 		this.issuer = issuer;
 		this.accessTokenTtlSeconds = accessTokenTtlSeconds;

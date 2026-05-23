@@ -168,12 +168,8 @@ export default function SubmissionDetailsDrawer({
               <DetailRow label="Type" value={details.researchType || details.type} />
               <DetailRow label="Completion Year" value={details.completionYear || details.year} />
               <DetailRow
-                label="Venue"
+                label="Publication Venue"
                 value={details.publicationVenue || details.publicationVenueStatus}
-              />
-              <DetailRow
-                label="Submission Date"
-                value={formatDate(details.submittedAt || details.createdAt || details.submissionDate)}
               />
               <DetailRow
                 label="Authors"
@@ -183,6 +179,10 @@ export default function SubmissionDetailsDrawer({
                       .filter(Boolean)
                       .join(', ')
                   : details.authors}
+              />
+              <DetailRow
+                label="Submitted At"
+                value={formatDate(details.submittedAt || details.createdAt || details.submissionDate)}
               />
               <DetailRow label="Abstract" value={details.abstractText || details.abstract} />
               {details.doi ? (

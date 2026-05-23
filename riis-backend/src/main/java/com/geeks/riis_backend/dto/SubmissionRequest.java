@@ -13,5 +13,10 @@ public record SubmissionRequest(
 		String researchType,
 		String fundingSource,
 		String publicationVenue,
-		String s3PdfKey
+		String coverageDc,
+		String rightsDc,
+		String conferenceUrl,
+		String principalInvestigator,
+		String institutionalAffiliation,
+		String attachmentKey
 ) {}
