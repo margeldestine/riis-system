@@ -127,21 +127,25 @@ export default function ResearchOutputDetailPage() {
           </button>
         </div>
         <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => navigate('/login')}
-            className="text-sm font-semibold text-[#1A1A2E] hover:text-slate-600"
-          >
-            Login
-          </button>
-          <button
-            type="button"
-            onClick={() => navigate('/register')}
-            className="rounded-lg bg-[#1A1A2E] px-4 py-2 text-sm font-semibold text-white hover:bg-[#11111f] transition"
-          >
-            Register
-          </button>
-        </div>
+        {!localStorage.getItem('token') && (
+          <>
+            <button
+              type="button"
+              onClick={() => navigate('/login')}
+              className="text-sm font-semibold text-[#1A1A2E] hover:text-slate-600"
+            >
+              Login
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate('/register')}
+              className="rounded-lg bg-[#1A1A2E] px-4 py-2 text-sm font-semibold text-white hover:bg-[#11111f] transition"
+            >
+              Register
+            </button>
+          </>
+        )}
+      </div>
       </nav>
 
 
