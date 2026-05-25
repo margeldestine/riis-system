@@ -149,6 +149,15 @@ export default function Register() {
       const response = await apiClient.post('/auth/register', registrationPayload)
 
       if (response.status === 201) {
+        const institutionName = (selectedInstitution?.name || '').trim()
+        const roleLabel = (position || '').trim()
+        if (institutionName) {
+          localStorage.setItem('pendingInstitutionName', institutionName)
+        }
+        if (roleLabel) {
+          localStorage.setItem('pendingUserRole', roleLabel)
+        }
+
         navigate('/login', {
           state: {
             successMessage:

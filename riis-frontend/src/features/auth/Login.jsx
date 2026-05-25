@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import Input from '../../components/Input'
+import '@fontsource/inter'
+import '@fontsource/libre-baskerville'
 import apiClient from '../../services/apiClient'
 import dostLogo from '../../assets/dost-logo.png'
-import bgImage from '../../assets/register-background.png'
 
 const pendingApprovalMessage =
   'Your HEI account is still pending DOST approval. Please wait for admin approval before signing in.'
@@ -54,6 +54,17 @@ function extractTokenFromResponse(data) {
   return typeof token === 'string'
     ? token.replace(/^Bearer\s+/i, '').trim()
     : ''
+}
+
+function toDisplayRole(value) {
+  if (!value) return ''
+  const raw = String(value).trim()
+  if (!raw) return ''
+  return raw
+    .replace(/^ROLE_/, '')
+    .replace(/_/g, ' ')
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase())
 }
 
 export default function Login() {
@@ -130,6 +141,39 @@ export default function Login() {
         const isHeiDomain =
           /(^|\.)edu(\.|$)/.test(domain) || /(^|\.)ac\.ph$/.test(domain)
 
+        if (isHeiRole || isHeiDomain) {
+          const pendingInstitutionName =
+            localStorage.getItem('pendingInstitutionName') || ''
+          const pendingUserRole = localStorage.getItem('pendingUserRole') || ''
+          const institutionName = (
+            response.data?.institutionName ||
+            response.data?.institution ||
+            response.data?.organization ||
+            pendingInstitutionName
+          ).toString().trim()
+
+          const positionOrRole = (
+            response.data?.position ||
+            response.data?.designation ||
+            response.data?.jobTitle ||
+            pendingUserRole ||
+            response.data?.role ||
+            ''
+          ).toString().trim()
+
+          if (institutionName) {
+            localStorage.setItem('institutionName', institutionName)
+            localStorage.setItem('userInstitution', institutionName)
+          }
+
+          if (positionOrRole) {
+            localStorage.setItem('userRole', toDisplayRole(positionOrRole))
+          }
+
+          localStorage.removeItem('pendingInstitutionName')
+          localStorage.removeItem('pendingUserRole')
+        }
+
         if (isDostRole || isDostDomain) {
           navigate('/dost/dashboard')
         } else if (isHeiRole || isHeiDomain) {
@@ -149,15 +193,27 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen bg-white font-sans text-gray-900">
+    <div
+      className="min-h-screen bg-white text-gray-900"
+      style={{ fontFamily: "'Inter', sans-serif", fontSize: 13, lineHeight: 1.4 }}
+    >
       <div className="mx-auto grid min-h-screen w-full grid-cols-1 lg:grid-cols-2">
-        <section className="relative flex flex-col justify-between overflow-hidden border-r-2 border-[#caa03b] bg-[#0d2847] p-10">
-          <img
-            src={bgImage}
-            alt=""
-            className="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-25"
+        <section className="relative flex flex-col justify-between overflow-hidden border-r-2 border-[#c9a84c] bg-[#0d1f3c] p-10">
+          <div
+            className="pointer-events-none absolute inset-0"
+            style={{
+              backgroundImage: 'url(/DOST_Building.png)',
+              backgroundSize: 'cover',
+              backgroundPosition: '50% 30%',
+              opacity: 1,
+            }}
           />
-          <div className="relative z-10 flex flex-col items-center justify-center gap-12 h-full text-center">
+          <div
+            className="pointer-events-none absolute inset-0"
+            style={{ background: 'rgba(13, 31, 60, 0.75)' }}
+          />
+
+          <div className="relative z-10 flex h-full flex-col">
             <div className="flex items-center gap-4">
               <img
                 src={dostLogo}
@@ -165,50 +221,57 @@ export default function Login() {
                 className="h-10 w-10 object-contain"
               />
               <div className="leading-tight">
-                <p className="text-xs font-medium uppercase tracking-widest text-white/90">
+                <p className="text-[11px] font-medium uppercase tracking-widest text-white/90">
                   Republic of the Philippines
                 </p>
-                <p className="text-xs tracking-wide text-white/60">
+                <p className="text-[11px] tracking-wide text-white/60">
                   DASIG Research Information System
                 </p>
               </div>
             </div>
-              <div className="max-w-xl flex flex-col items-center text-center">
-              <div className="mb-6 h-px w-14 bg-white/20" />
-              <p className="mb-4 text-xs font-semibold uppercase tracking-[0.28em] text-[#e8a020]">
-                DOST Research Information System
-              </p>
-              <h1 className="text-5xl font-semibold leading-[1.05] tracking-tight text-white">
+
+            <div className="mt-16 max-w-xl text-left">
+              <div className="flex items-center gap-4">
+                <div className="h-px w-10 bg-[#c9a84c]" />
+                <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#c9a84c]">
+                  DOST Research Information System
+                </p>
+              </div>
+
+              <h1
+                className="mt-6 text-[46px] font-bold leading-[1.06] tracking-tight text-white"
+                style={{ fontFamily: "'Libre Baskerville', serif" }}
+              >
                 Higher Education
                 <br />
                 Institution Research
                 <br />
                 Submission Portal
               </h1>
-              <p className="mt-6 max-w-md text-sm leading-relaxed text-white/60">
+              <p className="mt-6 max-w-md text-[13px] leading-relaxed text-white/70">
                 A centralized platform for HEI Research Office staff to submit,
                 validate, and track research outputs in compliance with DOST
                 reporting standards.
               </p>
+            </div>
 
-              <div className="mt-10 flex justify-center gap-10">
-                <div className="text-center">
-                  <p className="text-2xl font-semibold text-white">0</p>
-                  <p className="text-[11px] font-medium uppercase tracking-widest text-white/50">
+            <div className="mt-auto pt-14">
+              <div className="flex gap-10">
+                <div className="text-left">
+                  <p className="text-xl font-semibold text-white">0</p>
+                  <p className="text-[10px] font-medium uppercase tracking-widest text-white/50">
                     Submissions
                   </p>
                 </div>
-                <div className="text-center">
-                  <p className="text-2xl font-semibold text-white">0</p>
-                  <p className="text-[11px] font-medium uppercase tracking-widest text-white/50">
+                <div className="text-left">
+                  <p className="text-xl font-semibold text-white">0</p>
+                  <p className="text-[10px] font-medium uppercase tracking-widest text-white/50">
                     Institutions
                   </p>
                 </div>
-                <div className="text-center">
-                  <p className="text-2xl font-semibold text-emerald-400">
-                    Active
-                  </p>
-                  <p className="text-[11px] font-medium uppercase tracking-widest text-white/50">
+                <div className="text-left">
+                  <p className="text-xl font-semibold text-white">Active</p>
+                  <p className="text-[10px] font-medium uppercase tracking-widest text-white/50">
                     AY 2025–2026
                   </p>
                 </div>
@@ -217,17 +280,17 @@ export default function Login() {
               <div className="mt-10">
                 <button
                   type="button"
-                  className="h-12 w-full max-w-sm rounded-md bg-white/95 px-6 text-sm font-semibold text-[#0d2847] shadow-sm transition hover:bg-white"
+                  className="h-11 w-full rounded-md border border-white/80 bg-transparent px-6 text-sm font-semibold text-white transition hover:bg-white/10"
                   onClick={() => navigate('/register')}
                 >
                   Register now
                 </button>
               </div>
             </div>
-            </div>
+          </div>
         </section>
 
-        <section className="flex items-center bg-[#f8fafc] px-10 py-12 lg:px-16">
+        <section className="flex items-center bg-white px-10 py-12 lg:px-16">
           <div className="mx-auto w-full max-w-md">
             {error ? (
               <div className="mb-6 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -239,41 +302,52 @@ export default function Login() {
                 {successMessage}
               </div>
             ) : null}
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-gray-400">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-gray-400">
               Secure Access
             </p>
-            <h2 className="mt-2 text-[28px] font-semibold leading-tight tracking-tight text-gray-900">
+            <h2
+              className="mt-2 text-[34px] font-bold leading-tight tracking-tight text-[#0d1f3c]"
+              style={{ fontFamily: "'Libre Baskerville', serif" }}
+            >
               Sign In to Your Account
             </h2>
-            <p className="mt-2 text-sm text-gray-500">
+            <p className="mt-2 text-[13px] text-gray-500">
               Enter your institutional credentials to continue.
             </p>
 
             <form onSubmit={handleSubmit} className="mt-10 flex flex-col gap-6">
-              <Input
-                id="email"
-                name="email"
-                label="Institutional Email Address"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="name@university.edu"
-                autoComplete="email"
-                required
-                disabled={isSubmitting}
-              />
+              <div className="flex flex-col gap-2">
+                <label
+                  htmlFor="email"
+                  className="text-[11px] font-medium uppercase tracking-widest text-gray-500"
+                >
+                  Institutional Email Address
+                </label>
+                <input
+                  id="email"
+                  name="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="name@university.edu"
+                  autoComplete="email"
+                  required
+                  disabled={isSubmitting}
+                  className="w-full rounded-[6px] border border-[#d1d5db] bg-white px-4 py-3 text-[14px] text-gray-900 placeholder:text-gray-400 outline-none transition focus:border-[#0d1f3c] focus:ring-2 focus:ring-[#0d1f3c]/15 disabled:cursor-not-allowed disabled:bg-gray-100"
+                />
+              </div>
 
               <div className="flex flex-col gap-2">
                 <div className="flex items-center justify-between">
                   <label
                     htmlFor="password"
-                    className="text-xs font-medium uppercase tracking-widest text-gray-500"
+                    className="text-[11px] font-medium uppercase tracking-widest text-gray-500"
                   >
                     Password
                   </label>
                   <button
                     type="button"
-                    className="text-xs font-medium text-[#0b2a53] hover:underline"
+                    className="text-[11px] font-semibold text-[#0d1f3c] hover:underline"
                     onClick={() => {}}
                   >
                     Forgot password?
@@ -289,7 +363,7 @@ export default function Login() {
                   autoComplete="current-password"
                   required
                   disabled={isSubmitting}
-                  className="h-12 w-full rounded-md border border-gray-200 bg-white px-4 text-sm text-gray-900 placeholder:text-gray-400 outline-none transition focus:border-[#1a5fa8] focus:ring-2 focus:ring-[#1a5fa8]/20 disabled:cursor-not-allowed disabled:bg-gray-100"
+                  className="w-full rounded-[6px] border border-[#d1d5db] bg-white px-4 py-3 text-[14px] text-gray-900 placeholder:text-gray-400 outline-none transition focus:border-[#0d1f3c] focus:ring-2 focus:ring-[#0d1f3c]/15 disabled:cursor-not-allowed disabled:bg-gray-100"
                 />
               </div>
 
@@ -299,10 +373,10 @@ export default function Login() {
                   type="checkbox"
                   checked={rememberMe}
                   onChange={(e) => setRememberMe(e.target.checked)}
-                  className="h-4 w-4 rounded border-gray-300 text-[#0b2a53] focus:ring-[#0b2a53]/20"
+                  className="h-4 w-4 rounded border-gray-300 text-[#0d1f3c] focus:ring-[#0d1f3c]/20"
                   disabled={isSubmitting}
                 />
-                <label htmlFor="rememberMe" className="text-sm text-gray-500">
+                <label htmlFor="rememberMe" className="text-[13px] text-gray-500">
                   remember me
                 </label>
               </div>
@@ -310,18 +384,18 @@ export default function Login() {
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="h-12 w-full rounded-md bg-[#0b2a53] px-6 text-sm font-semibold text-white shadow-sm transition hover:bg-[#092345] disabled:cursor-not-allowed disabled:opacity-70"
+                className="h-11 w-full rounded-[6px] bg-[#0d1f3c] px-6 text-sm font-semibold text-white shadow-sm transition hover:bg-[#0b1a33] disabled:cursor-not-allowed disabled:opacity-70"
               >
                 {isSubmitting ? 'Signing In…' : 'Sign In'}
               </button>
             </form>
 
             <div className="mt-10 border-t border-gray-200 pt-8 text-center">
-              <p className="text-sm text-gray-500">
+              <p className="text-[13px] text-gray-500">
                 Don&apos;t have an account?{' '}
                 <button
                   type="button"
-                  className="font-semibold text-[#0b2a53] hover:underline"
+                  className="font-semibold text-[#0d1f3c] hover:underline"
                   onClick={() => navigate('/register')}
                 >
                   Register your institution
@@ -330,7 +404,7 @@ export default function Login() {
             </div>
 
             <div className="mt-10 border-t border-gray-200 pt-6">
-              <p className="text-center text-xs text-gray-400">
+              <p className="text-center text-[11px] text-gray-400">
                 © {copyrightYear} Department of Science and Technology. All
                 rights reserved.
               </p>

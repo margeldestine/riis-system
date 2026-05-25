@@ -91,6 +91,11 @@ export default function SubmissionHistory() {
     localStorage.getItem('userInstitution') ||
     'Higher Education Institution'
 
+  const academicYearLabel = useMemo(() => {
+    const year = new Date().getFullYear()
+    return `${year - 1}-${year}`
+  }, [])
+
   const fetchSubmissions = useCallback(
     async (signal) => {
       setStatus('loading')
@@ -189,29 +194,50 @@ export default function SubmissionHistory() {
       navItems={heiNavItems}
     >
       <div className="space-y-6">
-        <section className={cardClass}>
-          <div className="flex items-start justify-between gap-6 border-t-4 border-t-[#C9A84C] border-b border-slate-200 px-8 py-6">
-            <div>
-              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                DASHBOARD &gt; <span className="text-[#C9A84C]">SUBMISSION HISTORY</span>
-              </p>
-              <h1 className="mt-2 text-3xl font-serif text-[#1A1A2E]">
-                Submission History
-              </h1>
-              <p className="mt-2 text-sm text-slate-500">
-                Access the complete history of submitted research outputs
-              </p>
-            </div>
+        <div className="-mx-[32px] -mt-[32px] w-[calc(100%+64px)]">
+          <div className="relative overflow-hidden bg-[#f8fafc] px-8 py-8">
+            <div
+              className="pointer-events-none absolute inset-0"
+              style={{
+                backgroundImage: 'url(/DOST_Building.png)',
+                backgroundSize: 'cover',
+                backgroundPosition: '78% 32%',
+                opacity: 0.18,
+              }}
+            />
+            <div
+              className="pointer-events-none absolute inset-0"
+              style={{ background: 'rgba(13, 31, 60, 0.08)' }}
+            />
+            <div className="relative z-10 flex items-start justify-between gap-6">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-[#94a3b8]">
+                  DASHBOARD &gt; <span className="text-[#c9a84c]">SUBMISSION HISTORY</span>
+                </p>
+                <h1
+                  className="mt-2 text-[30px] font-bold tracking-tight text-[#0d1f3c]"
+                  style={{ fontFamily: "'Libre Baskerville', serif" }}
+                >
+                  Submission History
+                </h1>
+                <p className="mt-2 text-[13px] text-[#6b7280]">
+                  Access the complete history of submitted research outputs
+                </p>
+              </div>
 
-            <div className="text-right">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                ACADEMIC YEAR
-              </p>
-              <p className="text-sm font-bold text-[#1A1A2E]">2025-2026</p>
-              <p className="text-xs text-slate-500">{institutionName}</p>
+              <div className="text-right">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-[#94a3b8]">
+                  ACADEMIC YEAR
+                </p>
+                <p className="text-[13px] font-bold text-[#0d1f3c]">{academicYearLabel}</p>
+                <p className="mt-1 text-[12px] text-[#6b7280]">{institutionName}</p>
+              </div>
             </div>
           </div>
+          <div className="h-px w-full bg-[#c9a84c]" />
+        </div>
 
+        <section className={cardClass}>
           <div className="px-8 py-6">
             <div className="grid gap-4 md:grid-cols-4">
               <KpiCard

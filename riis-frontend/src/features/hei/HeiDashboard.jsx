@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  ArrowUpRight,
   ClipboardList,
   FileSearch,
   FileText,
@@ -90,6 +89,16 @@ export default function HeiDashboard() {
   const [error, setError] = useState('')
   const navigate = useNavigate()
 
+  const institutionName =
+    localStorage.getItem('institutionName') ||
+    localStorage.getItem('userInstitution') ||
+    'Higher Education Institution'
+
+  const academicYearLabel = useMemo(() => {
+    const year = new Date().getFullYear()
+    return `${year - 1}-${year}`
+  }, [])
+
   const fetchSubmissions = useCallback(async (signal) => {
     setStatus('loading')
     setError('')
@@ -144,20 +153,47 @@ export default function HeiDashboard() {
         navItems={heiNavItems}
       >
         <div className="space-y-5">
-          <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.22em]">
-            <span className="text-[#9CA3AF]">Dashboard</span>
-            <ArrowUpRight className="h-3.5 w-3.5 text-[#9CA3AF]" />
-            <span className="text-[#C9A84C]">Submission Portal</span>
-          </div>
+          <div className="-mx-[32px] -mt-[32px] w-[calc(100%+64px)]">
+            <div className="relative overflow-hidden bg-[#f8fafc] px-8 py-8">
+              <div
+                className="pointer-events-none absolute inset-0"
+                style={{
+                  backgroundImage: 'url(/DOST_Building.png)',
+                  backgroundSize: 'cover',
+                  backgroundPosition: '78% 32%',
+                  opacity: 0.18,
+                }}
+              />
+              <div
+                className="pointer-events-none absolute inset-0"
+                style={{ background: 'rgba(13, 31, 60, 0.08)' }}
+              />
+              <div className="relative z-10 flex items-start justify-between gap-6">
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-[#94a3b8]">
+                    DASHBOARD &gt; <span className="text-[#c9a84c]">SUBMISSION PORTAL</span>
+                  </p>
+                  <h1
+                    className="mt-2 text-[30px] font-bold tracking-tight text-[#0d1f3c]"
+                    style={{ fontFamily: "'Libre Baskerville', serif" }}
+                  >
+                    Dashboard
+                  </h1>
+                  <p className="mt-2 text-[13px] text-[#6b7280]">
+                    Manage institutional research entries, submit new outputs, and monitor validation progress.
+                  </p>
+                </div>
 
-          <div>
-            <h1 className="text-[30px] font-bold tracking-tight text-[#1A1A2E]">
-              Higher Education Institution Research Submission Portal
-            </h1>
-            <p className="mt-2 text-sm text-[#6B7280]">
-              Manage institutional research entries, submit new outputs, and
-              monitor validation progress from one workspace.
-            </p>
+                <div className="text-right">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-[#94a3b8]">
+                    ACADEMIC YEAR
+                  </p>
+                  <p className="text-[13px] font-bold text-[#0d1f3c]">{academicYearLabel}</p>
+                  <p className="mt-1 text-[12px] text-[#6b7280]">{institutionName}</p>
+                </div>
+              </div>
+            </div>
+            <div className="h-px w-full bg-[#c9a84c]" />
           </div>
 
           <section className="grid gap-4 md:grid-cols-3">

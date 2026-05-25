@@ -114,6 +114,8 @@ export default function HeiResearchProfiles() {
   const [status, setStatus] = useState('idle')
   const [error, setError] = useState('')
 
+  const academicYearLabel = `${new Date().getFullYear() - 1}-${new Date().getFullYear()}`
+
   useEffect(() => {
     const controller = new AbortController()
     const fetchInstitutions = async () => {
@@ -142,24 +144,47 @@ export default function HeiResearchProfiles() {
       navItems={heiNavItems}
     >
       <div className="space-y-6">
-        <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex items-start justify-between gap-6 border-t-4 border-t-[#C9A84C] border-b border-slate-200 px-8 py-6">
-            <div>
-              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                DASHBOARD &gt; <span className="text-[#C9A84C]">HEI RESEARCH PROFILES</span>
-              </p>
-              <h1 className="mt-2 text-3xl font-serif text-[#1A1A2E]">HEI Research Profiles</h1>
-              <p className="mt-2 text-sm text-slate-500">
-                Research institution profiles and output statistics
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">ACADEMIC YEAR</p>
-              <p className="text-sm font-bold text-[#1A1A2E]">2025-2026</p>
-              <p className="text-xs text-slate-500">System Administration</p>
+        <div className="-mx-[32px] -mt-[32px] w-[calc(100%+64px)]">
+          <div className="relative overflow-hidden bg-[#f8fafc] px-8 py-8">
+            <div
+              className="pointer-events-none absolute inset-0"
+              style={{
+                backgroundImage: 'url(/DOST_Building.png)',
+                backgroundSize: 'cover',
+                backgroundPosition: '78% 32%',
+                opacity: 0.18,
+              }}
+            />
+            <div
+              className="pointer-events-none absolute inset-0"
+              style={{ background: 'rgba(13, 31, 60, 0.08)' }}
+            />
+            <div className="relative z-10 flex items-start justify-between gap-6">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-[#94a3b8]">
+                  DASHBOARD &gt; <span className="text-[#c9a84c]">HEI RESEARCH PROFILES</span>
+                </p>
+                <h1
+                  className="mt-2 text-[30px] font-bold tracking-tight text-[#0d1f3c]"
+                  style={{ fontFamily: "'Libre Baskerville', serif" }}
+                >
+                  HEI Research Profiles
+                </h1>
+                <p className="mt-2 text-[13px] text-[#6b7280]">
+                  Research institution profiles and output statistics
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-[#94a3b8]">ACADEMIC YEAR</p>
+                <p className="text-[13px] font-bold text-[#0d1f3c]">{academicYearLabel}</p>
+                <p className="mt-1 text-[12px] text-[#6b7280]">System Administration</p>
+              </div>
             </div>
           </div>
+          <div className="h-px w-full bg-[#c9a84c]" />
+        </div>
 
+        <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
           <div className="px-8 py-6">
             {status === 'loading' ? (
               <div className="text-sm text-slate-500">Loading institutions...</div>
