@@ -3,6 +3,7 @@ package com.geeks.riis_backend.event;
 import com.geeks.riis_backend.model.ResearchOutput;
 import com.geeks.riis_backend.repository.ResearchOutputRepository;
 import com.geeks.riis_backend.service.AIProxyService;
+import com.geeks.riis_backend.service.OverlapDetectionService;
 import com.geeks.riis_backend.service.ThemeProfileService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,6 +20,7 @@ public class RecordIngestedEventListener {
     private final ResearchOutputRepository researchOutputRepository;
     private final AIProxyService aiProxyService;
     private final ThemeProfileService themeProfileService;
+    private final OverlapDetectionService overlapDetectionService;
 
     @Async
     @EventListener
@@ -37,12 +39,19 @@ public class RecordIngestedEventListener {
         String text = buildText(output);
 
         List<List<Object>> keywords = aiProxyService.extractKeywords(text);
-
         if (!keywords.isEmpty()) {
             themeProfileService.updateThemeProfile(event.institutionId(), keywords);
             log.info("Theme profile updated for institution: {}", event.institutionId());
         } else {
             log.warn("No keywords extracted for: {}", event.referenceNumber());
+        }
+
+        float[] sbertEmbedding = aiProxyService.computeSBERTEmbedding(text);
+        if (sbertEmbedding.length > 0) {
+            overlapDetectionService.detectOverlaps(output, sbertEmbedding);
+            log.info("Overlap detection completed for: {}", event.referenceNumber());
+        } else {
+            log.warn("Empty SBERT embedding for: {}", event.referenceNumber());
         }
     }
 

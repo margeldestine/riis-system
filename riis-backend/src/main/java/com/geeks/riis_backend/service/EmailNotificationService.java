@@ -96,10 +96,6 @@ public class EmailNotificationService {
 		} catch (Exception ignored) {}
 	}
 
-	// -----------------------------------------------------------------------
-	// SDD §5.6 — HEI Staff account approval / rejection emails
-	// -----------------------------------------------------------------------
-
 	/**
 	 * SDD §5.6: "sendAccountApprovalEmail() dispatches a notification with
 	 * a login link and confirmation that the account is now active."
@@ -142,6 +138,34 @@ public class EmailNotificationService {
 							"Unfortunately, your HEI Research Office Staff account registration has been rejected.\n\n" +
 							"Reason:\n" + (reason != null ? reason : "No reason provided.") + "\n\n" +
 							"If you believe this is a mistake, please contact your DOST Region VII administrator."
+			);
+			mailSender.send(message);
+		} catch (Exception ignored) {}
+	}
+
+	@Async
+	public void sendOverlapDetectionAlert(
+			String toEmail,
+			String newRecordTitle,
+			String existingRecordTitle,
+			String existingRecordHei,
+			double similarityScore) {
+		if (toEmail == null || toEmail.isBlank()) return;
+
+		try {
+			JavaMailSender mailSender = mailSenderProvider.getIfAvailable();
+			if (mailSender == null) return;
+
+			SimpleMailMessage message = new SimpleMailMessage();
+			message.setTo(toEmail);
+			message.setSubject("Overlap Detected: Similar Research Output Found");
+			message.setText(
+					"A thematic overlap has been detected for your recently approved research output.\n\n" +
+							"Your Research: " + newRecordTitle + "\n" +
+							"Similar Existing Research: " + existingRecordTitle + "\n" +
+							"Institution: " + existingRecordHei + "\n" +
+							"Similarity Score: " + String.format("%.1f", similarityScore * 100) + "%\n\n" +
+							"Please review this overlap and coordinate with the relevant institution if necessary."
 			);
 			mailSender.send(message);
 		} catch (Exception ignored) {}

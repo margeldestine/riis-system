@@ -51,6 +51,16 @@ public interface ResearchOutputRepository extends JpaRepository<ResearchOutput, 
 	List<ResearchOutput> findSimilarOutputs(@Param("embedding") float[] embedding, @Param("limit") int limit);
 	long countByTitleIgnoreCaseAndInstitutionIdAndStatusNot(String title, String institutionId, String status);
 
+	@Query(
+			value = "SELECT * FROM research_outputs WHERE status = 'APPROVED' AND id != :excludeId AND sbert_embedding IS NOT NULL AND 1 - (sbert_embedding <=> cast(:embedding as vector)) >= :threshold",
+			nativeQuery = true
+	)
+	List<ResearchOutput> findSimilarBySbertEmbedding(
+			@Param("embedding") float[] embedding,
+			@Param("excludeId") String excludeId,
+			@Param("threshold") double threshold
+	);
+
     long countByStatus(String status);
 
     @Query("SELECT COUNT(DISTINCT ro.institution.id) FROM ResearchOutput ro WHERE ro.status = :status AND ro.completionYear = :year")

@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from routers import keybert_router
+from routers import keybert_router, sbert_router
 
 app = FastAPI(
     title="DASIG AI Microservice",
@@ -8,6 +8,7 @@ app = FastAPI(
 )
 
 app.include_router(keybert_router.router)
+app.include_router(sbert_router.router)
 
 @app.get("/health")
 def health_check():
