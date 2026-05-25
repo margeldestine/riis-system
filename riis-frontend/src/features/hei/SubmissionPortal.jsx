@@ -242,9 +242,9 @@ const submissionSchema = z
       .array(z.string().trim().min(1))
       .min(3, 'Add at least 3 keywords.')
       .max(10, 'You can add up to 10 keywords only.'),
-    subjectDc: z.string().trim().min(1, 'Subject (DC) is required.'),
-    coverageDc: z.string().trim().min(1, 'Coverage (DC) is required.'),
-    rightsDc: z.string().trim().min(1, 'Rights (DC) is required.'),
+    subjectDc: z.string().trim().min(1, 'Subject is required.'),
+    coverageDc: z.string().trim().min(1, 'Coverage is required.'),
+    rightsDc: z.string().trim().min(1, 'Rights is required.'),
     doi: z
       .string()
       .trim()
@@ -307,7 +307,7 @@ function extractApiErrorMessage(error, fallbackMessage) {
 
 function FieldMessage({ message }) {
   if (!message) return null
-  return <p className="mt-2 text-[12px] text-red-600">{message}</p>
+  return <p className="mt-1 text-[11px] font-medium text-[#dc2626]">{message}</p>
 }
 
 function ErrorSummaryBanner({ errors, onDismiss }) {
@@ -322,17 +322,20 @@ function ErrorSummaryBanner({ errors, onDismiss }) {
   }
 
   return (
-    <div className="mt-5 rounded-[10px] border border-red-200 bg-red-50 px-4 py-4 text-[13px] text-red-700">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="font-bold">Submission blocked — correct the following:</p>
-          <ul className="mt-2 list-disc pl-5 space-y-1">
+    <div className="mt-5 rounded-[2px] border border-[#f87171] bg-[#fee2e2] px-4 py-4 text-[13px] text-[#991b1b]">
+      <div className="flex items-start gap-3">
+        <Info className="mt-0.5 h-5 w-5 shrink-0 text-[#b91c1c]" />
+        <div className="min-w-0 flex-1">
+          <p className="font-semibold text-[#b91c1c]">
+            Submission blocked - correct the following:
+          </p>
+          <ul className="mt-2 list-disc pl-5 space-y-1 text-[12px] text-[#b91c1c]">
             {errors.map((err, index) => (
               <li key={index}>
                 <button
                   type="button"
                   onClick={() => scrollToField(err.field)}
-                  className="text-left text-red-700 hover:text-red-900"
+                  className="text-left hover:underline"
                 >
                   {err.message}
                 </button>
@@ -343,7 +346,8 @@ function ErrorSummaryBanner({ errors, onDismiss }) {
         <button
           type="button"
           onClick={onDismiss}
-          className="shrink-0 text-red-400 hover:text-red-600"
+          className="shrink-0 text-[#b91c1c]/60 hover:text-[#b91c1c]"
+          aria-label="Dismiss"
         >
           ✕
         </button>
@@ -433,7 +437,7 @@ const fieldOkClass =
   'focus:border-[#0d1f3c] focus:ring-2 focus:ring-[#0d1f3c]/10'
 
 const fieldErrorClass =
-  'border-red-400 focus:border-red-400 focus:ring-2 focus:ring-red-400/20'
+  'border-[#f87171] focus:border-[#f87171] focus:ring-2 focus:ring-[#f87171]/15'
 
 function BasicInfoStep({ register, errors }) {
   return (
@@ -526,6 +530,8 @@ function TeamAffiliationStep({
   removeAuthor,
   authorOptions,
 }) {
+  const hasAuthorGroupError = Boolean(errors?.authors?.message)
+
   return (
     <div>
       <StepHeader stepId={2} title="Team & Authors" />
@@ -534,10 +540,7 @@ function TeamAffiliationStep({
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className={fieldLabelClass}>
-                Authors <span className="text-[#C9A84C]">*</span>
-              </p>
-              <p className={helperTextClass}>
-                Add every author included in the submission.
+                Author(s) <span className="text-[#C9A84C]">*</span>
               </p>
             </div>
             <button
@@ -563,10 +566,21 @@ function TeamAffiliationStep({
                     </label>
                     <input
                       {...register(`authors.${index}.fullName`)}
-                      placeholder="Author full name"
-                      className={`${fieldBaseClass} ${errors.authors?.[index]?.fullName ? fieldErrorClass : fieldOkClass}`}
+                      placeholder="Type author name and press Enter..."
+                      className={`${fieldBaseClass} ${
+                        (index === 0 && hasAuthorGroupError) || errors.authors?.[index]?.fullName
+                          ? fieldErrorClass
+                          : fieldOkClass
+                      }`}
                     />
-                    <FieldMessage message={errors.authors?.[index]?.fullName?.message} />
+                    <FieldMessage
+                      message={
+                        index === 0 &&
+                        (hasAuthorGroupError || Boolean(errors.authors?.[index]?.fullName))
+                          ? 'Author(s) is required'
+                          : errors.authors?.[index]?.fullName?.message
+                      }
+                    />
                   </div>
 
                   <div className="space-y-2">
@@ -612,7 +626,6 @@ function TeamAffiliationStep({
               </div>
             ))}
           </div>
-          <FieldMessage message={errors.authors?.message} />
         </div>
 
         <div className="grid gap-5 md:grid-cols-2">
@@ -624,14 +637,18 @@ function TeamAffiliationStep({
               {...register('principalInvestigator')}
               className={`${fieldBaseClass} ${errors.principalInvestigator ? fieldErrorClass : fieldOkClass}`}
             >
-              <option value="">Select principal investigator</option>
+              <option value="">Select PI from author list...</option>
               {authorOptions.map((option) => (
                 <option key={option} value={option}>
                   {option}
                 </option>
               ))}
             </select>
-            <FieldMessage message={errors.principalInvestigator?.message} />
+            <FieldMessage
+              message={
+                errors.principalInvestigator ? 'Principal Investigator is required' : undefined
+              }
+            />
           </div>
 
           <div className="space-y-2">
@@ -643,13 +660,25 @@ function TeamAffiliationStep({
               readOnly
               className={`${fieldBaseClass} ${errors.institutionalAffiliation ? fieldErrorClass : 'border-[#d1d5db] bg-[#f9fafb]'}`}
             />
-            <FieldMessage message={errors.institutionalAffiliation?.message} />
+            {errors.institutionalAffiliation ? (
+              <p className="mt-1 text-[11px] font-medium text-[#dc2626]">
+                Institutional Affiliation
+              </p>
+            ) : null}
           </div>
+        </div>
+
+        <div className="mt-2 flex w-full items-center gap-3 rounded-[2px] border border-[#bfdbfe] bg-[#eff6ff] px-4 py-3 text-[13px] text-[#0d1f3c]">
+          <Info className="h-4 w-4 shrink-0 text-[#3b82f6]" />
+          <p className="text-[#0d1f3c]">
+            ORCID IDs and author information are processed under RA 10173 (Data Privacy Act of 2012). Only used for institutional research reporting.
+          </p>
         </div>
       </div>
     </div>
   )
 }
+
 
 function KeywordsInput({
   keywords,
@@ -659,6 +688,8 @@ function KeywordsInput({
   setKeywordInput,
   error,
 }) {
+  const keywordErrorMessage = error ? `Minimum 3 keywords required (${keywords.length} added)` : ''
+
   const handleKeyDown = (event) => {
     if (event.key === 'Enter' || event.key === ',') {
       event.preventDefault()
@@ -672,13 +703,16 @@ function KeywordsInput({
         Keywords <span className="text-[#C9A84C]">*</span>
       </label>
       <div
-        className={`rounded-[6px] border bg-white px-[14px] py-[10px] transition focus-within:ring-2 ${
+        className={`rounded-[6px] border bg-[#f8fafc] px-3 py-3 transition focus-within:ring-2 ${
           error
-            ? 'border-red-400 focus-within:border-red-400 focus-within:ring-red-400/20'
+            ? 'border-[#f87171] focus-within:border-[#f87171] focus-within:ring-[#f87171]/15'
             : 'border-[#d1d5db] focus-within:border-[#0d1f3c] focus-within:ring-[#0d1f3c]/15'
         }`}
       >
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="inline-flex h-10 items-center rounded-[6px] border border-[#a7f3d0] bg-[#d1fae5] px-4 text-[14px] font-semibold text-[#047857]">
+            Keyword
+          </span>
           {keywords.map((keyword) => (
             <span
               key={keyword}
@@ -700,8 +734,8 @@ function KeywordsInput({
               onChange={(event) => setKeywordInput(event.target.value)}
               onKeyDown={handleKeyDown}
               onBlur={onAddKeyword}
-              placeholder="Type a keyword and press Enter"
-              className="min-w-[220px] flex-1 border-0 bg-transparent p-0 text-[14px] placeholder:text-[#9ca3af] outline-none"
+              placeholder="Type Keyword and press Enter or comma...."
+              className="h-10 min-w-[260px] flex-1 rounded-[6px] border border-[#e5e7eb] bg-white px-4 text-[14px] placeholder:text-[#cbd5e1] outline-none"
             />
           ) : null}
         </div>
@@ -709,7 +743,9 @@ function KeywordsInput({
       <div className="mt-1 flex justify-end">
         <p className="text-[12px] text-[#9ca3af]">{keywords.length} / 10 keywords</p>
       </div>
-      <FieldMessage message={error} />
+      {error ? (
+        <p className="mt-1 text-[12px] font-mono text-[#dc2626]">{keywordErrorMessage}</p>
+      ) : null}
     </div>
   )
 }
@@ -738,7 +774,7 @@ function ResearchDetailsStep({
             {...register('abstractText')}
             id="field-abstractText"
             rows={9}
-            placeholder="Write a concise abstract"
+            placeholder="Provide a structured abstract covering background, methodology, findings, and conclusions..."
             className={`${fieldBaseClass} ${errors.abstractText ? fieldErrorClass : fieldOkClass}`}
           />
           <div className="mt-1 flex justify-end">
@@ -750,7 +786,9 @@ function ResearchDetailsStep({
               {words} / 100-500 words
             </span>
           </div>
-          <FieldMessage message={errors.abstractText?.message} />
+          {errors.abstractText ? (
+            <p className="mt-1 text-[11px] font-medium text-[#dc2626]">Abstract is required</p>
+          ) : null}
         </div>
 
         <KeywordsInput
@@ -841,7 +879,7 @@ function DublinCoreMetadataStep({
         <div className="grid gap-5 md:grid-cols-2">
           <div className="space-y-2">
             <label className={fieldLabelClass}>
-              Subject (DC) <span className="text-[#C9A84C]">*</span>
+              Subject (RESEARCH DOMAIN) <span className="text-[#C9A84C]">*</span>
             </label>
             <select
               {...register('subjectDc')}
@@ -859,7 +897,7 @@ function DublinCoreMetadataStep({
 
           <div className="space-y-2">
             <label className={fieldLabelClass}>
-              Coverage (DC) <span className="text-[#C9A84C]">*</span>
+              Coverage (SCOPE) <span className="text-[#C9A84C]">*</span>
             </label>
             <input
               {...register('coverageDc')}
@@ -871,7 +909,7 @@ function DublinCoreMetadataStep({
 
           <div className="space-y-2">
             <label className={fieldLabelClass}>
-              Rights (DC) <span className="text-[#C9A84C]">*</span>
+              Rights (LICENSE/ACCESS) <span className="text-[#C9A84C]">*</span>
             </label>
             <input
               {...register('rightsDc')}
@@ -1261,11 +1299,28 @@ export default function SubmissionPortal({ onSubmitted }) {
     const step = stepDefinitions.find((item) => item.id === currentStep)
     const isValid = await trigger(step?.fields, { shouldFocus: true })
     if (!isValid) {
+      const normalizeStepErrorMessage = (stepId, field, message) => {
+        if (stepId !== 2) return message
+        if (field === 'authors') return 'Author(s) is required'
+        if (field === 'principalInvestigator') return 'Principal Investigator is required'
+        if (field === 'institutionalAffiliation') return 'Institutional Affiliation is required'
+        return message
+      }
+
       const currentErrors = step?.fields
         .map((field) => {
           const err = errors[field]
           if (!err) return null
-          return { field, message: err?.message || `${field} is invalid.` }
+          const fallback = `${field} is invalid.`
+          const message = err?.message || fallback
+          if (currentStep === 3) {
+            if (field === 'abstractText') return { field, message: 'Abstract is required' }
+            if (field === 'keywords') {
+              const count = Array.isArray(getValues('keywords')) ? getValues('keywords').length : 0
+              return { field, message: `Minimum 3 keywords required (${count} added)` }
+            }
+          }
+          return { field, message: normalizeStepErrorMessage(currentStep, field, message) }
         })
         .filter(Boolean)
       setBannerErrors(currentErrors)
@@ -1564,26 +1619,28 @@ export default function SubmissionPortal({ onSubmitted }) {
               </div>
             ) : null}
 
+            {renderStep()}
+
+            {currentStep === 1 ? (
+              <div className="mt-6 flex w-full items-center gap-3 rounded-[2px] border border-[#bfdbfe] bg-[#eff6ff] px-4 py-3 text-[13px] text-[#0d1f3c]">
+                <Info className="h-4 w-4 shrink-0 text-[#3b82f6]" />
+                <p>
+                  Institution{' '}
+                  <span className="font-semibold text-[#1d4ed8]">{institutionName}</span>
+                  , is pre-linked. Submission period:{' '}
+                  <span className="font-semibold text-[#1d4ed8]">AY {academicYearLabel}</span>
+                </p>
+              </div>
+            ) : null}
+
             {bannerErrors.length > 0 ? (
-              <div className="mb-6">
+              <div className="mt-6">
                 <ErrorSummaryBanner
                   errors={bannerErrors}
                   onDismiss={() => setBannerErrors([])}
                 />
               </div>
             ) : null}
-
-            {renderStep()}
-
-            <div className="mt-6 flex w-full items-center gap-3 rounded-[2px] border border-[#bfdbfe] bg-[#eff6ff] px-4 py-3 text-[13px] text-[#0d1f3c]">
-              <Info className="h-4 w-4 shrink-0 text-[#3b82f6]" />
-              <p>
-                Institution{' '}
-                <span className="font-semibold text-[#1d4ed8]">{institutionName}</span>
-                , Cebu is pre-linked. Submission period:{' '}
-                <span className="font-semibold text-[#1d4ed8]">AY {academicYearLabel}</span>
-              </p>
-            </div>
           </div>
 
           <div className="flex w-full items-center justify-between border-t border-[#e5e7eb] bg-[#f8fafc] px-8 py-4">
