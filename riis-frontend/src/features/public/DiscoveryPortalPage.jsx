@@ -101,22 +101,34 @@ function ResultCard({ result, onSelect }) {
 
           {/* Type + venue */}
           <div className="mt-3 flex items-center gap-3">
-            <TypeBadge type={result.researchType} />
-            {result.publicationVenue && (
-              <span className="text-xs text-slate-400">{result.publicationVenue}</span>
-            )}
-          </div>
+          <TypeBadge type={result.researchType} />
+          {result.publicationVenue && (
+            <span className="text-xs text-slate-400">{result.publicationVenue}</span>
+          )}
+          {result.similarityScore != null && (
+            <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+              result.similarityScore >= 85 ? 'bg-emerald-100 text-emerald-700' :
+              result.similarityScore >= 70 ? 'bg-amber-100 text-amber-700' :
+              'bg-slate-100 text-slate-600'
+            }`}>
+              {result.similarityScore}% match
+            </span>
+          )}
+        </div>
         </div>
 
         {/* Actions */}
         <div className="shrink-0 flex flex-col gap-2">
           <button
-            type="button"
-            onClick={() => navigate(`/research/${result.id}`)}
-            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition whitespace-nowrap"
-          >
-            View Details
-          </button>
+          type="button"
+          onClick={() => {
+            console.log('similarity score being passed:', result.similarityScore)
+            navigate(`/research/${result.id}`, { state: { similarityScore: result.similarityScore ?? null } })
+          }}
+          className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition whitespace-nowrap"
+        >
+          View Details
+        </button>
           {result.doi && (
             <a
               href={`https://doi.org/${result.doi}`}

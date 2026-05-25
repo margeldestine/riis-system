@@ -80,14 +80,23 @@ function InstitutionCard({ institution, onClick }) {
 
       {visibleTags.length > 0 ? (
         <div className="mt-4 flex flex-wrap gap-2">
-          {visibleTags.map((tag) => (
-            <span
-              key={tag.keyword || tag}
-              className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600"
-            >
-              {tag.keyword || tag}
-            </span>
-          ))}
+          {visibleTags.map((tag, i) => {
+            const tagColors = [
+              'bg-emerald-100 text-emerald-700',
+              'bg-blue-100 text-blue-700',
+              'bg-yellow-100 text-yellow-700',
+              'bg-purple-100 text-purple-700',
+              'bg-rose-100 text-rose-700',
+            ]
+            return (
+              <span
+                key={tag.keyword || tag}
+                className={`rounded-full px-3 py-1 text-xs font-medium ${tagColors[i % 5]}`}
+              >
+                {tag.keyword || tag}
+              </span>
+            )
+          })}
           {extraCount > 0 ? (
             <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-400">
               +{extraCount} more

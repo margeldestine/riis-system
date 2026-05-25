@@ -15,6 +15,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
+import com.geeks.riis_backend.event.RecordIngestedEvent;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.time.LocalDateTime;
 import java.util.Arrays;
@@ -31,6 +33,7 @@ public class AdminReviewService {
     private final UserRepository userRepository;
     private final EmailNotificationService emailNotificationService;
     private final AuditLogService auditLogService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional(readOnly = true)
     public Page<SubmissionSummaryDTO> listSubmissions(String status, String institutionId,
@@ -41,6 +44,7 @@ public class AdminReviewService {
                         o.getReferenceNumber(),
                         o.getTitle(),
                         o.getResearchType(),
+                        o.getFundingSource(),
                         o.getCompletionYear(),
                         o.getCreatedAt(),
                         o.getStatus()
@@ -131,6 +135,14 @@ public class AdminReviewService {
         researchOutputRepository.save(output);
 
         auditLogService.logReviewAction(submissionId, adminUserId, normalizedAction, comment);
+
+        if (normalizedAction.equals("APPROVED")) {
+            eventPublisher.publishEvent(new RecordIngestedEvent(
+                    output.getId(),
+                    output.getReferenceNumber(),
+                    output.getInstitution().getId()
+            ));
+        }
 
         String submitterEmail = output.getInstitution() != null
                 ? getUserEmailForInstitution(output)

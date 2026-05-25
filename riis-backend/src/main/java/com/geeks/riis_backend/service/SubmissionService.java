@@ -47,6 +47,7 @@ public class SubmissionService {
 	private final ApplicationEventPublisher eventPublisher;
 	private final EmailNotificationService emailNotificationService;
 	private final AuditLogService auditLogService;
+	private final ValidationLogService validationLogService;
 
 	public SubmissionResponse submit(String userId, SubmissionRequest dto) {
 		User user = userRepository.findById(userId)
@@ -60,6 +61,12 @@ public class SubmissionService {
 		}
 
 		ValidationResult validationResult = validationService.validate(dto, institution.getId());
+		validationLogService.persistValidationResult(
+				validationResult,
+				institution.getId(),
+				null,
+				"INITIAL_SUBMIT"
+		);
 		if (!validationResult.passed()) {
 			throw new SubmissionValidationException(validationResult.errors());
 		}
@@ -99,12 +106,6 @@ public class SubmissionService {
 
 		ResearchOutput saved = researchOutputRepository.save(output);
 
-		eventPublisher.publishEvent(new RecordIngestedEvent(
-				saved.getId(),
-				saved.getReferenceNumber(),
-				institution.getId()
-		));
-
 		emailNotificationService.sendSubmissionConfirmation(user.getEmail(), saved.getReferenceNumber());
 
 		return new SubmissionResponse(saved.getReferenceNumber());
@@ -125,6 +126,7 @@ public class SubmissionService {
 					output.getReferenceNumber(),
 					output.getTitle(),
 					output.getResearchType(),
+					output.getFundingSource(),
 					output.getCompletionYear(),
 					output.getCreatedAt(),
 					output.getStatus()
@@ -140,6 +142,7 @@ public class SubmissionService {
 						output.getReferenceNumber(),
 						output.getTitle(),
 						output.getResearchType(),
+						output.getFundingSource(),
 						output.getCompletionYear(),
 						output.getCreatedAt(),
 						output.getStatus()
@@ -219,6 +222,12 @@ public class SubmissionService {
 		}
 
 		ValidationResult validationResult = validationService.validate(dto, institution.getId());
+		validationLogService.persistValidationResult(
+				validationResult,
+				institution.getId(),
+				submissionId,
+				"RESUBMIT"
+		);
 		if (!validationResult.passed()) {
 			throw new SubmissionValidationException(validationResult.errors());
 		}

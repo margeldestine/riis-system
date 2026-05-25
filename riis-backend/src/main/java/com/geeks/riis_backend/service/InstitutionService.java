@@ -71,11 +71,23 @@ public class InstitutionService {
                 : institutionRepository.findAll();
 
         return list.stream()
-                .map(i -> new InstitutionSummaryDTO(
-                        i.getId(), i.getName(), i.getType(),
-                        i.getProvince(), i.getEmailDomain(), i.getWhitelistStatus(),
-                        institutionRepository.countApprovedOutputs(i.getId())
-                ))
+                .map(i -> {
+                    List<ThemeKeywordDTO> keywords = themeProfileRepository
+                            .findByInstitutionId(i.getId())
+                            .map(ThemeProfile::getKeywords)
+                            .map(kwds -> kwds.stream()
+                                    .map(k -> new ThemeKeywordDTO(k.getKeyword(), k.getWeight()))
+                                    .sorted((a, b) -> Double.compare(b.weight(), a.weight()))
+                                    .limit(5)
+                                    .collect(Collectors.toList()))
+                            .orElse(List.of());
+                    return new InstitutionSummaryDTO(
+                            i.getId(), i.getName(), i.getType(),
+                            i.getProvince(), i.getEmailDomain(), i.getWhitelistStatus(),
+                            institutionRepository.countApprovedOutputs(i.getId()),
+                            keywords
+                    );
+                })
                 .collect(Collectors.toList());
     }
 

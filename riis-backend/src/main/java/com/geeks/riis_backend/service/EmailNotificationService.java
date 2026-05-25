@@ -12,6 +12,8 @@ public class EmailNotificationService {
 
 	private final ObjectProvider<JavaMailSender> mailSenderProvider;
 	private final String adminEmail;
+	@Value("${spring.mail.from:}")
+	private String fromEmail;
 
 	public EmailNotificationService(
 			ObjectProvider<JavaMailSender> mailSenderProvider,
@@ -31,6 +33,7 @@ public class EmailNotificationService {
 			if (mailSender == null) return;
 
 			SimpleMailMessage message = new SimpleMailMessage();
+			if (!fromEmail.isBlank()) message.setFrom(fromEmail);
 			message.setTo(toEmail);
 			message.setSubject("Submission Received: " + referenceNumber);
 			message.setText("Your research output submission has been received.\n\nReference Number: " + referenceNumber);
@@ -89,16 +92,13 @@ public class EmailNotificationService {
 			}
 
 			SimpleMailMessage message = new SimpleMailMessage();
+			if (!fromEmail.isBlank()) message.setFrom(fromEmail);
 			message.setTo(toEmail);
 			message.setSubject(subject);
 			message.setText(body);
 			mailSender.send(message);
 		} catch (Exception ignored) {}
 	}
-
-	// -----------------------------------------------------------------------
-	// SDD §5.6 — HEI Staff account approval / rejection emails
-	// -----------------------------------------------------------------------
 
 	/**
 	 * SDD §5.6: "sendAccountApprovalEmail() dispatches a notification with
@@ -113,6 +113,7 @@ public class EmailNotificationService {
 			if (mailSender == null) return;
 
 			SimpleMailMessage message = new SimpleMailMessage();
+			if (!fromEmail.isBlank()) message.setFrom(fromEmail);
 			message.setTo(toEmail);
 			message.setSubject("Your DASIG Account Has Been Approved");
 			message.setText(
@@ -135,6 +136,7 @@ public class EmailNotificationService {
 			if (mailSender == null) return;
 
 			SimpleMailMessage message = new SimpleMailMessage();
+			if (!fromEmail.isBlank()) message.setFrom(fromEmail);
 			message.setTo(toEmail);
 			message.setSubject("Your DASIG Account Registration Was Not Approved");
 			message.setText(
@@ -142,6 +144,35 @@ public class EmailNotificationService {
 							"Unfortunately, your HEI Research Office Staff account registration has been rejected.\n\n" +
 							"Reason:\n" + (reason != null ? reason : "No reason provided.") + "\n\n" +
 							"If you believe this is a mistake, please contact your DOST Region VII administrator."
+			);
+			mailSender.send(message);
+		} catch (Exception ignored) {}
+	}
+
+	@Async
+	public void sendOverlapDetectionAlert(
+			String toEmail,
+			String newRecordTitle,
+			String existingRecordTitle,
+			String existingRecordHei,
+			double similarityScore) {
+		if (toEmail == null || toEmail.isBlank()) return;
+
+		try {
+			JavaMailSender mailSender = mailSenderProvider.getIfAvailable();
+			if (mailSender == null) return;
+
+			SimpleMailMessage message = new SimpleMailMessage();
+			if (!fromEmail.isBlank()) message.setFrom(fromEmail);
+			message.setTo(toEmail);
+			message.setSubject("Overlap Detected: Similar Research Output Found");
+			message.setText(
+					"A thematic overlap has been detected for your recently approved research output.\n\n" +
+							"Your Research: " + newRecordTitle + "\n" +
+							"Similar Existing Research: " + existingRecordTitle + "\n" +
+							"Institution: " + existingRecordHei + "\n" +
+							"Similarity Score: " + String.format("%.1f", similarityScore * 100) + "%\n\n" +
+							"Please review this overlap and coordinate with the relevant institution if necessary."
 			);
 			mailSender.send(message);
 		} catch (Exception ignored) {}

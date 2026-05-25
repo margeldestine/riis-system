@@ -85,6 +85,7 @@ export default function AnalyticsDashboard({
   const [heiComparison, setHeiComparison] = useState([])
   const [provinceSummary, setProvinceSummary] = useState([])
   const [loading, setLoading] = useState(true)
+  const [heatmapData, setHeatmapData] = useState([])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -92,18 +93,20 @@ export default function AnalyticsDashboard({
     const fetchAll = async () => {
       setLoading(true)
       try {
-        const [summaryRes, trendRes, typeRes, heiRes, provinceRes] = await Promise.all([
-          apiClient.get('/analytics/summary', { signal: controller.signal }),
-          apiClient.get('/analytics/trend', { signal: controller.signal }),
-          apiClient.get('/analytics/type-distribution', { signal: controller.signal }),
-          apiClient.get('/analytics/hei-comparison', { signal: controller.signal }),
-          apiClient.get('/analytics/province-summary', { signal: controller.signal }),
-        ])
-        setSummary(summaryRes.data)
-        setTrendData(trendRes.data || [])
-        setTypeDistribution(typeRes.data || [])
-        setHeiComparison(heiRes.data || [])
-        setProvinceSummary(provinceRes.data || [])
+        const [summaryRes, trendRes, typeRes, heiRes, provinceRes, heatmapRes] = await Promise.all([
+        apiClient.get('/analytics/summary', { signal: controller.signal }),
+        apiClient.get('/analytics/trend', { signal: controller.signal }),
+        apiClient.get('/analytics/type-distribution', { signal: controller.signal }),
+        apiClient.get('/analytics/hei-comparison', { signal: controller.signal }),
+        apiClient.get('/analytics/province-summary', { signal: controller.signal }),
+        apiClient.get('/analytics/heatmap', { signal: controller.signal }),
+      ])
+      setSummary(summaryRes.data)
+      setTrendData(trendRes.data || [])
+      setTypeDistribution(typeRes.data || [])
+      setHeiComparison(heiRes.data || [])
+      setProvinceSummary(provinceRes.data || [])
+      setHeatmapData(heatmapRes.data || [])
       } catch (err) {
         if (!controller.signal.aborted) {
           console.error('Analytics fetch error:', err)
@@ -533,11 +536,23 @@ export default function AnalyticsDashboard({
         {/* Dark aggregated themes panel */}
         <div className="mt-5 rounded-[12px] bg-[#1A2744] p-5">
           <p className="text-sm font-semibold text-white">DOST Region VII — Aggregated Research Themes</p>
-          <p className="mt-1 text-xs text-white/50">Total pool frequency across all aggregated research HEIs · S&T-themed keyword patterns</p>
-          <div className="mt-4 rounded-lg bg-slate-50 border border-dashed border-slate-300 px-4 py-4 text-center">
-            <p className="text-xs text-slate-400 italic">
-              Research themes will appear here once the KeyBERT AI classification pipeline is active.
-            </p>
+          <p className="mt-1 text-xs text-white/50">Weighted frequency of subject tags across all HEI submissions · AY 2025-2026</p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {heatmapData.length === 0 ? (
+              <p className="text-xs text-white/40 italic">No research themes available yet.</p>
+            ) : (
+              [...new Map(heatmapData.map(d => [d.theme, d.count])).entries()]
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 15)
+                .map(([theme, count], i) => {
+                  const colors = ['#10B981','#3B82F6','#8B5CF6','#F59E0B','#EF4444','#06B6D4','#F97316','#84CC16','#EC4899','#6366F1']
+                  return (
+                    <span key={theme} className="rounded-full px-3 py-1 text-xs font-semibold text-white" style={{ backgroundColor: colors[i % colors.length] }}>
+                      {theme}
+                    </span>
+                  )
+                })
+            )}
           </div>
         </div>
 
@@ -556,9 +571,19 @@ export default function AnalyticsDashboard({
                   </div>
                   <p className="text-sm font-semibold text-[#1A1A2E]">{hei.name}</p>
                 </div>
-                <div className="mt-3">
+                <div className="mt-3 flex flex-wrap gap-1.5">
+                {heatmapData
+                  .filter(d => d.institutionId === hei.institutionId)
+                  .slice(0, 5)
+                  .map(d => (
+                    <span key={d.theme} className="rounded-full bg-slate-200 px-2 py-0.5 text-[10px] text-slate-600">
+                      {d.theme}
+                    </span>
+                  ))}
+                {heatmapData.filter(d => d.institutionId === hei.institutionId).length === 0 && (
                   <p className="text-xs text-slate-400 italic">Niche profile pending AI analysis.</p>
-                </div>
+                )}
+              </div>
               </div>
             ))}
           </div>
