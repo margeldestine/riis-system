@@ -12,6 +12,8 @@ public class EmailNotificationService {
 
 	private final ObjectProvider<JavaMailSender> mailSenderProvider;
 	private final String adminEmail;
+	@Value("${spring.mail.from:}")
+	private String fromEmail;
 
 	public EmailNotificationService(
 			ObjectProvider<JavaMailSender> mailSenderProvider,
@@ -31,6 +33,7 @@ public class EmailNotificationService {
 			if (mailSender == null) return;
 
 			SimpleMailMessage message = new SimpleMailMessage();
+			if (!fromEmail.isBlank()) message.setFrom(fromEmail);
 			message.setTo(toEmail);
 			message.setSubject("Submission Received: " + referenceNumber);
 			message.setText("Your research output submission has been received.\n\nReference Number: " + referenceNumber);
@@ -89,6 +92,7 @@ public class EmailNotificationService {
 			}
 
 			SimpleMailMessage message = new SimpleMailMessage();
+			if (!fromEmail.isBlank()) message.setFrom(fromEmail);
 			message.setTo(toEmail);
 			message.setSubject(subject);
 			message.setText(body);
@@ -109,6 +113,7 @@ public class EmailNotificationService {
 			if (mailSender == null) return;
 
 			SimpleMailMessage message = new SimpleMailMessage();
+			if (!fromEmail.isBlank()) message.setFrom(fromEmail);
 			message.setTo(toEmail);
 			message.setSubject("Your DASIG Account Has Been Approved");
 			message.setText(
@@ -131,6 +136,7 @@ public class EmailNotificationService {
 			if (mailSender == null) return;
 
 			SimpleMailMessage message = new SimpleMailMessage();
+			if (!fromEmail.isBlank()) message.setFrom(fromEmail);
 			message.setTo(toEmail);
 			message.setSubject("Your DASIG Account Registration Was Not Approved");
 			message.setText(
@@ -157,6 +163,7 @@ public class EmailNotificationService {
 			if (mailSender == null) return;
 
 			SimpleMailMessage message = new SimpleMailMessage();
+			if (!fromEmail.isBlank()) message.setFrom(fromEmail);
 			message.setTo(toEmail);
 			message.setSubject("Overlap Detected: Similar Research Output Found");
 			message.setText(

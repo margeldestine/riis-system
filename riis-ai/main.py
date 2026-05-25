@@ -13,3 +13,6 @@ app.include_router(sbert_router.router)
 @app.get("/health")
 def health_check():
     return {"status": "ok", "service": "riis-ai"}
+
+from routers import specter_router
+app.include_router(specter_router.router)

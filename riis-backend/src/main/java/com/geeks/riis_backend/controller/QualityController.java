@@ -42,6 +42,7 @@ public class QualityController {
                 .map(a -> new OverlapAlertDTO(
                         a.getId(),
                         a.getNewRecord().getId(),
+                        a.getNewRecord().getReferenceNumber(),
                         a.getNewRecord().getTitle(),
                         a.getNewRecord().getInstitution() != null ?
                                 a.getNewRecord().getInstitution().getName() : "Unknown",

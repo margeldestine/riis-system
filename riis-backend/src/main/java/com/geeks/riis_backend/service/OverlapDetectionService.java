@@ -32,8 +32,7 @@ public class OverlapDetectionService {
             return;
         }
 
-        newRecord.setSbertEmbedding(newEmbedding);
-        researchOutputRepository.save(newRecord);
+        researchOutputRepository.updateSbertEmbedding(newRecord.getId(), newEmbedding);
 
         List<ResearchOutput> similar = researchOutputRepository
                 .findSimilarBySbertEmbedding(newEmbedding, newRecord.getId(), OVERLAP_THRESHOLD);

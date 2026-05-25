@@ -79,4 +79,37 @@ public class AIProxyService {
         log.warn("AI service unavailable for SBERT embedding. Fallback activated. Cause: {}", t.getMessage());
         return new float[0];
     }
+
+    @CircuitBreaker(name = "aiService", fallbackMethod = "computeSPECTEREmbeddingFallback")
+    @Retryable(maxAttempts = 3, backoff = @Backoff(delay = 2000, multiplier = 2))
+    public float[] computeSPECTEREmbedding(String text) {
+        if (text == null || text.isBlank()) {
+            return new float[0];
+        }
+
+        WebClient client = WebClient.create(aiServiceUrl);
+        Map response = client.post()
+                .uri("/ai/specter/encode")
+                .bodyValue(Map.of("text", text))
+                .retrieve()
+                .bodyToMono(Map.class)
+                .timeout(Duration.ofSeconds(8))
+                .block();
+
+        if (response == null || !response.containsKey("embedding")) {
+            return new float[0];
+        }
+
+        List<Double> embeddingList = (List<Double>) response.get("embedding");
+        float[] embedding = new float[embeddingList.size()];
+        for (int i = 0; i < embeddingList.size(); i++) {
+            embedding[i] = embeddingList.get(i).floatValue();
+        }
+        return embedding;
+    }
+
+    public float[] computeSPECTEREmbeddingFallback(String text, Throwable t) {
+        log.warn("AI service unavailable for SPECTER embedding. Fallback activated. Cause: {}", t.getMessage());
+        return new float[0];
+    }
 }

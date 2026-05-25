@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 public record OverlapAlertDTO(
         String id,
         String newRecordId,
+        String newRecordReferenceNumber,
         String newRecordTitle,
         String newRecordHei,
         String existingRecordId,

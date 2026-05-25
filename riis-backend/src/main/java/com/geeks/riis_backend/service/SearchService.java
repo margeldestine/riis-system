@@ -4,38 +4,131 @@ import com.geeks.riis_backend.exception.ResourceNotFoundException;
 import com.geeks.riis_backend.model.ResearchOutput;
 import com.geeks.riis_backend.repository.ResearchOutputRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class SearchService {
 
     private final ResearchOutputRepository researchOutputRepository;
+    private final AIProxyService aiProxyService;
 
     public Map<String, Object> search(String query, String mode, Map<String, Object> filters) {
-        List<ResearchOutput> approved = researchOutputRepository.findByStatus("APPROVED");
+        String normalizedMode = mode == null ? "KEYWORD" : mode.trim().toUpperCase();
 
-        String q = query == null ? "" : query.trim().toLowerCase();
+        List<Map<String, Object>> results;
+        boolean fallback = false;
 
-        List<ResearchOutput> results = approved.stream()
-                .filter(o -> matchesQuery(o, q))
-                .filter(o -> matchesFilters(o, filters))
-                .collect(Collectors.toList());
-
-        List<Map<String, Object>> cards = results.stream()
-                .map(this::toCard)
-                .collect(Collectors.toList());
+        if ("SEMANTIC".equals(normalizedMode)) {
+            float[] embedding = aiProxyService.computeSPECTEREmbedding(query);
+            if (embedding.length == 0) {
+                results = executeKeywordSearch(query, filters);
+                fallback = true;
+            } else {
+                results = executeSemanticSearch(embedding, filters);
+                fallback = false;
+            }
+        } else if ("BOTH".equals(normalizedMode)) {
+            float[] embedding = aiProxyService.computeSPECTEREmbedding(query);
+            if (embedding.length == 0) {
+                results = executeKeywordSearch(query, filters);
+                fallback = true;
+            } else {
+                final float[] finalEmbedding = embedding;
+                CompletableFuture<List<Map<String, Object>>> keywordFuture =
+                        CompletableFuture.supplyAsync(() -> executeKeywordSearch(query, filters));
+                CompletableFuture<List<Map<String, Object>>> semanticFuture =
+                        CompletableFuture.supplyAsync(() -> executeSemanticSearch(finalEmbedding, filters));
+                CompletableFuture.allOf(keywordFuture, semanticFuture).join();
+                results = mergeAndRankResults(keywordFuture.join(), semanticFuture.join());
+                fallback = false;
+            }
+        } else {
+            results = executeKeywordSearch(query, filters);
+            fallback = false;
+        }
 
         Map<String, Object> response = new LinkedHashMap<>();
-        response.put("results", cards);
-        response.put("total", cards.size());
-        response.put("fallback", true);
+        response.put("results", results);
+        response.put("total", results.size());
+        response.put("fallback", fallback);
         return response;
+    }
+
+    public List<Map<String, Object>> executeKeywordSearch(String query, Map<String, Object> filters) {
+        List<ResearchOutput> approved = researchOutputRepository.findByStatus("APPROVED");
+        String q = query == null ? "" : query.trim().toLowerCase();
+
+        return approved.stream()
+                .filter(o -> matchesQuery(o, q))
+                .filter(o -> matchesFilters(o, filters))
+                .map(o -> {
+                    Map<String, Object> card = toCard(o);
+                    card.put("similarityScore", null);
+                    return card;
+                })
+                .collect(Collectors.toList());
+    }
+
+    public List<Map<String, Object>> executeSemanticSearch(float[] embedding, Map<String, Object> filters) {
+        List<ResearchOutput> similar = researchOutputRepository
+                .findSimilarBySpecterEmbedding(embedding, "00000000-0000-0000-0000-000000000000", 20);
+
+        return similar.stream()
+                .filter(o -> matchesFilters(o, filters))
+                .map(o -> {
+                    Map<String, Object> card = toCard(o);
+                    double score = computeCosineSimilarity(embedding, o.getSpecterEmbedding());
+                    card.put("similarityScore", Math.round(score * 1000.0) / 10.0);
+                    return card;
+                })
+                .collect(Collectors.toList());
+    }
+
+    public List<Map<String, Object>> mergeAndRankResults(
+            List<Map<String, Object>> keywordResults,
+            List<Map<String, Object>> semanticResults) {
+
+        Map<String, Map<String, Object>> merged = new LinkedHashMap<>();
+
+        for (int i = 0; i < keywordResults.size(); i++) {
+            Map<String, Object> r = keywordResults.get(i);
+            String id = (String) r.get("id");
+            double bm25Score = 1.0 / (i + 1);
+            r.put("mergedScore", 0.4 * bm25Score);
+            merged.put(id, r);
+        }
+
+        for (int i = 0; i < semanticResults.size(); i++) {
+            Map<String, Object> r = semanticResults.get(i);
+            String id = (String) r.get("id");
+            Double simScore = r.get("similarityScore") != null ?
+                    ((Number) r.get("similarityScore")).doubleValue() / 100.0 : 0.0;
+            double semanticScore = simScore;
+
+            if (merged.containsKey(id)) {
+                double existing = ((Number) merged.get(id).get("mergedScore")).doubleValue();
+                merged.get(id).put("mergedScore", existing + 0.6 * semanticScore);
+                merged.get(id).put("similarityScore", r.get("similarityScore"));
+            } else {
+                r.put("mergedScore", 0.6 * semanticScore);
+                merged.put(id, r);
+            }
+        }
+
+        return merged.values().stream()
+                .sorted((a, b) -> Double.compare(
+                        ((Number) b.get("mergedScore")).doubleValue(),
+                        ((Number) a.get("mergedScore")).doubleValue()))
+                .collect(Collectors.toList());
     }
 
     public Map<String, Object> getById(String id) {
@@ -56,9 +149,26 @@ public class SearchService {
         ResearchOutput source = researchOutputRepository.findById(id).orElse(null);
         if (source == null) return List.of();
 
-        List<ResearchOutput> approved = researchOutputRepository.findByStatus("APPROVED");
+        if (source.getSpecterEmbedding() != null && source.getSpecterEmbedding().length > 0) {
+            return researchOutputRepository
+                    .findSimilarBySpecterEmbedding(source.getSpecterEmbedding(), id, 3)
+                    .stream()
+                    .map(o -> {
+                        Map<String, Object> item = new LinkedHashMap<>();
+                        item.put("id", o.getId());
+                        item.put("title", o.getTitle());
+                        item.put("institutionName", o.getInstitution() != null ? o.getInstitution().getName() : "");
+                        item.put("researchType", o.getResearchType());
+                        item.put("completionYear", o.getCompletionYear());
+                        item.put("abstractExcerpt", truncate(o.getAbstractText(), 150));
+                        double score = computeCosineSimilarity(source.getSpecterEmbedding(), o.getSpecterEmbedding());
+                        item.put("similarityScore", Math.round(score * 1000.0) / 10.0);
+                        return item;
+                    })
+                    .collect(Collectors.toList());
+        }
 
-        return approved.stream()
+        return researchOutputRepository.findByStatus("APPROVED").stream()
                 .filter(o -> !o.getId().equals(id))
                 .filter(o -> hasKeywordOverlap(source, o))
                 .limit(3)
@@ -68,10 +178,24 @@ public class SearchService {
                     item.put("title", o.getTitle());
                     item.put("institutionName", o.getInstitution() != null ? o.getInstitution().getName() : "");
                     item.put("researchType", o.getResearchType());
-                    item.put("similarityScore", 75);
+                    item.put("completionYear", o.getCompletionYear());
+                    item.put("abstractExcerpt", truncate(o.getAbstractText(), 150));
+                    item.put("similarityScore", null);
                     return item;
                 })
                 .collect(Collectors.toList());
+    }
+
+    private double computeCosineSimilarity(float[] a, float[] b) {
+        if (a == null || b == null || a.length != b.length) return 0.0;
+        double dot = 0.0, normA = 0.0, normB = 0.0;
+        for (int i = 0; i < a.length; i++) {
+            dot += a[i] * b[i];
+            normA += a[i] * a[i];
+            normB += b[i] * b[i];
+        }
+        if (normA == 0 || normB == 0) return 0.0;
+        return dot / (Math.sqrt(normA) * Math.sqrt(normB));
     }
 
     private boolean matchesQuery(ResearchOutput o, String q) {

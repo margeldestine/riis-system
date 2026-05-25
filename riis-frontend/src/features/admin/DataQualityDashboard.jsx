@@ -332,72 +332,105 @@ useEffect(() => {
           </div>
         )}
 
-        {activeTab === 'overlaps' && (
-          <div className={cardClass}>
-            <div className="flex items-center gap-2 mb-1">
-              <AlertTriangle className="h-4 w-4 text-amber-500" />
-              <h2 className="text-[17px] font-semibold text-[#1A1A2E]">Overlap Alerts</h2>
-            </div>
-            <p className="text-xs text-slate-400 mb-4">
-              Research outputs flagged as thematically similar (≥80% cosine similarity)
-            </p>
+          {activeTab === 'overlaps' && (
+          <div className="space-y-4">
+            <div className={cardClass}>
+              <div className="flex items-center justify-between mb-4 rounded-[10px] border border-red-200 bg-red-50 px-4 py-3">
+                <div className="flex items-center gap-3">
+                  <AlertTriangle className="h-5 w-5 text-red-500 shrink-0" />
+                  <div>
+                    <h2 className="text-[15px] font-bold text-[#1A1A2E]">Overlap Notification Log</h2>
+                    <p className="text-xs text-slate-500">Recorded entries where overlap was detected — click a card to see full details</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3 shrink-0">
+                  <span className="text-sm font-semibold text-slate-600">{overlaps.length} flagged</span>
+                  <span className="flex items-center gap-1.5 rounded-md bg-red-500 px-3 py-1 text-xs font-bold text-white">
+                    <span className="h-1.5 w-1.5 rounded-full bg-white" />
+                    Active
+                  </span>
+                </div>
+              </div>
 
-            {overlapsLoading ? (
-              <div className="flex items-center justify-center py-10">
-                <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
-              </div>
-            ) : overlaps.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-10 text-center">
-                <CheckCircle2 className="h-8 w-8 text-emerald-500 mb-2" />
-                <p className="text-sm font-semibold text-slate-600">No overlaps detected</p>
-                <p className="text-xs text-slate-400 mt-1">All approved research outputs are sufficiently distinct.</p>
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full">
-                  <thead>
-                    <tr className="border-b border-slate-100">
-                      {['Record A', 'HEI A', 'Record B', 'HEI B', 'Similarity', 'Detected', 'Notified'].map(h => (
-                        <th key={h} className="pb-3 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                          {h}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50">
-                    {overlaps.map((alert) => (
-                      <tr key={alert.id} className="hover:bg-slate-50 transition">
-                        <td className="py-3 pr-4 max-w-[200px]">
-                          <p className="text-xs font-medium text-[#1A1A2E] line-clamp-2">{alert.newRecordTitle}</p>
-                        </td>
-                        <td className="py-3 pr-4 text-xs text-slate-500">{alert.newRecordHei}</td>
-                        <td className="py-3 pr-4 max-w-[200px]">
-                          <p className="text-xs font-medium text-[#1A1A2E] line-clamp-2">{alert.existingRecordTitle}</p>
-                        </td>
-                        <td className="py-3 pr-4 text-xs text-slate-500">{alert.existingRecordHei}</td>
-                        <td className="py-3 pr-4">
-                          <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-bold text-red-600">
-                            {(alert.similarityScore * 100).toFixed(1)}%
-                          </span>
-                        </td>
-                        <td className="py-3 pr-4 text-xs text-slate-400">
-                          {alert.detectedAt ? new Intl.DateTimeFormat('en-PH', {
-                            month: 'short', day: 'numeric', year: 'numeric'
-                          }).format(new Date(alert.detectedAt)) : '—'}
-                        </td>
-                        <td className="py-3">
-                          {alert.notificationSent ? (
-                            <span className="text-xs text-emerald-600 font-medium">✓ Sent</span>
-                          ) : (
-                            <span className="text-xs text-slate-400">Pending</span>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+              {overlapsLoading ? (
+                <div className="flex items-center justify-center py-10">
+                  <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
+                </div>
+              ) : overlaps.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-10 text-center">
+                  <CheckCircle2 className="h-8 w-8 text-emerald-500 mb-2" />
+                  <p className="text-sm font-semibold text-slate-600">No overlaps detected</p>
+                  <p className="text-xs text-slate-400 mt-1">All approved research outputs are sufficiently distinct.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {overlaps.map((alert) => {
+                    const score = (alert.similarityScore * 100).toFixed(1)
+                    const isCritical = alert.similarityScore >= 0.90
+                    return (
+                      <div
+                        key={alert.id}
+                        className="rounded-[12px] border-2 overflow-hidden bg-white"
+                        style={{ borderColor: isCritical ? '#EF4444' : '#F59E0B' }}
+                      >
+                        <div className="flex items-start justify-between px-5 pt-5 pb-3">
+                          <div className="flex-1 pr-4">
+                            <h3 className="text-[15px] font-bold text-[#1A1A2E] leading-snug mb-1">
+                              {alert.newRecordTitle}
+                            </h3>
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="text-[11px] text-slate-400">{alert.newRecordHei}</span>
+                              {alert.detectedAt && (
+                                <>
+                                  <span className="text-slate-300">•</span>
+                                  <span className="text-[11px] text-slate-400">
+                                    Detected {new Intl.DateTimeFormat('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(alert.detectedAt))}
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-4 text-[11px] text-slate-400">
+                              <span>Submitting HEI: {alert.newRecordHei}</span>
+                              {alert.notificationSent && (
+                                <span className="text-emerald-600">✓ Notification sent</span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex flex-col items-end gap-1 shrink-0">
+                            <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${isCritical ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-700'}`}>
+                              ● {isCritical ? 'Flagged' : 'Monitor'}
+                            </span>
+                            <span className={`text-3xl font-bold ${isCritical ? 'text-red-500' : 'text-amber-500'}`}>
+                              {score}%
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="px-5 py-3 bg-slate-50 border-t border-slate-100">
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">
+                            Similar Record Found
+                          </p>
+                          <div className="rounded-lg bg-white border border-slate-200 px-4 py-3 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#1A1A2E] text-[10px] font-bold text-white shrink-0">
+                                {(alert.existingRecordHei || '').split(' ').filter(w => w.length > 2).map(w => w[0]).join('').slice(0, 3) || (alert.existingRecordHei || '').split(' ').map(w => w[0]).join('').slice(0, 2)}
+                              </div>
+                              <div>
+                                <p className="text-xs font-semibold text-[#1A1A2E]">{alert.existingRecordTitle}</p>
+                                <p className="text-[10px] text-slate-400 mt-0.5">{alert.existingRecordHei}</p>
+                              </div>
+                            </div>
+                            <span className={`text-sm font-bold shrink-0 ml-4 ${isCritical ? 'text-red-500' : 'text-amber-500'}`}>
+                              {score}%
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>

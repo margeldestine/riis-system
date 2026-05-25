@@ -101,11 +101,20 @@ function ResultCard({ result, onSelect }) {
 
           {/* Type + venue */}
           <div className="mt-3 flex items-center gap-3">
-            <TypeBadge type={result.researchType} />
-            {result.publicationVenue && (
-              <span className="text-xs text-slate-400">{result.publicationVenue}</span>
-            )}
-          </div>
+          <TypeBadge type={result.researchType} />
+          {result.publicationVenue && (
+            <span className="text-xs text-slate-400">{result.publicationVenue}</span>
+          )}
+          {result.similarityScore != null && (
+            <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+              result.similarityScore >= 85 ? 'bg-emerald-100 text-emerald-700' :
+              result.similarityScore >= 70 ? 'bg-amber-100 text-amber-700' :
+              'bg-slate-100 text-slate-600'
+            }`}>
+              {result.similarityScore}% match
+            </span>
+          )}
+        </div>
         </div>
 
         {/* Actions */}

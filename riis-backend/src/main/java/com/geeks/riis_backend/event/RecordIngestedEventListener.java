@@ -53,6 +53,14 @@ public class RecordIngestedEventListener {
         } else {
             log.warn("Empty SBERT embedding for: {}", event.referenceNumber());
         }
+
+        float[] specterEmbedding = aiProxyService.computeSPECTEREmbedding(text);
+        if (specterEmbedding.length > 0) {
+            researchOutputRepository.updateSpecterEmbedding(output.getId(), specterEmbedding);
+            log.info("SPECTER embedding saved for: {}", event.referenceNumber());
+        } else {
+            log.warn("Empty SPECTER embedding for: {}", event.referenceNumber());
+        }
     }
 
     private String buildText(ResearchOutput output) {
