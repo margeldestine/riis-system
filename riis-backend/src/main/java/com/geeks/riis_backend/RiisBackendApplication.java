@@ -11,4 +11,4 @@ public class RiisBackendApplication {
 	public static void main(String[] args) {
 		SpringApplication.run(RiisBackendApplication.class, args);
 	}
-}
+}		

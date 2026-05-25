@@ -45,4 +45,11 @@ public class AnalyticsController {
     public ResponseEntity<List<Map<String, Object>>> getProvinceSummary() {
         return ResponseEntity.ok(analyticsService.getProvinceSummary());
     }
+
+    @GetMapping("/heatmap")
+    @PreAuthorize("hasRole('DOST_ADMIN')")
+    public ResponseEntity<List<Map<String, Object>>> getHeatmap() {
+        return ResponseEntity.ok(analyticsService.getHeatmap());
+    }
+
 }

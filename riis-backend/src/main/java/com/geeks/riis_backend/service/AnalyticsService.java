@@ -15,6 +15,7 @@ public class AnalyticsService {
 
     private final ResearchOutputRepository researchOutputRepository;
     private final InstitutionRepository institutionRepository;
+    private final com.geeks.riis_backend.repository.ThemeKeywordRepository themeKeywordRepository;
 
     // GET /api/v1/analytics/summary
     public Map<String, Object> getSummary() {
@@ -116,5 +117,19 @@ public class AnalyticsService {
             card.put("value", count);
             return card;
         }).collect(Collectors.toList());
+    }
+
+    // GET /api/v1/analytics/heatmap
+    public List<Map<String, Object>> getHeatmap() {
+        List<Object[]> rows = themeKeywordRepository.findAggregatedThemesByInstitution();
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (Object[] row : rows) {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("institutionId", row[0]);
+            item.put("theme", row[1]);
+            item.put("count", row[2]);
+            result.add(item);
+        }
+        return result;
     }
 }
