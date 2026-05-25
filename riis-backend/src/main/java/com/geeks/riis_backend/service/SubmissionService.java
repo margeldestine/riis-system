@@ -99,12 +99,6 @@ public class SubmissionService {
 
 		ResearchOutput saved = researchOutputRepository.save(output);
 
-		eventPublisher.publishEvent(new RecordIngestedEvent(
-				saved.getId(),
-				saved.getReferenceNumber(),
-				institution.getId()
-		));
-
 		emailNotificationService.sendSubmissionConfirmation(user.getEmail(), saved.getReferenceNumber());
 
 		return new SubmissionResponse(saved.getReferenceNumber());
