@@ -73,6 +73,8 @@ public class SecurityConfig {
 						.requestMatchers("/api/v1/admin/**").hasRole("DOST_ADMIN")
                         .requestMatchers("/api/v1/analytics/**").hasRole("DOST_ADMIN")
                         .requestMatchers("/api/v1/admin/submissions/**").hasRole("DOST_ADMIN")
+						.requestMatchers("/api/v1/admin/submissions/**").hasRole("DOST_ADMIN")
+						.requestMatchers("/api/v1/reports/**").hasAnyAuthority("ROLE_DOST_ADMIN", "DOST_ADMIN", "ROLE_HEI_STAFF", "HEI_STAFF")
 
 						.anyRequest().authenticated()
 				);

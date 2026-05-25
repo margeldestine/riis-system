@@ -16,6 +16,8 @@ import HeiDirectoryPage from './features/public/HeiDirectoryPage'
 import PublicInstitutionProfilePage from './features/public/PublicInstitutionProfilePage'
 import ResearchOutputDetailPage from './features/public/ResearchOutputDetailPage'
 import DataQualityDashboard from './features/admin/DataQualityDashboard'
+import ReportGeneratorPage from './features/admin/ReportGeneratorPage'
+import HeiReportsPage from './features/hei/HeiReportsPage'
 
 
 function HeiPlaceholderPage({ activeLabel, title }) {
@@ -64,6 +66,7 @@ function App() {
         <Route path="/hei/submission-portal" element={<HeiSubmissionPortalPage />} />
         <Route path="/hei/submission-history" element={<SubmissionHistory />} />
         <Route path="/institutions/:id" element={<PublicInstitutionProfilePage />} />
+        <Route path="/hei/reports" element={<HeiReportsPage />} />
         <Route
           path="/hei/research-profiles"
           element={<HeiResearchProfiles />}
@@ -73,17 +76,15 @@ function App() {
           element={<InstitutionProfilePage />}
         />
         <Route path="/hei/browse-research" element={<HeiDiscoveryPage />} />
-        <Route
-          path="/hei/reports"
-          element={<HeiPlaceholderPage activeLabel="Reports" title="Reports" />}
-        />
         <Route path="/dost/dashboard" element={<DostDashboard />} />
         <Route path="/dost/submissions" element={<PendingSubmissionsPage />} />
         <Route path="/dost/user-management" element={<AccountApprovalQueue />} />
         <Route path="/dost/hei-management" element={<HeiManagementPage />} />
+        <Route path="/dost/reports" element={<ReportGeneratorPage />} />
         <Route path="/dost/validation" element={<DataQualityDashboard />} />
         <Route path="/dost/overlap-alerts" element={<DataQualityDashboard />} />
         <Route path="/discover" element={<DiscoveryPortalPage />} />
+        
       </Routes>
     </BrowserRouter>
   )

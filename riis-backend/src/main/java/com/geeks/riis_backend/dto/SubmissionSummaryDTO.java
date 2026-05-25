@@ -7,6 +7,7 @@ public record SubmissionSummaryDTO(
 		String referenceNumber,
 		String title,
 		String researchType,
+		String fundingSource,
 		Integer completionYear,
 		LocalDateTime submittedAt,
 		String status

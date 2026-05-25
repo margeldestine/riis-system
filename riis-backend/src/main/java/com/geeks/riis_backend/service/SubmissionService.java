@@ -126,6 +126,7 @@ public class SubmissionService {
 					output.getReferenceNumber(),
 					output.getTitle(),
 					output.getResearchType(),
+					output.getFundingSource(),
 					output.getCompletionYear(),
 					output.getCreatedAt(),
 					output.getStatus()
@@ -141,6 +142,7 @@ public class SubmissionService {
 						output.getReferenceNumber(),
 						output.getTitle(),
 						output.getResearchType(),
+						output.getFundingSource(),
 						output.getCompletionYear(),
 						output.getCreatedAt(),
 						output.getStatus()

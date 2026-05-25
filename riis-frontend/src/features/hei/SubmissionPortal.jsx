@@ -462,11 +462,15 @@ function BasicInfoStep({ register, errors }) {
           <label className="mb-2 block text-[11px] font-bold uppercase tracking-wider text-slate-500">
             Funding Source <span className="text-[#C9A84C]">*</span>
           </label>
-          <input
+          <select
             {...register('fundingSource')}
-            placeholder="Funding agency or grant source"
-            className={`w-full rounded-md border p-3 text-sm placeholder:text-slate-400 outline-none transition focus:ring-1 ${errors.fundingSource ? 'border-red-400 focus:border-red-400 focus:ring-red-400' : 'border-slate-200 bg-[#FFFFFF] focus:border-[#1A1A2E] focus:ring-[#1A1A2E]'}`}
-          />
+            className={`w-full rounded-md border p-3 text-sm outline-none transition focus:ring-1 ${errors.fundingSource ? 'border-red-400 focus:border-red-400 focus:ring-red-400' : 'border-slate-200 bg-[#FFFFFF] focus:border-[#1A1A2E] focus:ring-[#1A1A2E]'}`}
+          >
+            <option value="">Select funding source</option>
+            {['DOST-PCAARRD', 'DOST-PCIEERD', 'DOST-CHED', 'Self-Funded', 'Other'].map(f => (
+              <option key={f} value={f}>{f}</option>
+            ))}
+          </select>
           <FieldMessage message={errors.fundingSource?.message} />
         </div>
 

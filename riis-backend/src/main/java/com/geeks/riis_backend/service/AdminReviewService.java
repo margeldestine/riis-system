@@ -44,6 +44,7 @@ public class AdminReviewService {
                         o.getReferenceNumber(),
                         o.getTitle(),
                         o.getResearchType(),
+                        o.getFundingSource(),
                         o.getCompletionYear(),
                         o.getCreatedAt(),
                         o.getStatus()

@@ -6,6 +6,7 @@ import org.springframework.retry.annotation.EnableRetry;
 
 @SpringBootApplication
 @EnableRetry
+@org.springframework.scheduling.annotation.EnableAsync
 public class RiisBackendApplication {
 
 	public static void main(String[] args) {
