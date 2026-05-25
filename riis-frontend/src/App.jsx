@@ -15,6 +15,7 @@ import HeiManagementPage from './features/admin/HeiManagementPage'
 import HeiDirectoryPage from './features/public/HeiDirectoryPage'
 import PublicInstitutionProfilePage from './features/public/PublicInstitutionProfilePage'
 import ResearchOutputDetailPage from './features/public/ResearchOutputDetailPage'
+import DataQualityDashboard from './features/admin/DataQualityDashboard'
 
 
 function HeiPlaceholderPage({ activeLabel, title }) {
@@ -80,6 +81,8 @@ function App() {
         <Route path="/dost/submissions" element={<PendingSubmissionsPage />} />
         <Route path="/dost/user-management" element={<AccountApprovalQueue />} />
         <Route path="/dost/hei-management" element={<HeiManagementPage />} />
+        <Route path="/dost/validation" element={<DataQualityDashboard />} />
+        <Route path="/dost/overlap-alerts" element={<DataQualityDashboard />} />
         <Route path="/discover" element={<DiscoveryPortalPage />} />
       </Routes>
     </BrowserRouter>
