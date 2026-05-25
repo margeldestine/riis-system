@@ -120,12 +120,15 @@ function ResultCard({ result, onSelect }) {
         {/* Actions */}
         <div className="shrink-0 flex flex-col gap-2">
           <button
-            type="button"
-            onClick={() => navigate(`/research/${result.id}`)}
-            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition whitespace-nowrap"
-          >
-            View Details
-          </button>
+          type="button"
+          onClick={() => {
+            console.log('similarity score being passed:', result.similarityScore)
+            navigate(`/research/${result.id}`, { state: { similarityScore: result.similarityScore ?? null } })
+          }}
+          className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition whitespace-nowrap"
+        >
+          View Details
+        </button>
           {result.doi && (
             <a
               href={`https://doi.org/${result.doi}`}

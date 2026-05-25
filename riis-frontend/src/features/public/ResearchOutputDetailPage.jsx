@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, ExternalLink, Copy, FileText } from 'lucide-react'
 import apiClient from '../../services/apiClient'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
+
 
 function extractApiErrorMessage(error, fallback) {
   const data = error?.response?.data
@@ -37,8 +38,6 @@ function MetaField({ label, value, children }) {
 }
 
 function RelatedCard({ record, onSelect }) {
-  const score = record.similarityScore ?? 0
-  const scoreColor = score >= 85 ? 'bg-emerald-100 text-emerald-700' : score >= 70 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'
   return (
     <button
       type="button"
@@ -46,12 +45,7 @@ function RelatedCard({ record, onSelect }) {
       className="w-full text-left rounded-lg border border-slate-200 bg-white p-3 hover:bg-slate-50 transition space-y-1.5"
     >
       <p className="text-sm font-semibold text-[#1A1A2E] leading-snug line-clamp-2">{record.title}</p>
-      <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-xs text-slate-500">{record.institutionName}</span>
-        <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${scoreColor}`}>
-          {score}% match
-        </span>
-      </div>
+      <span className="text-xs text-slate-500">{record.institutionName}</span>
     </button>
   )
 }
@@ -59,6 +53,8 @@ function RelatedCard({ record, onSelect }) {
 export default function ResearchOutputDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
+  const similarityScore = location.state?.similarityScore ?? null
 
   const [record, setRecord] = useState(null)
   const [related, setRelated] = useState([])
@@ -339,23 +335,25 @@ export default function ResearchOutputDetailPage() {
                   </button>
                 </div>
 
-                {/* Relevance */}
-                <div className="rounded-xl border border-slate-200 bg-white p-5">
-                  <div className="text-center mb-3">
-                    <p className="text-3xl font-bold text-[#1A1A2E]">
-                      94<span className="text-lg">%</span>
-                    </p>
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mt-1">
-                      Relevance to Your Search
-                    </p>
-                  </div>
-                  <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
-                    <div className="h-full rounded-full bg-emerald-500" style={{ width: '94%' }} />
-                  </div>
-                  <p className="mt-3 text-xs text-slate-400 leading-relaxed">
-                    This research closely matches your search — based on AI analysis.
-                  </p>
-                </div>
+                  {/* Relevance */}
+                  {similarityScore != null && (
+                    <div className="rounded-xl border border-slate-200 bg-white p-5">
+                      <div className="text-center mb-3">
+                        <p className="text-3xl font-bold text-[#1A1A2E]">
+                          {similarityScore}<span className="text-lg">%</span>
+                        </p>
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mt-1">
+                          Relevance to Your Search
+                        </p>
+                      </div>
+                      <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
+                        <div className="h-full rounded-full bg-emerald-500" style={{ width: `${similarityScore}%` }} />
+                      </div>
+                      <p className="mt-3 text-xs text-slate-400 leading-relaxed">
+                        This research closely matches your search — based on AI analysis.
+                      </p>
+                    </div>
+                  )}
 
                 {/* Related */}
                 {related.length > 0 && (
