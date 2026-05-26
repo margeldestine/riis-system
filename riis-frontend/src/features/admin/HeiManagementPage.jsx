@@ -339,21 +339,30 @@ export default function HeiManagementPage() {
   return (
     <DashboardLayout navItems={dostNavItems} userName="DOST Administrator" organization="DOST Region VII">
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-        <div>
-          <p style={{ fontSize: 12, color: '#9ca3af', margin: '0 0 2px', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600 }}>
-            Dashboard &nbsp;|&nbsp; HEI Management
-          </p>
-          <h1 style={{ margin: 0, fontSize: 28, fontWeight: 800, color: '#111827' }}>HEI Management</h1>
-          <p style={{ margin: '4px 0 0', color: '#6b7280', fontSize: 14 }}>
-            Manage the registered HEI whitelist for DASIG
-          </p>
+      <div style={{ margin: '-32px -32px 0', width: 'calc(100% + 64px)' }}>
+        <div style={{ position: 'relative', overflow: 'hidden', background: '#f8fafc', padding: '32px' }}>
+          <div style={{ pointerEvents: 'none', position: 'absolute', inset: 0, backgroundImage: 'url(/DOST_Building.png)', backgroundSize: 'cover', backgroundPosition: '78% 32%', opacity: 0.18 }} />
+          <div style={{ pointerEvents: 'none', position: 'absolute', inset: 0, background: 'rgba(13, 31, 60, 0.08)' }} />
+          <div style={{ position: 'relative', zIndex: 10, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 24 }}>
+            <div>
+              <p style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.26em', color: '#94a3b8', margin: 0 }}>
+                DASHBOARD &gt; <span style={{ color: '#c9a84c' }}>HEI MANAGEMENT</span>
+              </p>
+              <h1 style={{ margin: '8px 0 0', fontSize: 30, fontWeight: 700, color: '#0d1f3c', fontFamily: "'Libre Baskerville', serif", letterSpacing: '-0.02em' }}>
+                HEI Management
+              </h1>
+              <p style={{ margin: '8px 0 0', fontSize: 13, color: '#6b7280' }}>
+                DOST Administrator View · Region VII · AY 2025-2026
+              </p>
+            </div>
+            <div style={{ textAlign: 'right', flexShrink: 0 }}>
+              <p style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.26em', color: '#94a3b8', margin: 0 }}>ACADEMIC YEAR</p>
+              <p style={{ fontSize: 13, fontWeight: 700, color: '#0d1f3c', margin: '4px 0 0' }}>2025-2026</p>
+              <p style={{ fontSize: 12, color: '#6b7280', margin: '4px 0 0' }}>DOST Region VII</p>
+            </div>
+          </div>
         </div>
-        <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: 11, color: '#9ca3af', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Academic Year</div>
-          <div style={{ fontSize: 16, fontWeight: 800, color: '#111827' }}>2025 – 2026</div>
-          <div style={{ fontSize: 12, color: '#6b7280' }}>DOST Region VII</div>
-        </div>
+        <div style={{ height: 1, width: '100%', background: '#c9a84c' }} />
       </div>
 
       {/* Stat cards */}

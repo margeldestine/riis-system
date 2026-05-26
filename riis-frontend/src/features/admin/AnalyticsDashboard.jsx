@@ -130,28 +130,51 @@ export default function AnalyticsDashboard({
 
   return (
     <div className="space-y-4 font-sans">
-      <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.22em]">
-        <span className="text-[#9CA3AF]">Dashboard</span>
-        <ChevronRight className="h-3.5 w-3.5 text-[#9CA3AF]" />
-        <span className="text-[#C9A84C]">Analytics Dashboard</span>
-      </div>
 
-      <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-        <div>
-          <h2 className="text-[30px] font-bold tracking-tight text-[#1A1A2E]">
-            Regional Research Analytics Dashboard
-          </h2>
-          <p className="mt-2 text-sm text-[#6B7280]">
-            DOST Administrator View · Region VII · AY 2025-2026
-          </p>
+      {/* ── Hero Header (matches HEI style) ── */}
+      <div className="-mx-[32px] -mt-[32px] w-[calc(100%+64px)]">
+        <div className="relative overflow-hidden bg-[#f8fafc] px-8 py-8">
+          {/* Background image */}
+          <div
+            className="pointer-events-none absolute inset-0"
+            style={{
+              backgroundImage: 'url(/DOST_Building.png)',
+              backgroundSize: 'cover',
+              backgroundPosition: '78% 32%',
+              opacity: 0.18,
+            }}
+          />
+          {/* Overlay */}
+          <div
+            className="pointer-events-none absolute inset-0"
+            style={{ background: 'rgba(13, 31, 60, 0.08)' }}
+          />
+          <div className="relative z-10 flex items-start justify-between gap-6">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-[#94a3b8]">
+                DASHBOARD &gt; <span className="text-[#c9a84c]">ANALYTICS DASHBOARD</span>
+              </p>
+              <h1
+                className="mt-2 text-[30px] font-bold tracking-tight text-[#0d1f3c]"
+                style={{ fontFamily: "'Libre Baskerville', serif" }}
+              >
+                Regional Research Analytics Dashboard
+              </h1>
+              <p className="mt-2 text-[13px] text-[#6b7280]">
+                DOST Administrator View · Region VII · AY 2025-2026
+              </p>
+            </div>
+            <div className="text-right shrink-0">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-[#94a3b8]">
+                ACADEMIC YEAR
+              </p>
+              <p className="text-[13px] font-bold text-[#0d1f3c]">2025-2026</p>
+              <p className="mt-1 text-[12px] text-[#6b7280]">DOST Region VII</p>
+            </div>
+          </div>
         </div>
-        <div className={`${cardClass} min-w-[160px] px-4 py-3 text-right`}>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#9CA3AF]">
-            Academic Year
-          </p>
-          <p className="mt-1 text-lg font-semibold text-[#1A1A2E]">2025-2026</p>
-          <p className="mt-1 text-xs text-[#6B7280]">DOST Region VII</p>
-        </div>
+        {/* Gold divider line */}
+        <div className="h-px w-full bg-[#c9a84c]" />
       </div>
 
       {/* KPI Strip */}
@@ -433,7 +456,9 @@ export default function AnalyticsDashboard({
               <div className="col-span-2 flex items-center justify-center py-8">
                 <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
               </div>
-            ) : provinceSummary.map((item) => (
+            ) : provinceSummary
+                .filter(item => !['NEGROS ORIENTAL', 'SIQUIJOR'].includes(item.name?.toUpperCase()))
+                .map((item) => (
               <div
                 key={item.name}
                 className="rounded-[12px] border border-[#E5E7EB] bg-[#F9FAFB] p-4"
@@ -456,7 +481,7 @@ export default function AnalyticsDashboard({
         </div>
       </section>
 
-      {/* Heatmap — placeholder until KeyBERT is done */}
+      {/* Heatmap */}
       <section className="rounded-[12px] bg-[#F0FAF9] p-[20px] shadow-[0_2px_8px_rgba(0,0,0,0.08)] border border-teal-100">
         <div className="flex items-start gap-3">
           <div className="rounded-[10px] bg-[#FEF3C7] p-2 text-[#C9A84C]">
@@ -512,7 +537,7 @@ export default function AnalyticsDashboard({
         ) : null}
       </section>
 
-      {/* Research Niche Landscape — placeholder until KeyBERT */}
+      {/* Research Niche Landscape */}
       <section className={cardClass}>
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-start gap-3">
@@ -533,7 +558,6 @@ export default function AnalyticsDashboard({
           </button>
         </div>
 
-        {/* Dark aggregated themes panel */}
         <div className="mt-5 rounded-[12px] bg-[#1A2744] p-5">
           <p className="text-sm font-semibold text-white">DOST Region VII — Aggregated Research Themes</p>
           <p className="mt-1 text-xs text-white/50">Weighted frequency of subject tags across all HEI submissions · AY 2025-2026</p>
@@ -556,7 +580,6 @@ export default function AnalyticsDashboard({
           </div>
         </div>
 
-        {/* Per-niche summary placeholder */}
         <div className="mt-5">
           <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-3">Per-Niche Summary</p>
           <div className="grid gap-4 xl:grid-cols-3">

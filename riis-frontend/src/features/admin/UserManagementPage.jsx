@@ -114,20 +114,31 @@ function QueueScreen({ users, onReview }) {
 
   return (
     <>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
-        <div>
-          <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 4px' }}>
-            Submissions &nbsp;›&nbsp; <strong style={{ color: '#111827' }}>User Management</strong>
-          </p>
-          <h1 style={{ margin: 0, fontSize: 28, fontWeight: 800, color: '#111827' }}>User Management</h1>
-          <p style={{ margin: '4px 0 0', color: '#6b7280', fontSize: 14 }}>
-            Review and approve pending HEI Research Office staff registrations
-          </p>
+      {/* Hero Header */}
+      <div style={{ margin: '-32px -32px 0', width: 'calc(100% + 64px)', marginBottom: 24 }}>
+        <div style={{ position: 'relative', overflow: 'hidden', background: '#f8fafc', padding: '32px' }}>
+          <div style={{ pointerEvents: 'none', position: 'absolute', inset: 0, backgroundImage: 'url(/DOST_Building.png)', backgroundSize: 'cover', backgroundPosition: '78% 32%', opacity: 0.18 }} />
+          <div style={{ pointerEvents: 'none', position: 'absolute', inset: 0, background: 'rgba(13, 31, 60, 0.08)' }} />
+          <div style={{ position: 'relative', zIndex: 10, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 24 }}>
+            <div>
+              <p style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.26em', color: '#94a3b8', margin: 0 }}>
+                DASHBOARD &gt; <span style={{ color: '#c9a84c' }}>USER MANAGEMENT</span>
+              </p>
+              <h1 style={{ margin: '8px 0 0', fontSize: 30, fontWeight: 700, color: '#0d1f3c', fontFamily: "'Libre Baskerville', serif", letterSpacing: '-0.02em' }}>
+                User Management
+              </h1>
+              <p style={{ margin: '8px 0 0', fontSize: 13, color: '#6b7280' }}>
+                Review and approve pending HEI Research Office staff registrations
+              </p>
+            </div>
+            <div style={{ textAlign: 'right', flexShrink: 0 }}>
+              <p style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.26em', color: '#94a3b8', margin: 0 }}>ACADEMIC YEAR</p>
+              <p style={{ fontSize: 13, fontWeight: 700, color: '#0d1f3c', margin: '4px 0 0' }}>2025-2026</p>
+              <p style={{ fontSize: 12, color: '#6b7280', margin: '4px 0 0' }}>DOST Region VII</p>
+            </div>
+          </div>
         </div>
-        <div style={{ fontSize: 13, textAlign: 'right', color: '#6b7280' }}>
-          ACADEMIC YEAR<br />
-          <strong style={{ fontSize: 15, color: '#111827' }}>2025 – 2026</strong>
-        </div>
+        <div style={{ height: 1, width: '100%', background: '#c9a84c' }} />
       </div>
 
       <div style={{ display: 'flex', gap: 16, marginBottom: 32 }}>
@@ -214,20 +225,31 @@ function ReviewScreen({ user, onBack, onApprove, onReject, loading }) {
 
   return (
     <>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
-        <div>
-          <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 4px' }}>
-            Submissions &nbsp;›&nbsp; User Management &nbsp;›&nbsp;
-          </p>
-          <h1 style={{ margin: 0, fontSize: 26, fontWeight: 800, color: '#111827' }}>Review Registration Request</h1>
-          <p style={{ margin: '4px 0 0', color: '#6b7280', fontSize: 14 }}>
-            Review and approve pending HEI Research Office staff registrations
-          </p>
+      {/* Hero Header */}
+      <div style={{ margin: '-32px -32px 0', width: 'calc(100% + 64px)', marginBottom: 24 }}>
+        <div style={{ position: 'relative', overflow: 'hidden', background: '#f8fafc', padding: '32px' }}>
+          <div style={{ pointerEvents: 'none', position: 'absolute', inset: 0, backgroundImage: 'url(/DOST_Building.png)', backgroundSize: 'cover', backgroundPosition: '78% 32%', opacity: 0.18 }} />
+          <div style={{ pointerEvents: 'none', position: 'absolute', inset: 0, background: 'rgba(13, 31, 60, 0.08)' }} />
+          <div style={{ position: 'relative', zIndex: 10, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 24 }}>
+            <div>
+              <p style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.26em', color: '#94a3b8', margin: 0 }}>
+                DASHBOARD &gt; USER MANAGEMENT &gt; <span style={{ color: '#c9a84c' }}>REVIEW</span>
+              </p>
+              <h1 style={{ margin: '8px 0 0', fontSize: 30, fontWeight: 700, color: '#0d1f3c', fontFamily: "'Libre Baskerville', serif", letterSpacing: '-0.02em' }}>
+                Review Registration Request
+              </h1>
+              <p style={{ margin: '8px 0 0', fontSize: 13, color: '#6b7280' }}>
+                Review and approve pending HEI Research Office staff registrations
+              </p>
+            </div>
+            <div style={{ textAlign: 'right', flexShrink: 0 }}>
+              <p style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.26em', color: '#94a3b8', margin: 0 }}>ACADEMIC YEAR</p>
+              <p style={{ fontSize: 13, fontWeight: 700, color: '#0d1f3c', margin: '4px 0 0' }}>2025-2026</p>
+              <p style={{ fontSize: 12, color: '#6b7280', margin: '4px 0 0' }}>DOST Region VII</p>
+            </div>
+          </div>
         </div>
-        <div style={{ fontSize: 13, textAlign: 'right', color: '#6b7280' }}>
-          ACADEMIC YEAR<br />
-          <strong style={{ fontSize: 15, color: '#111827' }}>2025 – 2026</strong>
-        </div>
+        <div style={{ height: 1, width: '100%', background: '#c9a84c' }} />
       </div>
 
       <div style={{ background: 'linear-gradient(135deg, #1e3a5f 0%, #162d4a 100%)', borderRadius: 12, padding: '24px 28px', marginBottom: 24, display: 'flex', alignItems: 'center', gap: 20 }}>

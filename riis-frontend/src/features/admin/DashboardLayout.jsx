@@ -143,6 +143,7 @@ export default function DashboardLayout({
 
   const handleSignOut = () => {
     localStorage.removeItem('token')
+    localStorage.removeItem('role')
     localStorage.removeItem('institutionName')
     localStorage.removeItem('userInstitution')
     localStorage.removeItem('userRole')
@@ -154,16 +155,12 @@ export default function DashboardLayout({
     <div className="flex h-screen bg-[#F4F6F9] font-sans text-[#1A1A2E]">
       <aside
         className="hidden h-screen w-[240px] shrink-0 bg-[#0D1B2A] px-5 py-5 lg:flex lg:flex-col"
-        style={
-          isHeiRoute
-            ? {
-                backgroundImage:
-                  "linear-gradient(rgba(13, 31, 60, 0.85), rgba(13, 31, 60, 0.85)), url('/DOST_Building.png')",
-                backgroundSize: 'cover',
-                backgroundPosition: '50% 30%',
-              }
-            : undefined
-        }
+        style={{
+            backgroundImage:
+              "linear-gradient(rgba(13, 31, 60, 0.85), rgba(13, 31, 60, 0.85)), url('/DOST_Building.png')",
+            backgroundSize: 'cover',
+            backgroundPosition: '50% 30%',
+          }}
       >
         <div className="flex items-center gap-3">
           <img
