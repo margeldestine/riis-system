@@ -95,6 +95,7 @@ function ResearchTypeBar({ distribution }) {
 }
 
 function OutputCard({ output, isOwnInstitution }) {
+  const navigate = useNavigate()
   const statusColors = {
     APPROVED: 'bg-emerald-100 text-emerald-700',
     PENDING_REVIEW: 'bg-blue-100 text-blue-700',
@@ -210,6 +211,7 @@ function OutputCard({ output, isOwnInstitution }) {
       <div className="pt-1">
         <button
           type="button"
+          onClick={() => navigate(`/research/${output.id}`)}
           className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
         >
           View Details

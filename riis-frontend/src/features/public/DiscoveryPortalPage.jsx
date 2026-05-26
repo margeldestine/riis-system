@@ -59,26 +59,29 @@ function ResultCard({ result, onSelect }) {
             </button>
           )}
 
-          {/* Authors + institution + year */}
-          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-slate-500">
-            {authors && (
-              <span className="flex items-center gap-1">
-                <span className="text-slate-400 text-xs">👤</span>
-                {authors}
+          <div className="mt-1 text-sm text-slate-500">
+            {authors ? authors : null}
+          </div>
+
+          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-500">
+            {result.researchType ? (
+              <span className="flex items-center gap-2">
+                <svg className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" /></svg>
+                {result.researchType}
               </span>
-            )}
-            {result.institutionName && (
-              <>
-                <span className="text-slate-300">·</span>
-                <span>{result.institutionName}</span>
-              </>
-            )}
-            {result.completionYear && (
-              <>
-                <span className="text-slate-300">·</span>
-                <span>{result.completionYear}</span>
-              </>
-            )}
+            ) : null}
+            {result.completionYear ? (
+              <span className="flex items-center gap-2">
+                <svg className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3M3 11h18M5 5h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z" /></svg>
+                {result.completionYear}
+              </span>
+            ) : null}
+            {result.fundingSource || result.institutionName ? (
+              <span className="flex items-center gap-2">
+                <svg className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3 21h18M6 18V7a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v11M10 9h4m-4 3h4m-4 3h4" /></svg>
+                {result.fundingSource || result.institutionName}
+              </span>
+            ) : null}
           </div>
 
           {/* Abstract */}
@@ -269,6 +272,8 @@ export default function DiscoveryPortalPage({ embedded = false }) {
 
   const [query, setQuery] = useState(searchParams.get('q') || '')
   const [mode, setMode] = useState(searchParams.get('mode') || 'KEYWORD')
+  const pageSize = 5
+  const [page, setPage] = useState(0)
   const [filters, setFilters] = useState({
     institutionId: searchParams.get('institutionId') || '',
     province: searchParams.get('province') || '',
@@ -302,6 +307,7 @@ export default function DiscoveryPortalPage({ embedded = false }) {
     setLoading(true)
     setError('')
     setHasSearched(true)
+    setPage(0)
 
     const params = new URLSearchParams()
     if (q) params.set('q', q)
@@ -346,9 +352,11 @@ export default function DiscoveryPortalPage({ embedded = false }) {
   }
 
   const activeFilterCount = Object.values(filters).filter(Boolean).length
+  const pagedResults = results.slice(page * pageSize, (page + 1) * pageSize)
+  const totalPages = Math.max(1, Math.ceil(results.length / pageSize))
 
   return (
-    <div className={embedded ? '' : 'min-h-screen bg-[#F4F6F9] font-sans'}>
+    <div className={embedded ? '' : 'min-h-screen bg-[#F4F6F9]'} style={{ fontFamily: "'Inter', sans-serif" }}>
       {/* Top nav — only shown on public page */}
       {!embedded && <nav className="bg-white border-b border-slate-200 px-8 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -391,7 +399,7 @@ export default function DiscoveryPortalPage({ embedded = false }) {
       {/* Hero section */}
       {/* Hero section */}
       {/* Hero section */}
-      <div className="relative px-8 py-16 text-center overflow-hidden" style={{ background: '#1a3a6b' }}>
+      <div className={`relative py-16 text-center overflow-hidden ${embedded ? '-mx-[32px] -mt-[32px] w-[calc(100%+64px)]' : ''}`} style={{ background: '#1a3a6b' }}>
         <div
           className="absolute inset-0"
           style={{
@@ -404,7 +412,7 @@ export default function DiscoveryPortalPage({ embedded = false }) {
         />
         <div className="absolute inset-0" style={{ background: 'rgba(15, 40, 90, 0.72)' }} />
         <div className="relative z-10">
-          <h1 className="text-4xl font-bold text-white" style={{ fontFamily: 'Georgia, serif' }}>Explore Research Outputs</h1>
+          <h1 className="text-4xl font-bold text-white" style={{ fontFamily: "'Libre Baskerville', serif" }}>Explore Research Outputs</h1>
           <p className="mt-2 text-sm" style={{ color: 'rgba(255,255,255,0.7)' }}>from Region VII HEIs</p>
           <p className="mt-3 text-sm max-w-xl mx-auto" style={{ color: 'rgba(255,255,255,0.6)', lineHeight: 1.7 }}>
             Search through thousands of research papers, projects, and innovations from Higher Education Institutions
@@ -489,7 +497,7 @@ export default function DiscoveryPortalPage({ embedded = false }) {
                       onChange={(e) => handleFilterChange('institutionId', e.target.value)}
                       className="w-full rounded-lg border border-slate-200 bg-white py-1.5 pl-2 pr-6 text-xs text-slate-600 appearance-none focus:outline-none focus:ring-1 focus:ring-[#C9A84C]"
                     >
-                      <option value=""></option>
+                      <option value="">Select institution</option>
                       {institutions.map(i => (
                         <option key={i.id} value={i.id}>{i.name}</option>
                       ))}
@@ -506,7 +514,7 @@ export default function DiscoveryPortalPage({ embedded = false }) {
                       onChange={(e) => handleFilterChange('researchType', e.target.value)}
                       className="w-full rounded-lg border border-slate-200 bg-white py-1.5 pl-2 pr-6 text-xs text-slate-600 appearance-none focus:outline-none focus:ring-1 focus:ring-[#C9A84C]"
                     >
-                      <option value=""></option>
+                      <option value="">Select type</option>
                       {['Funded Project', 'Journal Article', 'Conference Paper', 'Innovation Output', 'IP Registration', 'Community Extension Research'].map(t => (
                         <option key={t} value={t}>{t}</option>
                       ))}
@@ -523,8 +531,8 @@ export default function DiscoveryPortalPage({ embedded = false }) {
                       onChange={(e) => handleFilterChange('province', e.target.value)}
                       className="w-full rounded-lg border border-slate-200 bg-white py-1.5 pl-2 pr-6 text-xs text-slate-600 appearance-none focus:outline-none focus:ring-1 focus:ring-[#C9A84C]"
                     >
-                      <option value=""></option>
-                      {['Cebu', 'Bohol', 'Negros Oriental', 'Siquijor'].map(p => (
+                      <option value="">Select province</option>
+                      {['Cebu', 'Bohol'].map(p => (
                         <option key={p} value={p}>{p}</option>
                       ))}
                     </select>
@@ -540,7 +548,7 @@ export default function DiscoveryPortalPage({ embedded = false }) {
                       onChange={(e) => handleFilterChange('year', e.target.value)}
                       className="w-full rounded-lg border border-slate-200 bg-white py-1.5 pl-2 pr-6 text-xs text-slate-600 appearance-none focus:outline-none focus:ring-1 focus:ring-[#C9A84C]"
                     >
-                      <option value=""></option>
+                      <option value="">Select year</option>
                       {Array.from({ length: 10 }, (_, i) => 2026 - i).map(y => (
                         <option key={y} value={y}>{y}</option>
                       ))}
@@ -592,7 +600,7 @@ export default function DiscoveryPortalPage({ embedded = false }) {
           <div className="flex-1 space-y-4">
             <div className="flex items-center justify-between">
               <p className="text-sm text-slate-500">
-                {loading ? 'Searching...' : hasSearched ? `Showing ${results.length} results` : ''}
+                {hasSearched ? `Showing ${pagedResults.length} of ${results.length} results` : ''}
               </p>
               <div className="flex rounded-lg border border-slate-200 overflow-hidden text-xs">
                 {['KEYWORD', 'SEMANTIC', 'BOTH'].map(m => (
@@ -622,7 +630,7 @@ export default function DiscoveryPortalPage({ embedded = false }) {
                 <p className="text-sm text-slate-400 mt-1">Try broadening your search or removing some filters.</p>
               </div>
             ) : (
-              results.map(result => (
+              pagedResults.map(result => (
                 <ResultCard
                   key={result.id}
                   result={result}
@@ -630,6 +638,30 @@ export default function DiscoveryPortalPage({ embedded = false }) {
                 />
               ))
             )}
+
+            {hasSearched && !loading && results.length > pageSize ? (
+              <div className="flex items-center justify-between pt-2">
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => Math.max(0, p - 1))}
+                  disabled={page === 0}
+                  className="rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Previous
+                </button>
+                <p className="text-sm text-slate-500">
+                  Page {page + 1} of {totalPages}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+                  disabled={page >= totalPages - 1}
+                  className="rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Next
+                </button>
+              </div>
+            ) : null}
           </div>
         </div>
       </div>

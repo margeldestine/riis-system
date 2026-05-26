@@ -193,25 +193,35 @@ export default function HeiReportsPage() {
               <div className="grid grid-cols-2 gap-4 mb-5">
                 <div>
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Year From</p>
-                  <select
-                    value={yearFrom}
-                    onChange={e => setYearFrom(e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-3 pr-8 text-sm text-slate-600 appearance-none focus:outline-none focus:ring-1 focus:ring-[#C9A84C]"
-                  >
-                    <option value=""></option>
-                    {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
-                  </select>
+                  <div className="relative">
+                    <select
+                      value={yearFrom}
+                      onChange={e => setYearFrom(e.target.value)}
+                      className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-3 pr-8 text-sm text-slate-600 appearance-none focus:outline-none focus:ring-1 focus:ring-[#C9A84C]"
+                    >
+                      <option value="">Select year</option>
+                      {YEARS.filter(y => !yearTo || y <= parseInt(yearTo)).map(y => <option key={y} value={y}>{y}</option>)}
+                    </select>
+                    <svg className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
                 </div>
                 <div>
                   <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Year To</p>
-                  <select
-                    value={yearTo}
-                    onChange={e => setYearTo(e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-3 pr-8 text-sm text-slate-600 appearance-none focus:outline-none focus:ring-1 focus:ring-[#C9A84C]"
-                  >
-                    <option value=""></option>
-                    {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
-                  </select>
+                  <div className="relative">
+                    <select
+                      value={yearTo}
+                      onChange={e => setYearTo(e.target.value)}
+                      className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-3 pr-8 text-sm text-slate-600 appearance-none focus:outline-none focus:ring-1 focus:ring-[#C9A84C]"
+                    >
+                      <option value="">Select year</option>
+                      {YEARS.filter(y => !yearFrom || y >= parseInt(yearFrom)).map(y => <option key={y} value={y}>{y}</option>)}
+                    </select>
+                    <svg className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
                 </div>
               </div>
 
@@ -241,16 +251,21 @@ export default function HeiReportsPage() {
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
                   Funding Source
                 </p>
-                <select
-                  value={fundingSource}
-                  onChange={e => setFundingSource(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-3 pr-8 text-sm text-slate-600 appearance-none focus:outline-none focus:ring-1 focus:ring-[#C9A84C]"
-                >
-                  <option value=""></option>
-                  {['DOST-PCAARRD', 'DOST-PCIEERD', 'DOST-CHED', 'Self-Funded', 'Other'].map(f => (
-                    <option key={f} value={f}>{f}</option>
-                  ))}
-                </select>
+                <div className="relative">
+                  <select
+                    value={fundingSource}
+                    onChange={e => setFundingSource(e.target.value)}
+                    className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-3 pr-8 text-sm text-slate-600 appearance-none focus:outline-none focus:ring-1 focus:ring-[#C9A84C]"
+                  >
+                    <option value="">Select funding source</option>
+                    {['DOST-PCAARRD', 'DOST-PCIEERD', 'DOST-CHED', 'Self-Funded', 'Other'].map(f => (
+                      <option key={f} value={f}>{f}</option>
+                    ))}
+                  </select>
+                  <svg className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
               </div>
             </div>
 
