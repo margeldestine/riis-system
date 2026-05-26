@@ -44,9 +44,12 @@ public class InstitutionController {
     public ResponseEntity<InstitutionProfileDTO> getInstitutionProfile(
             @PathVariable("id") String institutionId,
             @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size) {
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String keyword,
+            @RequestParam(required = false) String researchTypes,
+            @RequestParam(required = false) Integer yearTo) {
         Pageable pageable = PageRequest.of(
                 page, size, Sort.by(Sort.Direction.DESC, "completionYear"));
-        return ResponseEntity.ok(institutionService.buildProfileDTO(institutionId, pageable));
+        return ResponseEntity.ok(institutionService.buildProfileDTO(institutionId, pageable, keyword, researchTypes, yearTo));
     }
 }

@@ -99,13 +99,29 @@ public class InstitutionService {
 
 
     @Transactional(readOnly = true)
-    public InstitutionProfileDTO buildProfileDTO(String institutionId, Pageable pageable) {
+    public InstitutionProfileDTO buildProfileDTO(String institutionId, Pageable pageable, String keyword, String researchTypes, Integer yearTo) {
         Institution inst = institutionRepository.findById(institutionId)
                 .orElseThrow(() -> new ResourceNotFoundException("Institution not found: " + institutionId));
 
 
-        Page<ResearchOutput> outputPage = researchOutputRepository
-                .findByInstitutionIdAndStatus(institutionId, STATUS_APPROVED, pageable);
+        List<String> typeList = (researchTypes != null && !researchTypes.isBlank())
+                ? java.util.Arrays.asList(researchTypes.split(","))
+                : null;
+
+        Page<ResearchOutput> outputPage = researchOutputRepository.findAll(
+                com.geeks.riis_backend.service.SubmissionSpecifications.forInstitution(institutionId)
+                        .and((root, query, cb) -> cb.equal(root.get("status"), STATUS_APPROVED))
+                        .and((root, query, cb) -> keyword != null && !keyword.isBlank()
+                                ? cb.like(cb.lower(root.get("title")), "%" + keyword.toLowerCase().trim() + "%")
+                                : cb.conjunction())
+                        .and((root, query, cb) -> typeList != null
+                                ? root.get("researchType").in(typeList)
+                                : cb.conjunction())
+                        .and((root, query, cb) -> yearTo != null && yearTo > 0
+                                ? cb.lessThanOrEqualTo(root.get("completionYear"), yearTo)
+                                : cb.conjunction()),
+                pageable
+        );
 
 
         Page<PublicOutputCardDTO> outputDTOs = outputPage.map(ro -> {
@@ -126,7 +142,8 @@ public class InstitutionService {
                     ro.getCompletionYear(),
                     ro.getFundingSource(),
                     excerpt,
-                    authors
+                    authors,
+                    ro.getStatus()
             );
         });
 
