@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { FileText } from 'lucide-react'
 import DashboardLayout from '../admin/DashboardLayout'
 import apiClient from '../../services/apiClient'
 import { heiNavItems } from './HeiDashboard'
@@ -14,12 +15,15 @@ function extractApiErrorMessage(error, fallbackMessage) {
 
 function getInitials(name) {
   if (!name) return '??'
-  return name
-    .split(' ')
+  const stopwords = new Set(['of', 'the', 'and', '&'])
+  const words = name
+    .replace(/[^A-Za-z0-9\s]/g, ' ')
+    .split(/\s+/g)
     .filter(Boolean)
-    .slice(0, 2)
-    .map((w) => w[0].toUpperCase())
-    .join('')
+    .filter((word) => !stopwords.has(word.toLowerCase()))
+
+  const initials = words.map((word) => word[0].toUpperCase()).join('')
+  return initials.slice(0, 4) || '??'
 }
 
 const avatarColors = [
@@ -41,39 +45,43 @@ function getAvatarColor(name) {
 
 function getTypeBadge(type) {
   if (!type) return null
-  const val = type.toUpperCase()
-  if (val.includes('SUC') || val.includes('STATE') || val.includes('UNIVERSITY')) {
-    return <span className="text-xs font-medium text-blue-500">{type}</span>
-  }
-  return <span className="text-xs font-medium text-purple-500">{type}</span>
+  return <span className="text-xs text-slate-500">{type}</span>
 }
 
 function InstitutionCard({ institution, onClick }) {
   const initials = getInitials(institution.name)
   const avatarColor = getAvatarColor(institution.name)
-  const visibleTags = institution.themeKeywords?.slice(0, 3) || []
+  const visibleTags = institution.themeKeywords?.slice(0, 4) || []
   const extraCount = (institution.themeKeywords?.length || 0) - visibleTags.length
 
   return (
     <div
       onClick={onClick}
-      className="cursor-pointer rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:shadow-md hover:border-slate-300"
+      className="cursor-pointer rounded-[10px] border border-[#e5e7eb] bg-white p-4 shadow-sm transition hover:border-slate-300 hover:shadow-md"
     >
       <div className="flex items-start gap-4">
-        <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-sm font-bold text-white ${avatarColor}`}>
+        <div
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] text-[13px] font-bold text-white ${avatarColor}`}
+        >
           {initials}
         </div>
         <div className="min-w-0 flex-1">
-          <p className="font-bold text-[#1A1A2E] leading-snug">{institution.name}</p>
+          <p className="text-[13px] font-bold leading-snug text-[#0d1f3c]">
+            {institution.name}
+          </p>
           <div className="mt-0.5 flex items-center gap-1">
             {getTypeBadge(institution.type)}
-            {institution.province ? (
-              <span className="text-xs text-slate-400">· {institution.province}</span>
+            {institution.province || institution.city ? (
+              <span className="text-xs text-slate-400">
+                · {institution.city || institution.province}
+              </span>
             ) : null}
           </div>
-          <div className="mt-2 flex items-center gap-1.5 text-xs text-slate-500">
-            <span>📄</span>
-            <span className="font-medium text-emerald-600">{institution.approvedOutputCount} research outputs</span>
+          <div className="mt-2 flex items-center gap-1.5 text-xs">
+            <FileText className="h-3.5 w-3.5 text-slate-400" />
+            <span className="font-semibold text-emerald-600">
+              {institution.approvedOutputCount} research outputs
+            </span>
           </div>
         </div>
       </div>
@@ -83,22 +91,22 @@ function InstitutionCard({ institution, onClick }) {
           {visibleTags.map((tag, i) => {
             const tagColors = [
               'bg-emerald-100 text-emerald-700',
-              'bg-blue-100 text-blue-700',
-              'bg-yellow-100 text-yellow-700',
-              'bg-purple-100 text-purple-700',
+              'bg-violet-100 text-violet-700',
+              'bg-sky-100 text-sky-700',
+              'bg-amber-100 text-amber-700',
               'bg-rose-100 text-rose-700',
             ]
             return (
               <span
                 key={tag.keyword || tag}
-                className={`rounded-full px-3 py-1 text-xs font-medium ${tagColors[i % 5]}`}
+                className={`rounded-[6px] px-2.5 py-1 text-[11px] font-medium ${tagColors[i % 5]}`}
               >
                 {tag.keyword || tag}
               </span>
             )
           })}
           {extraCount > 0 ? (
-            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-400">
+            <span className="rounded-[6px] bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-500">
               +{extraCount} more
             </span>
           ) : null}
@@ -113,6 +121,11 @@ export default function HeiResearchProfiles() {
   const [institutions, setInstitutions] = useState([])
   const [status, setStatus] = useState('idle')
   const [error, setError] = useState('')
+
+  const institutionName =
+    localStorage.getItem('institutionName') ||
+    localStorage.getItem('userInstitution') ||
+    'Higher Education Institution'
 
   const academicYearLabel = `${new Date().getFullYear() - 1}-${new Date().getFullYear()}`
 
@@ -177,34 +190,30 @@ export default function HeiResearchProfiles() {
               <div className="text-right">
                 <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-[#94a3b8]">ACADEMIC YEAR</p>
                 <p className="text-[13px] font-bold text-[#0d1f3c]">{academicYearLabel}</p>
-                <p className="mt-1 text-[12px] text-[#6b7280]">System Administration</p>
+                <p className="mt-1 text-[12px] text-[#6b7280]">{institutionName}</p>
               </div>
             </div>
           </div>
           <div className="h-px w-full bg-[#c9a84c]" />
         </div>
 
-        <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="px-8 py-6">
-            {status === 'loading' ? (
-              <div className="text-sm text-slate-500">Loading institutions...</div>
-            ) : error ? (
-              <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
-            ) : institutions.length === 0 ? (
-              <div className="text-sm text-slate-500">No institutions found.</div>
-            ) : (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {institutions.map((inst) => (
-                  <InstitutionCard
-                    key={inst.id}
-                    institution={inst}
-                    onClick={() => navigate(`/hei/institutions/${inst.id}`)}
-                  />
-                ))}
-              </div>
-            )}
+        {status === 'loading' ? (
+          <div className="text-sm text-slate-500">Loading institutions...</div>
+        ) : error ? (
+          <div className="rounded-[10px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+        ) : institutions.length === 0 ? (
+          <div className="text-sm text-slate-500">No institutions found.</div>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {institutions.map((inst) => (
+              <InstitutionCard
+                key={inst.id}
+                institution={inst}
+                onClick={() => navigate(`/hei/institutions/${inst.id}`)}
+              />
+            ))}
           </div>
-        </section>
+        )}
       </div>
     </DashboardLayout>
   )

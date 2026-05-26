@@ -804,7 +804,7 @@ function ResearchDetailsStep({
   )
 }
 
-function AttachmentDropzone({ attachment, onFileSelect, error }) {
+function AttachmentDropzone({ attachment, existingAttachmentKey, onFileSelect, onClearExisting, error }) {
   const [isDragging, setIsDragging] = useState(false)
 
   const handleDrop = (event) => {
@@ -840,7 +840,6 @@ function AttachmentDropzone({ attachment, onFileSelect, error }) {
           Drag and drop a PDF file here
         </p>
         <p className={helperTextClass}>
-          The file stays local until the final submission step.
         </p>
         <label className="mt-4 inline-flex cursor-pointer items-center gap-2 rounded-[6px] border border-[#d1d5db] bg-white px-4 py-2 text-sm font-semibold text-[#0d1f3c] transition hover:bg-[#0d1f3c]/5">
           <input
@@ -853,12 +852,38 @@ function AttachmentDropzone({ attachment, onFileSelect, error }) {
         </label>
         {attachment ? (
           <div className="mt-4 w-full max-w-sm rounded-[10px] border border-[#e5e7eb] bg-white px-4 py-3 text-left text-sm text-[#0d1f3c]">
-            <p className="font-semibold">{attachment.name}</p>
-            <p className="mt-1 text-[12px] text-[#6b7280]">
-              {(attachment.size / 1024 / 1024).toFixed(2)} MB
-            </p>
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <p className="font-semibold">{attachment.name}</p>
+                <p className="mt-1 text-[12px] text-[#6b7280]">{(attachment.size / 1024 / 1024).toFixed(2)} MB</p>
+              </div>
+              <button type="button" onClick={() => onFileSelect(null)} className="shrink-0 text-slate-400 hover:text-red-500">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
           </div>
-        ) : null}
+        ) : existingAttachmentKey ? (() => {
+          const parts = existingAttachmentKey.split('/')
+          const last = parts[parts.length - 1] || ''
+          const fileName = last.replace(/^[a-f0-9]{8}-/, '') || existingAttachmentKey
+          return (
+            <div className="mt-4 w-full max-w-sm rounded-[10px] border border-[#e5e7eb] bg-white px-4 py-3 text-left text-sm text-[#0d1f3c]">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <p className="font-semibold">{fileName}</p>
+                  <p className="mt-1 text-[12px] text-[#6b7280]">Previously attached</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onClearExisting()}
+                  className="shrink-0 text-slate-400 hover:text-red-500"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          )
+        })() : null}
       </div>
       <FieldMessage message={error} />
     </div>
@@ -870,7 +895,9 @@ function DublinCoreMetadataStep({
   register,
   errors,
   attachment,
+  existingAttachmentKey,
   onFileSelect,
+  onClearExisting,
 }) {
   return (
     <div>
@@ -976,7 +1003,9 @@ function DublinCoreMetadataStep({
 
         <AttachmentDropzone
           attachment={attachment}
+          existingAttachmentKey={existingAttachmentKey}
           onFileSelect={onFileSelect}
+          onClearExisting={onClearExisting}
           error={errors.attachment?.message}
         />
       </div>
@@ -995,9 +1024,9 @@ function ReviewSubmitStep({ values }) {
     ['Institutional Affiliation', values.institutionalAffiliation],
     ['Abstract', values.abstractText],
     ['Keywords', values.keywords],
-    ['Subject (DC)', values.subjectDc],
-    ['Coverage (DC)', values.coverageDc],
-    ['Rights (DC)', values.rightsDc],
+    ['Subject', values.subjectDc],
+    ['Coverage', values.coverageDc],
+    ['Rights', values.rightsDc],
     ['DOI', values.doi || 'Not provided'],
     ['Conference URL', values.conferenceUrl || 'Not provided'],
     ['Attachment', values.attachment?.name || 'No file attached'],
@@ -1075,6 +1104,7 @@ export default function SubmissionPortal({ onSubmitted }) {
   const [bannerErrors, setBannerErrors] = useState([])
   const [isFinalSubmitting, setIsFinalSubmitting] = useState(false)
   const [editSubmissionId, setEditSubmissionId] = useState(null)
+  const [existingAttachmentKey, setExistingAttachmentKey] = useState(null)
 
   const institutionName =
     localStorage.getItem('institutionName') ||
@@ -1149,6 +1179,7 @@ export default function SubmissionPortal({ onSubmitted }) {
     setBannerErrors([])
     setCurrentStep(1)
     setKeywordInput('')
+    setExistingAttachmentKey(null)
     reset({
       title: '',
       researchType: '',
@@ -1225,6 +1256,7 @@ export default function SubmissionPortal({ onSubmitted }) {
         conferenceUrl: submission.conferenceUrl || '',
         attachment: null,
       })
+      setExistingAttachmentKey(submission.s3PdfKey || null)
       setCurrentStep(1)
       setKeywordInput('')
       setSubmitError('')
@@ -1383,7 +1415,7 @@ export default function SubmissionPortal({ onSubmitted }) {
 
   const maybeUploadAttachment = async (file) => {
     if (!file) return null
-    const token = await ensureFreshToken()
+    const token = localStorage.getItem('token') || ''
 
     try {
       const formData = new FormData()
@@ -1477,7 +1509,56 @@ export default function SubmissionPortal({ onSubmitted }) {
     setIsFinalSubmitting(true)
 
     try {
-      await submitToBackend(values)
+      const token = localStorage.getItem('token')
+      let attachmentMeta = null
+
+      try {
+        attachmentMeta = await maybeUploadAttachment(values.attachment)
+      } catch {
+        alert('Failed to upload attachment. Please try again.')
+        return
+      }
+
+      const payload = {
+        title: values.title,
+        researchType: values.researchType,
+        completionYear: values.completionYear,
+        fundingSource: values.fundingSource,
+        publicationVenue: values.publicationVenue,
+        principalInvestigator: values.principalInvestigator,
+        institutionalAffiliation: values.institutionalAffiliation,
+        authors: values.authors,
+        abstractText: values.abstractText,
+        keywords: values.keywords,
+        sAndTTheme: values.subjectDc,
+        coverageDc: values.coverageDc,
+        rightsDc: values.rightsDc,
+        doi: values.doi || null,
+        conferenceUrl: values.conferenceUrl || null,
+        attachmentKey: attachmentMeta?.fileKey || existingAttachmentKey || null,
+      }
+
+      // Use PUT if editing, POST if new
+      if (editSubmissionId) {
+        await axios.patch(
+          `http://localhost:8080/api/v1/submissions/${editSubmissionId}`,
+          payload,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+          },
+        )
+      } else {
+        await axios.post('http://localhost:8080/api/v1/submissions', payload, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        })
+      }
+
       resetWizard()
       onSubmitted?.()
     } catch (error) {
@@ -1546,7 +1627,9 @@ export default function SubmissionPortal({ onSubmitted }) {
             register={register}
             errors={errors}
             attachment={watchedAttachment}
+            existingAttachmentKey={existingAttachmentKey}
             onFileSelect={handleFileSelect}
+            onClearExisting={() => setExistingAttachmentKey(null)}
           />
         )
       case 5:
