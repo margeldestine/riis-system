@@ -94,13 +94,17 @@ function ResearchTypeBar({ distribution }) {
   )
 }
 
-function OutputCard({ output }) {
+function OutputCard({ output, isOwnInstitution }) {
   const statusColors = {
     APPROVED: 'bg-emerald-100 text-emerald-700',
     PENDING_REVIEW: 'bg-blue-100 text-blue-700',
     REQUIRES_CORRECTION: 'bg-red-100 text-red-700',
     REJECTED: 'bg-red-100 text-red-700',
   }
+  const statusLabel = output.status === 'APPROVED' ? 'Approved'
+    : output.status === 'PENDING_REVIEW' ? 'Under Review'
+      : output.status === 'REQUIRES_CORRECTION' ? 'Requires Correction'
+        : output.status || 'Unknown'
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-3 border-l-4 border-l-emerald-500">
@@ -120,9 +124,15 @@ function OutputCard({ output }) {
             <p className="font-semibold text-[#1A1A2E] leading-snug">{output.title}</p>
           )}
         </div>
-        <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold ${statusColors['APPROVED']}`}>
-          Approved
-        </span>
+        {isOwnInstitution ? (
+          <span
+            className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+              statusColors[output.status] || 'bg-slate-100 text-slate-600'
+            }`}
+          >
+            {statusLabel}
+          </span>
+        ) : null}
       </div>
 
       {/* Authors */}
@@ -259,6 +269,12 @@ export default function InstitutionProfilePage() {
   const [status, setStatus] = useState('idle')
   const [error, setError] = useState('')
   const [page, setPage] = useState(0)
+  const [searchKeyword, setSearchKeyword] = useState('')
+  const [debouncedSearchKeyword, setDebouncedSearchKeyword] = useState('')
+  const [selectedTypes, setSelectedTypes] = useState([])
+  const [selectedClusters, setSelectedClusters] = useState([])
+  const [yearRange, setYearRange] = useState(0)
+  const [isFiltering, setIsFiltering] = useState(false)
 
   const loggedInInstitutionName =
     localStorage.getItem('institutionName') ||
@@ -266,6 +282,25 @@ export default function InstitutionProfilePage() {
     'Higher Education Institution'
 
   const academicYearLabel = `${new Date().getFullYear() - 1}-${new Date().getFullYear()}`
+  const clusterOptions = [
+    { label: 'Climate & Environment', value: 'Climate & Env' },
+    { label: 'Health & Medical', value: 'Health & Medical' },
+    { label: 'Agriculture & Food', value: 'Agriculture' },
+    { label: 'Education & Social', value: 'Education & Social' },
+    { label: 'Tech, Engr & Innovation', value: 'Tech & Innovation' },
+  ]
+
+  useEffect(() => {
+    setIsFiltering(true)
+    const handle = setTimeout(() => {
+      setDebouncedSearchKeyword(searchKeyword)
+    }, 350)
+    return () => clearTimeout(handle)
+  }, [searchKeyword])
+
+  useEffect(() => {
+    setIsFiltering(true)
+  }, [selectedTypes, yearRange])
 
   useEffect(() => {
     if (!id) return
@@ -275,7 +310,18 @@ export default function InstitutionProfilePage() {
       setError('')
       try {
         const response = await apiClient.get(`/institutions/${id}/profile`, {
-          params: { page, size: 10 },
+          params: {
+            page,
+            size: 5,
+            keyword: debouncedSearchKeyword || undefined,
+            researchTypes:
+              selectedTypes.length > 0 ? selectedTypes.join(',') : undefined,
+            subjects:
+              selectedClusters.length > 0
+                ? selectedClusters.join(',')
+                : undefined,
+            yearTo: yearRange || undefined,
+          },
           signal: controller.signal,
         })
         setProfile(response.data)
@@ -284,16 +330,19 @@ export default function InstitutionProfilePage() {
         if (controller.signal.aborted) return
         setStatus('error')
         setError(extractApiErrorMessage(err, 'Unable to load institution profile.'))
+      } finally {
+        setIsFiltering(false)
       }
     }
     fetchProfile()
     return () => controller.abort()
-  }, [id, page])
+  }, [id, page, debouncedSearchKeyword, selectedTypes, selectedClusters, yearRange])
 
   const initials = getInitials(profile?.name)
   const avatarColor = getAvatarColor(profile?.name)
   const totalPages = profile?.outputs?.totalPages || 1
   const outputs = profile?.outputs?.content || []
+  const isOwnInstitution = String(profile?.name || '') === String(localStorage.getItem('institutionName') || localStorage.getItem('userInstitution') || '')
 
   return (
     <DashboardLayout
@@ -493,23 +542,38 @@ export default function InstitutionProfilePage() {
                         Publications from this institution on record
                       </p>
                     </div>
-                    <input
-                      type="text"
-                      placeholder="Filter research..."
-                      className="w-44 rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-600 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-[#C9A84C]"
-                    />
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        placeholder="Filter research..."
+                        value={searchKeyword}
+                        onChange={(event) => {
+                          setSearchKeyword(event.target.value)
+                          setPage(0)
+                        }}
+                        className="w-44 rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-600 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-[#C9A84C]"
+                      />
+                    </div>
                   </div>
                   <p className="text-xs text-slate-500">
                     Showing {outputs.length} of {profile.stats?.totalApprovedOutputs ?? 0} approved results
                   </p>
                 </div>
 
-                {outputs.length === 0 ? (
+                {status === 'loading' ? (
+                  <div className="flex items-center justify-center py-16 text-sm text-slate-400">
+                    <svg className="mr-2 h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                    </svg>
+                    Searching...
+                  </div>
+                ) : outputs.length === 0 ? (
                   <p className="text-sm text-slate-500">No approved outputs yet.</p>
                 ) : (
                   <div className="space-y-4">
                     {outputs.map((output) => (
-                      <OutputCard key={output.id} output={output} />
+                      <OutputCard key={output.id} output={output} isOwnInstitution={isOwnInstitution} />
                     ))}
                   </div>
                 )}
@@ -550,7 +614,20 @@ export default function InstitutionProfilePage() {
                       </p>
                       {['Funded Project', 'Journal Article', 'Conference Paper', 'Innovation Output', 'IP Registration'].map((type) => (
                         <label key={type} className="flex cursor-pointer items-center gap-2 py-1 hover:text-[#1A1A2E]">
-                          <input type="checkbox" className="h-3 w-3 accent-[#1A1A2E]" />
+                          <input
+                            type="checkbox"
+                            className="h-3 w-3 accent-[#1A1A2E]"
+                            checked={selectedTypes.includes(type)}
+                            onChange={() => {
+                              setSelectedTypes((prev) => {
+                                const next = prev.includes(type)
+                                  ? prev.filter((t) => t !== type)
+                                  : [...prev, type]
+                                return next
+                              })
+                              setPage(0)
+                            }}
+                          />
                           {type}
                         </label>
                       ))}
@@ -559,7 +636,16 @@ export default function InstitutionProfilePage() {
                       <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
                         Year Range
                       </p>
-                      <input type="range" min="2015" max="2025" className="w-full accent-[#C9A84C]" />
+                      <input
+                        type="range"
+                        min="2015"
+                        max="2025"
+                        className="w-full accent-[#C9A84C]"
+                        onChange={(event) => {
+                          setYearRange(Number(event.target.value))
+                          setPage(0)
+                        }}
+                      />
                       <div className="mt-1 flex justify-between text-[10px] text-slate-400">
                         <span>2015</span>
                         <span>2025</span>
@@ -569,10 +655,18 @@ export default function InstitutionProfilePage() {
                       <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
                         S&amp;T Cluster
                       </p>
-                      {['Climate & Environment', 'Health & Medical', 'Agriculture & Food', 'Education & Social', 'Tech, Engr & Innovation'].map((cluster) => (
-                        <label key={cluster} className="flex cursor-pointer items-center gap-2 py-1 hover:text-[#1A1A2E]">
-                          <input type="checkbox" className="h-3 w-3 accent-[#1A1A2E]" />
-                          {cluster}
+                      {clusterOptions.map(({ label, value }) => (
+                        <label key={value} className="flex cursor-pointer items-center gap-2 py-1 hover:text-[#1A1A2E]">
+                          <input
+                            type="checkbox"
+                            className="h-3 w-3 accent-[#1A1A2E]"
+                            checked={selectedClusters.includes(value)}
+                            onChange={() => {
+                              setSelectedClusters((prev) => prev.includes(value) ? prev.filter((c) => c !== value) : [...prev, value])
+                              setPage(0)
+                            }}
+                          />
+                          {label}
                         </label>
                       ))}
                     </div>
