@@ -102,6 +102,7 @@ export default function Login() {
       }, {
         validateStatus: () => true,
       })
+      console.log('LOGIN RESPONSE:', response.status, response.data)
 
       if (response.status === 403) {
         const serverMessage = extractResponseMessage(response.data)
@@ -134,6 +135,7 @@ export default function Login() {
         }
 
         localStorage.setItem('token', token)
+        localStorage.setItem('role', role)
 
         const isDostRole = role.includes('DOST')
         const isHeiRole = role.includes('HEI')
@@ -179,7 +181,8 @@ export default function Login() {
         } else if (isHeiRole || isHeiDomain) {
           navigate('/hei/submission-portal')
         } else {
-          navigate('/hei/submission-portal')
+          localStorage.removeItem('token')
+          setError('Your account role is not recognized. Please contact your administrator.')
         }
       } else {
         setError(extractResponseMessage(response.data) || 'Invalid email or password.')
