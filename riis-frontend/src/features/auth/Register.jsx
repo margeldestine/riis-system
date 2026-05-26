@@ -176,9 +176,9 @@ export default function Register() {
   }
 
   return (
-    <div className="min-h-screen bg-white font-sans text-gray-900">
-      <div className="mx-auto grid min-h-screen w-full grid-cols-1 lg:grid-cols-2">
-        <section className="bg-[#f8fafc] px-10 py-10 lg:px-16">
+    <div className="h-screen bg-white font-sans text-gray-900">
+      <div className="mx-auto grid h-screen w-full grid-cols-1 lg:grid-cols-2">
+        <section className="h-screen overflow-y-auto bg-white px-10 py-6 lg:px-16 lg:py-8">
           <div className="mx-auto w-full max-w-md">
             {error ? (
               <div className="mb-6 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -193,24 +193,19 @@ export default function Register() {
               Back to Sign In
             </Link>
 
-            <div className="mt-10 flex items-center gap-4">
-              <img
-                src={dostLogo}
-                alt="DOST Logo"
-                className="h-10 w-10 object-contain"
-              />
+            <div className="mt-6 flex items-center gap-3">
               <div className="leading-tight">
-                <p className="text-xs font-medium uppercase tracking-widest text-gray-500">
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#c9a84c]">
                   Republic of the Philippines
                 </p>
-                <p className="text-xs tracking-wide text-gray-400">
+                <p className="text-[13px] font-bold uppercase tracking-wide text-[#1a1a2e]">
                   DASIG Research Information System
                 </p>
               </div>
             </div>
 
-            <div className="mt-10">
-              <h1 className="text-3xl font-semibold tracking-tight text-gray-900">
+            <div className="mt-6">
+              <h1 className="text-3xl font-semibold tracking-tight text-gray-900" style={{ fontFamily: "'Libre Baskerville', serif" }}>
                 Create Account
               </h1>
               <p className="mt-2 text-sm text-gray-500">
@@ -218,7 +213,7 @@ export default function Register() {
               </p>
             </div>
 
-            <form onSubmit={handleSubmit} className="mt-10 flex flex-col gap-6">
+            <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4">
               <Input
                 id="fullName"
                 name="fullName"
@@ -414,7 +409,7 @@ export default function Register() {
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="h-12 w-full rounded-md bg-[#0b2a53] px-6 text-sm font-semibold text-white shadow-sm transition hover:bg-[#092345] disabled:cursor-not-allowed disabled:opacity-70"
+                className="h-12 w-full rounded-md bg-[#0b2a53] px-6 text-sm font-semibold tracking-widest uppercase text-white shadow-sm transition hover:bg-[#092345] disabled:cursor-not-allowed disabled:opacity-70"
               >
                 {isSubmitting ? 'Submitting…' : 'Submit Registration'}
               </button>
@@ -441,32 +436,27 @@ export default function Register() {
           <img
             src={bgImage}
             alt=""
-            className="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-25"
+            className="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-60"
           />
-          <div className="absolute inset-0 bg-gradient-to-b from-[#0d2847]/30 via-[#0d2847]/40 to-[#0d2847]/70" />
+          <div className="absolute inset-0 bg-gradient-to-b from-[#0d2847]/8 via-[#0d2847]/12 to-[#0d2847]/35" />
 
           <div className="relative z-10 flex h-full flex-col items-center justify-center px-16">
-            <img
-              src="/favicon.svg"
-              alt=""
-              className="h-28 w-28 opacity-90"
-            />
-            <p className="mt-10 text-xs font-semibold uppercase tracking-[0.28em] text-white/60">
+            <p className="text-xs font-bold uppercase tracking-[0.28em] text-[#c9a84c]">
               Republic of the Philippines
             </p>
-            <h2 className="mt-4 text-center text-4xl font-semibold leading-tight tracking-tight text-white">
+            <h2 className="mt-3 text-center text-4xl font-semibold leading-tight tracking-tight text-white" style={{ fontFamily: "'Libre Baskerville', serif" }}>
               DASIG Research
               <br />
               Information System
             </h2>
-            <div className="mt-6 h-px w-14 bg-[#caa03b]/70" />
-            <p className="mt-6 max-w-md text-center text-sm leading-relaxed text-white/60">
+            <div className="mt-5 h-px w-14 bg-[#caa03b]/70" />
+            <p className="mt-5 max-w-md text-center text-sm leading-relaxed text-white/60">
               Join the national research registry. Your institution&apos;s
               research outputs contribute to the Philippine science and
               technology landscape.
             </p>
 
-            <div className="mt-10 flex w-full max-w-md flex-col gap-4">
+            <div className="mt-8 flex w-full max-w-md flex-col gap-4">
               <div className="flex items-start gap-4 rounded-md bg-white/5 p-4">
                 <CheckCircle2 className="mt-0.5 h-5 w-5 text-[#caa03b]" />
                 <div>

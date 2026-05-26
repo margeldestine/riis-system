@@ -248,17 +248,34 @@ function OtherHEIsPanel({ currentId }) {
             key={hei.id}
             type="button"
             onClick={() => navigate(`/hei/institutions/${hei.id}`)}
-            className="flex w-full items-center gap-3 rounded-lg p-2 text-left hover:bg-slate-50 transition"
+            className="flex w-full cursor-pointer items-start gap-4 rounded-[10px] border border-[#e5e7eb] bg-white p-4 text-left shadow-sm transition hover:border-slate-300 hover:shadow-md"
           >
-            <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-xs font-bold text-white ${getAvatarColor(hei.name)}`}>
+            <div
+              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] text-[13px] font-bold text-white ${getAvatarColor(hei.name)}`}
+            >
               {getInitials(hei.name)}
             </div>
-            <div className="min-w-0">
-              <p className="truncate text-xs font-semibold text-[#1A1A2E]">{hei.name}</p>
-              <p className="text-[10px] text-slate-400">{hei.approvedOutputCount ?? 0} outputs · {hei.province}</p>
+            <div className="min-w-0 flex-1">
+              <p className="text-[13px] font-bold leading-snug text-[#0d1f3c]">
+                {hei.name}
+              </p>
+              <div className="mt-0.5 flex items-center gap-1">
+                {hei.type ? (
+                  <span className="text-xs text-slate-500">{hei.type}</span>
+                ) : null}
+                {hei.province ? (
+                  <span className="text-xs text-slate-400">· {hei.province}</span>
+                ) : null}
+              </div>
+              <div className="mt-2 flex items-center gap-1.5 text-xs">
+                <FileText className="h-3.5 w-3.5 text-slate-400" />
+                <span className="font-semibold text-emerald-600">
+                  {hei.approvedOutputCount ?? 0} research outputs
+                </span>
+              </div>
             </div>
           </button>
-        ))}
+        ))}x
       </div>
     </div>
   )
