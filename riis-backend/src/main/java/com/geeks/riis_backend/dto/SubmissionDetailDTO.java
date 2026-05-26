@@ -28,5 +28,6 @@ public record SubmissionDetailDTO(
 		String publisherDc,
 		String identifierDc,
 		String correctionNotes,
+		String s3PdfKey,
 		int validationErrorCount
 ) {}

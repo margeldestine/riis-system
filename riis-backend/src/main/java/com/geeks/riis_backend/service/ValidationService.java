@@ -29,6 +29,10 @@ public class ValidationService {
 	);
 
 	public ValidationResult validate(SubmissionRequest dto, String institutionId) {
+		return validate(dto, institutionId, null);
+	}
+
+	public ValidationResult validate(SubmissionRequest dto, String institutionId, String submissionId) {
 		List<FieldError> errors = new ArrayList<>();
 
 		if (dto == null) {
@@ -100,7 +104,7 @@ public class ValidationService {
 			}
 		}
 
-		if (!isBlank(dto.title()) && institutionId != null) {
+		if (submissionId == null && !isBlank(dto.title()) && institutionId != null) {
 			long duplicateCount = researchOutputRepository.countByTitleIgnoreCaseAndInstitutionIdAndStatusNot(
 					dto.title().trim(), institutionId, "ARCHIVED"
 			);

@@ -19,6 +19,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -80,6 +81,7 @@ public class SubmissionController {
 	@PreAuthorize("hasAnyAuthority('HEI_STAFF', 'ROLE_HEI_STAFF')")
 	public ResponseEntity<Page<SubmissionSummaryDTO>> listSubmissions(
 			@RequestParam(required = false) String keyword,
+			@RequestParam(required = false) String status,
 			Pageable pageable,
 			SubmissionFilterDTO filter
 	) {
@@ -91,6 +93,9 @@ public class SubmissionController {
 						? Sort.by(Sort.Direction.DESC, "createdAt")
 						: pageable.getSort()
 		);
+		if (status != null && !status.isBlank()) {
+			filter.setStatuses(java.util.List.of(status));
+		}
 		return ResponseEntity.ok(submissionService.listSubmissions(userId, filter, safePageable, keyword));
 	}
 
@@ -115,6 +120,13 @@ public class SubmissionController {
 	public ResponseEntity<SubmissionResponse> resubmit(@PathVariable("id") String id, @RequestBody SubmissionRequest request) {
 		String userId = getAuthenticatedUserId();
 		return ResponseEntity.ok(submissionService.resubmit(userId, id, request));
+	}
+
+	@PatchMapping("/{id}")
+	@PreAuthorize("hasAnyAuthority('HEI_STAFF', 'ROLE_HEI_STAFF')")
+	public ResponseEntity<SubmissionResponse> updateSubmission(@PathVariable("id") String id, @RequestBody SubmissionRequest request) {
+		String userId = getAuthenticatedUserId();
+		return ResponseEntity.ok(submissionService.updateSubmission(userId, id, request));
 	}
 
 	private String getAuthenticatedUserId() {

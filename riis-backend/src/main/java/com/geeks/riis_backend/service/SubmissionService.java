@@ -129,6 +129,7 @@ public class SubmissionService {
 					output.getFundingSource(),
 					output.getCompletionYear(),
 					output.getCreatedAt(),
+					output.getUpdatedAt(),
 					output.getStatus()
 			));
 		}
@@ -145,6 +146,7 @@ public class SubmissionService {
 						output.getFundingSource(),
 						output.getCompletionYear(),
 						output.getCreatedAt(),
+						output.getUpdatedAt(),
 						output.getStatus()
 				));
 	}
@@ -196,6 +198,7 @@ public class SubmissionService {
 				output.getPublisherDc(),
 				output.getIdentifierDc(),
 				output.getCorrectionNotes(),
+				output.getS3PdfKey(),
 				validationErrorCount
 		);
 	}
@@ -222,6 +225,80 @@ public class SubmissionService {
 		}
 
 		ValidationResult validationResult = validationService.validate(dto, institution.getId());
+		validationLogService.persistValidationResult(
+				validationResult,
+				institution.getId(),
+				submissionId,
+				"RESUBMIT"
+		);
+		if (!validationResult.passed()) {
+			throw new SubmissionValidationException(validationResult.errors());
+		}
+
+		output.setTitle(dto.title().trim());
+		output.setCompletionYear(dto.completionYear());
+		output.setAbstractText(dto.abstractText().trim());
+		output.setDoi(dto.doi() == null ? null : dto.doi().trim());
+		output.setSubjectDc(dto.sAndTTheme());
+		output.setCoverageDc(dto.coverageDc());
+		output.setRightsDc(dto.rightsDc());
+		output.setResearchType(isBlank(dto.researchType()) ? DEFAULT_RESEARCH_TYPE : dto.researchType().trim());
+		output.setFundingSource(dto.fundingSource());
+		output.setPublicationVenue(dto.publicationVenue());
+		output.setS3PdfKey(dto.attachmentKey());
+		output.setKeywords(dto.keywords() == null ? null : dto.keywords().stream()
+				.filter(value -> value != null && !value.isBlank())
+				.map(String::trim)
+				.distinct()
+				.reduce((a, b) -> a + ", " + b)
+				.orElse(null));
+
+		Set<Author> updatedAuthors = mapAuthors(dto.authors());
+		if (output.getAuthors() == null) {
+			output.setAuthors(updatedAuthors);
+		} else {
+			output.getAuthors().clear();
+			output.getAuthors().addAll(updatedAuthors);
+		}
+		for (Author author : output.getAuthors()) {
+			author.setResearchOutput(output);
+		}
+
+		output.setStatus(STATUS_PENDING_REVIEW);
+		output.setReviewedBy(null);
+		output.setReviewedAt(null);
+
+		ResearchOutput saved = researchOutputRepository.save(output);
+
+		auditLogService.logResubmission(saved.getId(), userId);
+
+		eventPublisher.publishEvent(new RecordResubmittedEvent(
+				saved.getId(),
+				saved.getReferenceNumber(),
+				institution.getId()
+		));
+
+		return new SubmissionResponse(saved.getReferenceNumber());
+	}
+
+	public SubmissionResponse updateSubmission(String userId, String submissionId, SubmissionRequest dto) {
+		User user = userRepository.findById(userId)
+				.orElseThrow(() -> new ResourceNotFoundException("User not found: " + userId));
+
+		Institution institution = user.getInstitution();
+		if (institution == null) {
+			throw new SubmissionValidationException(List.of(
+					new com.geeks.riis_backend.dto.FieldError("institution", "User is not linked to an institution.")
+			));
+		}
+
+		var spec = SubmissionSpecifications.forInstitution(institution.getId())
+				.and((root, query, cb) -> cb.equal(root.get("id"), submissionId));
+
+		ResearchOutput output = researchOutputRepository.findOne(spec)
+				.orElseThrow(() -> new ResourceNotFoundException("Submission not found: " + submissionId));
+
+		ValidationResult validationResult = validationService.validate(dto, institution.getId(), submissionId);
 		validationLogService.persistValidationResult(
 				validationResult,
 				institution.getId(),
