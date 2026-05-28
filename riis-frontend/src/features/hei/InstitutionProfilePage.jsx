@@ -284,6 +284,8 @@ function OtherHEIsPanel({ currentId }) {
 export default function InstitutionProfilePage() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const minYear = 2015
+  const maxYear = Math.max(2025, new Date().getFullYear())
   const [profile, setProfile] = useState(null)
   const [status, setStatus] = useState('idle')
   const [error, setError] = useState('')
@@ -292,7 +294,7 @@ export default function InstitutionProfilePage() {
   const [debouncedSearchKeyword, setDebouncedSearchKeyword] = useState('')
   const [selectedTypes, setSelectedTypes] = useState([])
   const [selectedClusters, setSelectedClusters] = useState([])
-  const [yearRange, setYearRange] = useState(0)
+  const [yearRange, setYearRange] = useState(maxYear)
   const [isFiltering, setIsFiltering] = useState(false)
 
   const loggedInInstitutionName =
@@ -360,7 +362,19 @@ export default function InstitutionProfilePage() {
   const initials = getInitials(profile?.name)
   const avatarColor = getAvatarColor(profile?.name)
   const totalPages = profile?.outputs?.totalPages || 1
-  const outputs = profile?.outputs?.content || []
+  const outputsRaw = profile?.outputs?.content || []
+  const outputs = yearRange
+    ? outputsRaw.filter((output) => {
+        const yearValue =
+          output?.completionYear ??
+          output?.year ??
+          output?.publicationYear ??
+          output?.publishedYear
+        const parsedYear = Number.parseInt(String(yearValue || ''), 10)
+        if (Number.isNaN(parsedYear)) return true
+        return parsedYear <= yearRange
+      })
+    : outputsRaw
   const isOwnInstitution = String(profile?.name || '') === String(localStorage.getItem('institutionName') || localStorage.getItem('userInstitution') || '')
 
   return (
@@ -657,8 +671,9 @@ export default function InstitutionProfilePage() {
                       </p>
                       <input
                         type="range"
-                        min="2015"
-                        max="2025"
+                        min={minYear}
+                        max={maxYear}
+                        value={yearRange}
                         className="w-full accent-[#C9A84C]"
                         onChange={(event) => {
                           setYearRange(Number(event.target.value))
@@ -666,8 +681,8 @@ export default function InstitutionProfilePage() {
                         }}
                       />
                       <div className="mt-1 flex justify-between text-[10px] text-slate-400">
-                        <span>2015</span>
-                        <span>2025</span>
+                        <span>{minYear}</span>
+                        <span>{maxYear}</span>
                       </div>
                     </div>
                     <div>

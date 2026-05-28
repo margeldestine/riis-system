@@ -9,6 +9,7 @@ import {
   Users,
 } from 'lucide-react'
 import '@fontsource/libre-baskerville'
+import { useState } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import dostLogo from '../../assets/dost-logo.png'
 
@@ -116,7 +117,7 @@ function extractInstitution(payload) {
 
 export default function DashboardLayout({
   children,
-  activeLabel = 'Analytics Dashboard',
+  activeLabel = '',
   userName = 'DOST Administrator',
   organization = 'DOST Region VII',
   navItems = defaultNavItems,
@@ -124,6 +125,15 @@ export default function DashboardLayout({
   const navigate = useNavigate()
   const location = useLocation()
   const isHeiRoute = (location?.pathname || '').startsWith('/hei/')
+  const [showSignOutDialog, setShowSignOutDialog] = useState(false)
+  const inferredActiveLabel = (() => {
+    if (activeLabel) return activeLabel
+    const pathname = location?.pathname || ''
+    const match = navItems
+      .filter((item) => item?.to && (pathname === item.to || pathname.startsWith(`${item.to}/`)))
+      .sort((a, b) => String(b.to).length - String(a.to).length)[0]
+    return match?.label || ''
+  })()
   const token = localStorage.getItem('token') || ''
   const tokenPayload = decodeJwtPayload(token)
 
@@ -193,7 +203,7 @@ export default function DashboardLayout({
               icon={item.icon}
               label={item.label}
               to={item.to}
-              active={item.label === activeLabel}
+              active={item.label === inferredActiveLabel}
             />
           ))}
         </nav>
@@ -201,7 +211,7 @@ export default function DashboardLayout({
         <div className="mt-auto pt-6">
           <button
             type="button"
-            onClick={handleSignOut}
+            onClick={() => setShowSignOutDialog(true)}
             className="flex w-full items-center justify-between rounded-[8px] px-3 py-3 text-sm font-semibold text-[#C9A84C] transition hover:bg-[rgba(28,63,110,0.35)]"
           >
             <span>Sign Out</span>
@@ -223,6 +233,45 @@ export default function DashboardLayout({
           </div>
         </footer>
       </main>
+
+      {showSignOutDialog ? (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/45 px-4">
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
+          >
+            <div className="bg-[#0d1f3c] px-6 py-5">
+              <p
+                className="mt-1 text-[18px] font-bold text-white"
+                style={{ fontFamily: "'Libre Baskerville', serif" }}
+              >
+                Sign out?
+              </p>
+              <p className="mt-2 text-sm text-white/70">
+                You will be returned to the login page.
+              </p>
+            </div>
+            <div className="h-px w-full bg-[#c9a84c]" />
+            <div className="flex items-center justify-end gap-3 px-6 py-5">
+              <button
+                type="button"
+                onClick={() => setShowSignOutDialog(false)}
+                className="rounded-[8px] border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSignOut}
+                className="rounded-[8px] bg-[#1A1A2E] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#11111f]"
+              >
+                Sign Out
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

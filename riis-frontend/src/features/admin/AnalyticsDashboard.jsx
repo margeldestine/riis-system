@@ -178,7 +178,7 @@ export default function AnalyticsDashboard({
       </div>
 
       {/* KPI Strip */}
-      <section className="grid gap-4 lg:grid-cols-2 xl:grid-cols-5">
+      <section className="grid gap-4 lg:grid-cols-2 xl:grid-cols-4">
         {loading ? (
           <>
             <LoadingCard /><LoadingCard /><LoadingCard /><LoadingCard />
@@ -199,11 +199,6 @@ export default function AnalyticsDashboard({
               value={`${summary?.completenessRate ?? 0}%`}
               label="Completeness Rate"
               detail="Target ≥ 90%"
-            />
-            <KpiCard
-              value={`${summary?.incompleteRate ?? 0}%`}
-              label="Incomplete Rate"
-              detail="Below 10% threshold"
             />
           </>
         )}
@@ -423,7 +418,30 @@ export default function AnalyticsDashboard({
                   className="flex h-7 w-7 items-center justify-center rounded-[8px] text-[10px] font-bold text-white"
                   style={{ backgroundColor: heiColors[index % heiColors.length] }}
                 >
-                  {(item.name || '').split(' ').map((w) => w[0]).join('').slice(0, 2)}
+                  {(() => {
+                    const raw = String(item.name || '').trim()
+                    const key = raw.toLowerCase().replace(/\s+/g, ' ')
+                    if (!key) return ''
+                    if (key.startsWith('cebu institute of technology') && key.includes('university')) return 'CIT'
+                    if (key === 'university of san carlos') return 'USC'
+                    if (key.includes('university of san jose') && key.includes('recoletos')) return 'USJR'
+                    if (key.startsWith('university of the philippines')) return 'UP'
+                    const stop = new Set(['of', 'the', 'and', '&', 'for', 'in', 'on', 'at', 'a', 'an'])
+                    const acronym = (text) =>
+                      String(text || '')
+                        .replace(/[^a-zA-Z0-9\s]/g, ' ')
+                        .split(/\s+/)
+                        .filter(Boolean)
+                        .filter((w) => !stop.has(w.toLowerCase()))
+                        .map((w) => w[0])
+                        .join('')
+                        .toUpperCase()
+                    const parts = raw.split('-').map((s) => s.trim()).filter(Boolean)
+                    const first = acronym(parts[0] || raw)
+                    const second = parts[1] ? acronym(parts[1]) : ''
+                    const combined = first && second && `${first}-${second}`.length <= 5 ? `${first}-${second}` : first
+                    return (combined || acronym(raw)).slice(0, 5)
+                  })()}
                 </div>
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold text-[#1A1A2E]">
@@ -492,7 +510,7 @@ export default function AnalyticsDashboard({
               Research Concentration Heatmap
             </h3>
             <p className="mt-1 text-xs text-[#6B7280]">
-              Thematic density by institution · S&T priority clusters · darker = more outputs
+              Thematic density by institution · S&T priority clusters
             </p>
           </div>
         </div>
@@ -515,10 +533,56 @@ export default function AnalyticsDashboard({
                       className="flex h-7 w-7 items-center justify-center rounded-[8px] text-[10px] font-bold text-white"
                       style={{ backgroundColor: heiColors[index % heiColors.length] }}
                     >
-                      {(hei.name || '').split(' ').map((w) => w[0]).join('').slice(0, 2)}
+                      {(() => {
+                        const raw = String(hei.name || '').trim()
+                        const key = raw.toLowerCase().replace(/\s+/g, ' ')
+                        if (!key) return ''
+                        if (key.startsWith('cebu institute of technology') && key.includes('university')) return 'CIT'
+                        if (key === 'university of san carlos') return 'USC'
+                        if (key.includes('university of san jose') && key.includes('recoletos')) return 'USJR'
+                        if (key.startsWith('university of the philippines')) return 'UP'
+                        const stop = new Set(['of', 'the', 'and', '&', 'for', 'in', 'on', 'at', 'a', 'an'])
+                        const acronym = (text) =>
+                          String(text || '')
+                            .replace(/[^a-zA-Z0-9\s]/g, ' ')
+                            .split(/\s+/)
+                            .filter(Boolean)
+                            .filter((w) => !stop.has(w.toLowerCase()))
+                            .map((w) => w[0])
+                            .join('')
+                            .toUpperCase()
+                        const parts = raw.split('-').map((s) => s.trim()).filter(Boolean)
+                        const first = acronym(parts[0] || raw)
+                        const second = parts[1] ? acronym(parts[1]) : ''
+                        const combined = first && second && `${first}-${second}`.length <= 5 ? `${first}-${second}` : first
+                        return (combined || acronym(raw)).slice(0, 5)
+                      })()}
                     </div>
                     <span className="text-sm font-semibold text-[#1A1A2E]">
-                      {(hei.name || '').split(' ').map((w) => w[0]).join('').slice(0, 4)}
+                      {(() => {
+                        const raw = String(hei.name || '').trim()
+                        const key = raw.toLowerCase().replace(/\s+/g, ' ')
+                        if (!key) return ''
+                        if (key.startsWith('cebu institute of technology') && key.includes('university')) return 'CIT'
+                        if (key === 'university of san carlos') return 'USC'
+                        if (key.includes('university of san jose') && key.includes('recoletos')) return 'USJR'
+                        if (key.startsWith('university of the philippines')) return 'UP'
+                        const stop = new Set(['of', 'the', 'and', '&', 'for', 'in', 'on', 'at', 'a', 'an'])
+                        const acronym = (text) =>
+                          String(text || '')
+                            .replace(/[^a-zA-Z0-9\s]/g, ' ')
+                            .split(/\s+/)
+                            .filter(Boolean)
+                            .filter((w) => !stop.has(w.toLowerCase()))
+                            .map((w) => w[0])
+                            .join('')
+                            .toUpperCase()
+                        const parts = raw.split('-').map((s) => s.trim()).filter(Boolean)
+                        const first = acronym(parts[0] || raw)
+                        const second = parts[1] ? acronym(parts[1]) : ''
+                        const combined = first && second && `${first}-${second}`.length <= 5 ? `${first}-${second}` : first
+                        return (combined || acronym(raw)).slice(0, 5)
+                      })()}
                     </span>
                   </div>
                   {heatmapColumns.map((col) => (
@@ -548,14 +612,8 @@ export default function AnalyticsDashboard({
               <h3 className="text-[17px] font-semibold text-[#1A1A2E]">
                 Regional Research Niche Landscape
               </h3>
-              <p className="mt-1 text-xs text-[#6B7280]">
-                Auto-segmented on every month (approx.) · CA-NB-25 logi II
-              </p>
             </div>
           </div>
-          <button type="button" className="shrink-0 rounded-md border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 flex items-center gap-1.5">
-            Module 8.1 Log
-          </button>
         </div>
 
         <div className="mt-5 rounded-[12px] bg-[#1A2744] p-5">

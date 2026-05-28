@@ -440,25 +440,6 @@ export default function DiscoveryPortalPage({ embedded = false }) {
               Search
             </button>
           </div>
-
-          <div className="mt-4 flex items-center justify-center gap-2 flex-wrap">
-            <span className="text-xs text-slate-400">Quick filters:</span>
-            {[
-              { label: `${total > 0 ? total : '—'} Approved Records` },
-              { label: `${institutions.length} HEIs` },
-              { label: '2 Provinces' },
-              { label: 'Marine Science', key: 'Marine Science' },
-            ].map(({ label, key }) => (
-              <button
-                key={label}
-                type="button"
-                onClick={() => key ? handleFilterChange('researchType', key) : null}
-                className="rounded-full bg-white/10 border border-white/20 px-3 py-1 text-xs text-white hover:bg-white/20 transition"
-              >
-                {label}
-              </button>
-            ))}
-          </div>
         </div>
       </div>
 

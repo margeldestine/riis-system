@@ -174,7 +174,6 @@ function RegisterHEIModal({ onClose, onSuccess }) {
         {/* Header */}
         <div style={{ background: '#1e3a5f', padding: '20px 28px' }}>
           <div style={{ fontSize: 11, fontWeight: 600, color: '#93c5fd', textTransform: 'uppercase', letterSpacing: '0.15em', marginBottom: 4 }}>
-            UC-M10-02 · STEP 3-5
           </div>
           <h3 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: '#fff' }}>Institution Details</h3>
         </div>

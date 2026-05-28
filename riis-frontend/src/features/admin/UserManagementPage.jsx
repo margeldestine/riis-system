@@ -205,7 +205,7 @@ function QueueScreen({ users, onReview }) {
                   <td style={{ padding: '14px 12px' }}>
                     <button
                       onClick={() => onReview(user)}
-                      style={{ background: '#1e3a5f', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+                      style={{ background: '#1e3a5f', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 6 }}
                     >
                       Review »
                     </button>

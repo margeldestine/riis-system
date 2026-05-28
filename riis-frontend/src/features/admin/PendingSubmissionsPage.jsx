@@ -224,7 +224,6 @@ function ActionPanel({ submission, onAction, actionLoading }) {
     <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
       {/* Dark header */}
       <div className="bg-[#1A1A2E] px-5 py-4">
-        <p className="text-[10px] uppercase tracking-wider text-slate-400">UC-M4-02 · Step 4</p>
         <h3 className="mt-1 text-lg font-bold text-white">Take Action</h3>
       </div>
 
