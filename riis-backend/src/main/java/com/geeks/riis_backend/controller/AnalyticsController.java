@@ -52,4 +52,22 @@ public class AnalyticsController {
         return ResponseEntity.ok(analyticsService.getHeatmap());
     }
 
+    // Still exists, unchanged — top-10-region-wide-KeyBERT-theme matrix.
+    // No longer consumed by the frontend's ThematicDensityHeatmap (see
+    // AnalyticsService.getHeatmapMatrix() comment for why it's left in
+    // place rather than removed).
+    @GetMapping("/heatmap-matrix")
+    @PreAuthorize("hasRole('DOST_ADMIN')")
+    public ResponseEntity<List<Map<String, Object>>> getHeatmapMatrix() {
+        return ResponseEntity.ok(analyticsService.getHeatmapMatrix());
+    }
+
+    // GET /api/v1/analytics/cluster-heatmap
+    // NEW — institution x 5-S&T-cluster matrix, real output counts (not
+    // keyword counts), backing the redesigned ThematicDensityHeatmap.
+    @GetMapping("/cluster-heatmap")
+    @PreAuthorize("hasRole('DOST_ADMIN')")
+    public ResponseEntity<Map<String, Object>> getClusterHeatmap() {
+        return ResponseEntity.ok(analyticsService.getClusterHeatmap());
+    }
 }

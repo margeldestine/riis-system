@@ -3,6 +3,7 @@ package com.geeks.riis_backend.event;
 import com.geeks.riis_backend.model.ResearchOutput;
 import com.geeks.riis_backend.repository.ResearchOutputRepository;
 import com.geeks.riis_backend.service.AIProxyService;
+import com.geeks.riis_backend.service.ClusterAssignmentService;
 import com.geeks.riis_backend.service.OverlapDetectionService;
 import com.geeks.riis_backend.service.ThemeProfileService;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +22,7 @@ public class RecordIngestedEventListener {
     private final AIProxyService aiProxyService;
     private final ThemeProfileService themeProfileService;
     private final OverlapDetectionService overlapDetectionService;
+    private final ClusterAssignmentService clusterAssignmentService;
 
     @Async
     @EventListener
@@ -61,6 +63,13 @@ public class RecordIngestedEventListener {
         } else {
             log.warn("Empty SPECTER embedding for: {}", event.referenceNumber());
         }
+
+        // Cluster assignment runs here (not as its own separate @EventListener
+        // on RecordIngestedEvent, as the SDD diagram literally shows) so it
+        // never races this same method's SPECTER-embedding save above. It
+        // reuses the keywords and specterEmbedding already computed in this
+        // method instead of calling AIProxyService again.
+        clusterAssignmentService.assignCluster(output, keywords, specterEmbedding);
     }
 
     private String buildText(ResearchOutput output) {
