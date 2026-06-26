@@ -32,15 +32,12 @@ export default function DataQualityDashboard() {
   const [drilldown, setDrilldown] = useState(null)
   const location = useLocation()
   const navigate = useNavigate()
-  const [activeTab, setActiveTab] = useState('validation')
+  const [activeTab, setActiveTab] = useState('overlaps')
 
-useEffect(() => {
-  if (location.pathname.includes('overlap')) {
+  useEffect(() => {
     setActiveTab('overlaps')
-  } else {
-    setActiveTab('validation')
-  }
-}, [location.pathname])
+  }, [location.pathname])
+
   const [loading, setLoading] = useState(true)
   const [overlapsLoading, setOverlapsLoading] = useState(true)
 
@@ -77,9 +74,20 @@ useEffect(() => {
   const sortedErrors = Object.entries(aggregatedErrors)
     .sort((a, b) => b[1] - a[1])
 
+  // Deduplicate overlaps — keep only the newer record of each pair
+  const deduplicatedOverlaps = (() => {
+    const seen = new Set()
+    return overlaps.filter((alert) => {
+      const key = [alert.newRecordTitle, alert.existingRecordTitle].sort().join('||')
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+  })()
+
   return (
     <DashboardLayout
-      activeLabel="Auto Validation"
+      activeLabel="Overlap Alerts"
       userName="DOST Administrator"
       organization="DOST Region VII"
       navItems={dostNavItems}
@@ -115,18 +123,6 @@ useEffect(() => {
         <div className="flex gap-2">
           <button
             type="button"
-            onClick={() => navigate('/dost/validation')}
-            className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition ${
-              activeTab === 'validation'
-                ? 'bg-[#1A1A2E] text-white'
-                : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-            }`}
-          >
-            <ShieldCheck className="h-4 w-4" />
-            Auto Validation
-          </button>
-          <button
-            type="button"
             onClick={() => navigate('/dost/overlap-alerts')}
             className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition ${
               activeTab === 'overlaps'
@@ -136,9 +132,9 @@ useEffect(() => {
           >
             <AlertTriangle className="h-4 w-4" />
             Overlap Alerts
-            {overlaps.length > 0 && (
+            {deduplicatedOverlaps.length > 0 && (
               <span className="rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] text-white">
-                {overlaps.length}
+                {deduplicatedOverlaps.length}
               </span>
             )}
           </button>
@@ -344,7 +340,7 @@ useEffect(() => {
           </div>
         )}
 
-          {activeTab === 'overlaps' && (
+        {activeTab === 'overlaps' && (
           <div className="space-y-4">
             <div className={cardClass}>
               <div className="flex items-center justify-between mb-4 rounded-[10px] border border-red-200 bg-red-50 px-4 py-3">
@@ -352,11 +348,10 @@ useEffect(() => {
                   <AlertTriangle className="h-5 w-5 text-red-500 shrink-0" />
                   <div>
                     <h2 className="text-[15px] font-bold text-[#1A1A2E]">Overlap Notification Log</h2>
-                    <p className="text-xs text-slate-500">Recorded entries where overlap was detected — click a card to see full details</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
-                  <span className="text-sm font-semibold text-slate-600">{overlaps.length} flagged</span>
+                  <span className="text-sm font-semibold text-slate-600">{deduplicatedOverlaps.length} flagged</span>
                   <span className="flex items-center gap-1.5 rounded-md bg-red-500 px-3 py-1 text-xs font-bold text-white">
                     <span className="h-1.5 w-1.5 rounded-full bg-white" />
                     Active
@@ -368,7 +363,7 @@ useEffect(() => {
                 <div className="flex items-center justify-center py-10">
                   <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
                 </div>
-              ) : overlaps.length === 0 ? (
+              ) : deduplicatedOverlaps.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-10 text-center">
                   <CheckCircle2 className="h-8 w-8 text-emerald-500 mb-2" />
                   <p className="text-sm font-semibold text-slate-600">No overlaps detected</p>
@@ -376,7 +371,7 @@ useEffect(() => {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {overlaps.map((alert) => {
+                  {deduplicatedOverlaps.map((alert) => {
                     const score = (alert.similarityScore * 100).toFixed(1)
                     const isCritical = alert.similarityScore >= 0.90
                     return (
@@ -432,9 +427,7 @@ useEffect(() => {
                                 <p className="text-[10px] text-slate-400 mt-0.5">{alert.existingRecordHei}</p>
                               </div>
                             </div>
-                            <span className={`text-sm font-bold shrink-0 ml-4 ${isCritical ? 'text-red-500' : 'text-amber-500'}`}>
-                              {score}%
-                            </span>
+                            
                           </div>
                         </div>
                       </div>
