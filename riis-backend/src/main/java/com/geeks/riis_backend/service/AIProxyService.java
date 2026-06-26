@@ -112,4 +112,53 @@ public class AIProxyService {
         log.warn("AI service unavailable for SPECTER embedding. Fallback activated. Cause: {}", t.getMessage());
         return new float[0];
     }
+
+    @CircuitBreaker(name = "aiService", fallbackMethod = "computeCentroidSimilaritiesFallback")
+    @Retryable(maxAttempts = 3, backoff = @Backoff(delay = 2000, multiplier = 2))
+    public Map<String, Double> computeCentroidSimilarities(float[] specterEmbedding, Map<String, float[]> centroidsByClusterId) {
+        if (specterEmbedding == null || specterEmbedding.length == 0 || centroidsByClusterId == null || centroidsByClusterId.isEmpty()) {
+            return Map.of();
+        }
+
+        Map<String, List<Float>> centroidsPayload = new java.util.HashMap<>();
+        for (Map.Entry<String, float[]> entry : centroidsByClusterId.entrySet()) {
+            List<Float> vector = new java.util.ArrayList<>(entry.getValue().length);
+            for (float v : entry.getValue()) {
+                vector.add(v);
+            }
+            centroidsPayload.put(entry.getKey(), vector);
+        }
+
+        List<Float> embeddingPayload = new java.util.ArrayList<>(specterEmbedding.length);
+        for (float v : specterEmbedding) {
+            embeddingPayload.add(v);
+        }
+
+        WebClient client = WebClient.create(aiServiceUrl);
+        Map response = client.post()
+                .uri("/ai/specter/centroid-similarity")
+                .bodyValue(Map.of("embedding", embeddingPayload, "centroids", centroidsPayload))
+                .retrieve()
+                .bodyToMono(Map.class)
+                .timeout(Duration.ofSeconds(8))
+                .block();
+
+        if (response == null || !response.containsKey("similarities")) {
+            return Map.of();
+        }
+
+        Map<String, Object> rawSimilarities = (Map<String, Object>) response.get("similarities");
+        Map<String, Double> result = new java.util.HashMap<>();
+        for (Map.Entry<String, Object> entry : rawSimilarities.entrySet()) {
+            if (entry.getValue() instanceof Number num) {
+                result.put(entry.getKey(), num.doubleValue());
+            }
+        }
+        return result;
+    }
+
+    public Map<String, Double> computeCentroidSimilaritiesFallback(float[] specterEmbedding, Map<String, float[]> centroidsByClusterId, Throwable t) {
+        log.warn("AI service unavailable for centroid similarity. Fallback activated. Cause: {}", t.getMessage());
+        return Map.of();
+    }
 }

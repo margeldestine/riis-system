@@ -94,59 +94,56 @@ export default function ResearchOutputDetailPage() {
   const keywords = Array.isArray(record?.keywords) ? record.keywords : []
   const authors = Array.isArray(record?.authors) ? record.authors : []
   const principalInvestigator = authors[0]?.fullName || '—'
+  const academicYearLabel = `${new Date().getFullYear() - 1}-${new Date().getFullYear()}`
 
   return (
     <div className="min-h-screen bg-[#F4F6F9] font-sans flex flex-col">
-      {/* Top nav */}
-      <nav className="bg-white border-b border-slate-200 px-8 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="h-8 w-8 rounded-lg bg-[#1A1A2E] flex items-center justify-center">
-            <span className="text-xs font-bold text-[#C9A84C]">D</span>
-          </div>
-          <div>
-            <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-400">
-              Republic of the Philippines
-            </p>
-            <p className="text-xs font-bold text-[#1A1A2E]">DASIG Research Information System</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-6">
+      <div className="relative overflow-hidden" style={{ background: '#1a3a6b' }}>
+        <div
+          className="absolute inset-0"
+          style={{
+            backgroundImage: 'url(/DOST_Building.png)',
+            backgroundSize: 'cover',
+            backgroundPosition: '60% 10%',
+            opacity: 0.25,
+            mixBlendMode: 'luminosity',
+          }}
+        />
+        <div className="absolute inset-0" style={{ background: 'rgba(15, 40, 90, 0.72)' }} />
+        <div className="relative z-10 px-10 py-8 w-full">
           <button
             type="button"
-            onClick={() => navigate('/')}
-            className="text-sm font-semibold text-[#1A1A2E] border-b-2 border-[#1A1A2E] pb-0.5"
+            onClick={() => navigate(-1)}
+            className="flex items-center gap-1.5 text-xs text-white/60 hover:text-white/90 transition mb-5"
           >
-            Browse Research
+            <ArrowLeft className="h-3.5 w-3.5" />
+            Return to Research Explorer
           </button>
-          <button
-            type="button"
-            onClick={() => navigate('/discover')}
-            className="text-sm text-slate-500 hover:text-[#1A1A2E]"
+          <h1
+            className="text-3xl leading-snug text-white"
+            style={{ fontFamily: "'Libre Baskerville', serif", fontWeight: 700 }}
           >
-            HEI Directory
-          </button>
+            {record?.title || 'Research Output Details'}
+          </h1>
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            {record?.institutionName && (
+              <span className="rounded-full border border-white/30 bg-white/10 px-3 py-0.5 text-xs text-white/90">
+                {record.institutionName}
+              </span>
+            )}
+            {record?.province && (
+              <span className="rounded-full border border-white/30 bg-white/10 px-3 py-0.5 text-xs text-white/90">
+                {record.province}
+              </span>
+            )}
+            {record?.subjectDc && (
+              <span className="rounded-full border border-white/30 bg-white/10 px-3 py-0.5 text-xs text-white/90">
+                {record.subjectDc}
+              </span>
+            )}
+          </div>
         </div>
-        <div className="flex items-center gap-3">
-        {!localStorage.getItem('token') && (
-          <>
-            <button
-              type="button"
-              onClick={() => navigate('/login')}
-              className="text-sm font-semibold text-[#1A1A2E] hover:text-slate-600"
-            >
-              Login
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate('/register')}
-              className="rounded-lg bg-[#1A1A2E] px-4 py-2 text-sm font-semibold text-white hover:bg-[#11111f] transition"
-            >
-              Register
-            </button>
-          </>
-        )}
       </div>
-      </nav>
 
 
       {loading ? (
@@ -159,58 +156,8 @@ export default function ResearchOutputDetailPage() {
         </div>
       ) : record ? (
         <>
-          {/* Hero */}
-         {/* Hero */}
-          {/* Hero */}
-          <div className="relative overflow-hidden" style={{ background: '#1a3a6b' }}>
-            <div
-              className="absolute inset-0"
-              style={{
-                backgroundImage: 'url(/DOST_Building.png)',
-                backgroundSize: 'cover',
-                backgroundPosition: '60% 10%',
-                opacity: 0.25,
-                mixBlendMode: 'luminosity',
-              }}
-            />
-            <div className="absolute inset-0" style={{ background: 'rgba(15, 40, 90, 0.72)' }} />
-            <div className="relative z-10 px-10 py-8 max-w-5xl">
-              <button
-                type="button"
-                onClick={() => navigate(-1)}
-                className="flex items-center gap-1.5 text-xs text-white/60 hover:text-white/90 transition mb-5"
-              >
-                <ArrowLeft className="h-3.5 w-3.5" />
-                Return to Research Explorer
-              </button>
-              <h1
-                className="text-3xl leading-snug text-white"
-                style={{ fontFamily: 'Georgia, "Times New Roman", serif', fontWeight: 700 }}
-              >
-                {record.title}
-              </h1>
-              <div className="mt-4 flex flex-wrap items-center gap-2">
-                {record.institutionName && (
-                  <span className="rounded-full border border-white/30 bg-white/10 px-3 py-0.5 text-xs text-white/90">
-                    {record.institutionName}
-                  </span>
-                )}
-                {record.province && (
-                  <span className="rounded-full border border-white/30 bg-white/10 px-3 py-0.5 text-xs text-white/90">
-                    {record.province}
-                  </span>
-                )}
-                {record.subjectDc && (
-                  <span className="rounded-full border border-white/30 bg-white/10 px-3 py-0.5 text-xs text-white/90">
-                    {record.subjectDc}
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-
           {/* Main content */}
-          <div className="mx-auto max-w-5xl px-8 py-8 w-full flex-1">
+          <div className="mx-auto w-full max-w-6xl px-6 py-8 flex-1">
             <div className="flex gap-6 items-start">
               {/* Left — metadata */}
               <div className="flex-1 space-y-6">

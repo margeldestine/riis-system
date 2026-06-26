@@ -15,6 +15,24 @@ function normalizeStatus(value) {
   return (value || '').toString().trim().toUpperCase()
 }
 
+function formatStatusLabel(status) {
+  const value = normalizeStatus(status)
+  if (value === 'APPROVED' || value === 'VALIDATED') return 'Approved'
+  if (
+    value === 'PENDING_REVIEW' ||
+    value === 'PENDING' ||
+    value === 'UNDER_REVIEW' ||
+    value === 'PENDING_APPROVAL' ||
+    value === 'PENDING_APPROVE'
+  ) {
+    return 'Under Review'
+  }
+  if (value === 'REQUIRES_CORRECTION') return 'Requires Correction'
+  if (value === 'REJECTED') return 'Rejected'
+  if (value === 'DRAFT') return 'Draft'
+  return status || 'Unknown'
+}
+
 function getStatusBadgeClasses(status) {
   const value = normalizeStatus(status)
 
@@ -22,7 +40,13 @@ function getStatusBadgeClasses(status) {
     return 'bg-emerald-100 text-emerald-700'
   }
 
-  if (value === 'PENDING_REVIEW' || value === 'PENDING' || value === 'UNDER_REVIEW') {
+  if (
+    value === 'PENDING_REVIEW' ||
+    value === 'PENDING' ||
+    value === 'UNDER_REVIEW' ||
+    value === 'PENDING_APPROVAL' ||
+    value === 'PENDING_APPROVE'
+  ) {
     return 'bg-blue-100 text-blue-700'
   }
 
@@ -152,7 +176,7 @@ export default function SubmissionDetailsDrawer({
                   details.status,
                 )}`}
               >
-                {details.status || 'UNKNOWN'}
+                {formatStatusLabel(details.status)}
               </span>
 
               <DetailRow
@@ -200,9 +224,9 @@ export default function SubmissionDetailsDrawer({
                   </a>
                 </div>
               ) : null}
-              <DetailRow label="DC Subject" value={details.subjectDc || details.sAndTTheme} />
-              <DetailRow label="DC Coverage" value={details.coverageDc} />
-              <DetailRow label="DC Rights" value={details.rightsDc} />
+              <DetailRow label="Subject" value={details.subjectDc || details.sAndTTheme} />
+              <DetailRow label="Coverage" value={details.coverageDc} />
+              <DetailRow label="Rights" value={details.rightsDc} />
 
               {canResubmit && details?.correctionNotes ? (
                 <div className="mt-4 rounded-md border border-yellow-300 bg-yellow-50 p-4 text-sm text-yellow-800">

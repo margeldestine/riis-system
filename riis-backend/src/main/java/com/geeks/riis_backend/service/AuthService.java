@@ -97,6 +97,9 @@ public class AuthService {
 				"email", saved.getEmail()
 		));
 
+		String institutionName = saved.getInstitution() == null ? null : saved.getInstitution().getName();
+		String position = saved.getPosition();
+
 		return new LoginResponse(
 				saved.getId(),
 				saved.getEmail(),
@@ -104,7 +107,9 @@ public class AuthService {
 				saved.getRole(),
 				saved.getStatus(),
 				saved.isMustResetPassword(),
-				token
+				token,
+				institutionName,
+				position
 		);
 	}
 

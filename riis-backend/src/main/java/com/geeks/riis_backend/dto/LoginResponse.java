@@ -7,5 +7,7 @@ public record LoginResponse(
 		String role,
 		String status,
 		boolean mustResetPassword,
-		String token
+		String token,
+		String institutionName,
+		String position
 ) {}

@@ -39,6 +39,12 @@ export default function ReportGeneratorPage() {
     fetchPreview()
   }, [])
 
+  useEffect(() => {
+    if (yearFrom) {
+      setYearTo(yearFrom)
+    }
+  }, [yearFrom])
+
   const toggleType = (type) => {
     setSelectedTypes(prev =>
       prev.includes(type) ? prev.filter(t => t !== type) : [...prev, type]
@@ -115,21 +121,30 @@ export default function ReportGeneratorPage() {
     >
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-start justify-between">
-          <div>
-            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-              DASHBOARD &gt; <span className="text-[#C9A84C]">REPORT GENERATOR</span>
-            </p>
-            <h1 className="mt-2 text-3xl font-bold text-[#1A1A2E]">Reports</h1>
-            <p className="mt-1 text-sm text-slate-500">
-              Submit research outputs through the standardized DOST form
-            </p>
+        <div className="-mx-[32px] -mt-[32px] w-[calc(100%+64px)]">
+          <div className="relative overflow-hidden bg-[#f8fafc] px-8 py-8">
+            <div className="pointer-events-none absolute inset-0" style={{ backgroundImage: 'url(/DOST_Building.png)', backgroundSize: 'cover', backgroundPosition: '78% 32%', opacity: 0.18 }} />
+            <div className="pointer-events-none absolute inset-0" style={{ background: 'rgba(13, 31, 60, 0.08)' }} />
+            <div className="relative z-10 flex items-start justify-between gap-6">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-[#94a3b8]">
+                  DASHBOARD &gt; <span className="text-[#c9a84c]">REPORT GENERATOR</span>
+                </p>
+                <h1 className="mt-2 text-[30px] font-bold tracking-tight text-[#0d1f3c]" style={{ fontFamily: "'Libre Baskerville', serif" }}>
+                  Report Generator
+                </h1>
+                <p className="mt-2 text-[13px] text-[#6b7280]">
+                  DOST Administrator View · Region VII · AY 2025-2026
+                </p>
+              </div>
+              <div className="text-right shrink-0">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-[#94a3b8]">ACADEMIC YEAR</p>
+                <p className="text-[13px] font-bold text-[#0d1f3c]">2025-2026</p>
+                <p className="mt-1 text-[12px] text-[#6b7280]">DOST Region VII</p>
+              </div>
+            </div>
           </div>
-          <div className="text-right">
-            <p className="text-[10px] uppercase tracking-wider text-slate-400">ACADEMIC YEAR</p>
-            <p className="text-sm font-bold text-[#1A1A2E]">2025-2026</p>
-            <p className="text-xs text-slate-500">Institution Name</p>
-          </div>
+          <div className="h-px w-full bg-[#c9a84c]" />
         </div>
 
         {/* Generate Custom Reports banner */}
@@ -188,7 +203,9 @@ export default function ReportGeneratorPage() {
                       className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-3 pr-8 text-sm text-slate-600 appearance-none focus:outline-none focus:ring-1 focus:ring-[#C9A84C]"
                     >
                       <option value=""></option>
-                      {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
+                      {YEARS.filter(y => !yearFrom || y >= parseInt(yearFrom)).map(y => (
+                        <option key={y} value={y}>{y}</option>
+                      ))}
                     </select>
                   </div>
                 </div>

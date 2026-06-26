@@ -95,6 +95,7 @@ public class AdminReviewService {
                 output.getPublisherDc(),
                 output.getIdentifierDc(),
                 output.getCorrectionNotes(),
+                output.getS3PdfKey(),
                 validationErrorCount
         );
     }

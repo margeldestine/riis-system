@@ -8,7 +8,10 @@ import {
   FolderKanban,
   Users,
 } from 'lucide-react'
-import { NavLink, useNavigate } from 'react-router-dom'
+import '@fontsource/libre-baskerville'
+import { useState } from 'react'
+import { NavLink, useLocation, useNavigate } from 'react-router-dom'
+import dostLogo from '../../assets/dost-logo.png'
 
 const defaultNavItems = [
   { icon: BarChart3, label: 'Analytics Dashboard' },
@@ -22,10 +25,11 @@ const defaultNavItems = [
 
 function SidebarItem({ icon: Icon, label, to, active = false }) {
   const baseClass =
-    'flex w-full items-center gap-3 border-l-4 py-[10px] pl-4 pr-4 text-left text-sm font-medium transition'
-  const activeClass = 'border-[#C9A84C] bg-white/5 text-white'
+    'flex w-full items-center gap-3 rounded-[6px] border-l-4 py-[10px] pl-4 pr-4 text-left text-[13px] font-semibold transition'
+  const activeClass =
+    'border-[#C9A84C] bg-[rgba(28,63,110,0.55)] text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.06)]'
   const inactiveClass =
-    'border-transparent text-[#8899AA] hover:bg-white/5 hover:text-white'
+    'border-transparent text-white/80 hover:bg-[rgba(28,63,110,0.35)] hover:text-white'
 
   if (to) {
     return (
@@ -52,17 +56,104 @@ function SidebarItem({ icon: Icon, label, to, active = false }) {
   )
 }
 
+function decodeJwtPayload(token) {
+  if (!token || typeof token !== 'string') return null
+  const parts = token.split('.')
+  if (parts.length < 2) return null
+
+  try {
+    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/')
+    const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=')
+    const json = atob(padded)
+    return JSON.parse(json)
+  } catch {
+    return null
+  }
+}
+
+function toRoleLabel(value) {
+  if (!value) return ''
+  const raw = String(value).trim()
+  if (!raw) return ''
+  return raw
+    .replace(/^ROLE_/, '')
+    .replace(/_/g, ' ')
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+}
+
+function extractRole(payload) {
+  const direct = payload?.role || payload?.userRole || payload?.type || ''
+  if (direct) return direct
+
+  const roles = Array.isArray(payload?.roles) ? payload.roles : null
+  if (roles?.length) return roles[0]
+
+  const authorities = Array.isArray(payload?.authorities) ? payload.authorities : null
+  if (authorities?.length) return authorities[0]
+
+  const scope = payload?.scope || payload?.scopes || ''
+  if (typeof scope === 'string' && scope.includes('ROLE_')) {
+    const match = scope.split(/\s+/).find((s) => s.startsWith('ROLE_'))
+    return match || ''
+  }
+
+  return ''
+}
+
+function extractInstitution(payload) {
+  return (
+    payload?.institutionName ||
+    payload?.institution ||
+    payload?.organization ||
+    payload?.org ||
+    payload?.school ||
+    payload?.schoolName ||
+    payload?.heiName ||
+    payload?.hei ||
+    ''
+  )
+}
+
 export default function DashboardLayout({
   children,
-  activeLabel = 'Analytics Dashboard',
+  activeLabel = '',
   userName = 'DOST Administrator',
   organization = 'DOST Region VII',
   navItems = defaultNavItems,
 }) {
   const navigate = useNavigate()
+  const location = useLocation()
+  const isHeiRoute = (location?.pathname || '').startsWith('/hei/')
+  const [showSignOutDialog, setShowSignOutDialog] = useState(false)
+  const inferredActiveLabel = (() => {
+    if (activeLabel) return activeLabel
+    const pathname = location?.pathname || ''
+    const match = navItems
+      .filter((item) => item?.to && (pathname === item.to || pathname.startsWith(`${item.to}/`)))
+      .sort((a, b) => String(b.to).length - String(a.to).length)[0]
+    return match?.label || ''
+  })()
+  const token = localStorage.getItem('token') || ''
+  const tokenPayload = decodeJwtPayload(token)
+
+  const storedInstitution =
+    localStorage.getItem('institutionName') ||
+    localStorage.getItem('userInstitution') ||
+    ''
+  const storedRole = localStorage.getItem('userRole') || ''
+
+  const heiInstitution =
+    storedInstitution || extractInstitution(tokenPayload) || organization || 'Higher Education Institution'
+  const heiRoleRaw = storedRole || extractRole(tokenPayload) || userName || 'HEI Research User'
+  const heiRole = toRoleLabel(heiRoleRaw) || heiRoleRaw
+
+  const displayUserName = isHeiRoute ? heiInstitution : userName
+  const displayOrganization = isHeiRoute ? heiRole : organization
 
   const handleSignOut = () => {
     localStorage.removeItem('token')
+    localStorage.removeItem('role')
     localStorage.removeItem('institutionName')
     localStorage.removeItem('userInstitution')
     localStorage.removeItem('userRole')
@@ -72,23 +163,38 @@ export default function DashboardLayout({
 
   return (
     <div className="flex h-screen bg-[#F4F6F9] font-sans text-[#1A1A2E]">
-      <aside className="hidden h-screen w-[240px] shrink-0 bg-[#0D1B2A] px-5 py-5 lg:flex lg:flex-col">
-        <div>
-          <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-[#C9A84C]">
-            DASIG
-          </p>
-          <h1 className="mt-1 text-lg font-bold text-white">
-            DOST Region VII
-          </h1>
+      <aside
+        className="hidden h-screen w-[240px] shrink-0 bg-[#0D1B2A] px-5 py-5 lg:flex lg:flex-col"
+        style={{
+            backgroundImage:
+              "linear-gradient(rgba(13, 31, 60, 0.85), rgba(13, 31, 60, 0.85)), url('/DOST_Building.png')",
+            backgroundSize: 'cover',
+            backgroundPosition: '50% 30%',
+          }}
+      >
+        <div className="flex items-center gap-3">
+          <img
+            src={dostLogo}
+            alt=""
+            className="h-9 w-9 object-contain opacity-95"
+          />
+          <div className="leading-tight">
+            <p className="text-[11px] font-bold uppercase tracking-[0.28em] text-[#C9A84C]">
+              DASIG
+            </p>
+            <h1 className="mt-0.5 text-[14px] font-bold text-white">
+              DOST Region VII
+            </h1>
+          </div>
         </div>
 
-        <div className="mt-5 rounded-md bg-slate-800/50 p-3">
-          <p className="text-[11px] text-slate-400">Logged in as</p>
-          <p className="mt-2 text-sm font-bold text-white">{userName}</p>
-          <p className="mt-1 text-xs text-slate-300">{organization}</p>
+        <div className="mt-5 rounded-[10px] border border-white/10 bg-black/15 p-4">
+          <p className="text-[11px] text-white/55">Logged in as</p>
+          <p className="mt-2 text-[13px] font-bold text-white">{displayUserName}</p>
+          <p className="mt-1 text-[11px] text-white/70">{displayOrganization}</p>
         </div>
 
-        <div className="my-4 border-t border-[#C9A84C]/70" />
+        <div className="my-5 h-px bg-[#C9A84C]/70" />
 
         <nav className="space-y-1.5">
           {navItems.map((item) => (
@@ -97,7 +203,7 @@ export default function DashboardLayout({
               icon={item.icon}
               label={item.label}
               to={item.to}
-              active={item.label === activeLabel}
+              active={item.label === inferredActiveLabel}
             />
           ))}
         </nav>
@@ -105,8 +211,8 @@ export default function DashboardLayout({
         <div className="mt-auto pt-6">
           <button
             type="button"
-            onClick={handleSignOut}
-            className="flex w-full items-center justify-between rounded-md px-3 py-3 text-sm font-medium text-[#C9A84C] transition hover:bg-white/5"
+            onClick={() => setShowSignOutDialog(true)}
+            className="flex w-full items-center justify-between rounded-[8px] px-3 py-3 text-sm font-semibold text-[#C9A84C] transition hover:bg-[rgba(28,63,110,0.35)]"
           >
             <span>Sign Out</span>
             <ArrowRight className="h-4 w-4" />
@@ -127,6 +233,45 @@ export default function DashboardLayout({
           </div>
         </footer>
       </main>
+
+      {showSignOutDialog ? (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/45 px-4">
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
+          >
+            <div className="bg-[#0d1f3c] px-6 py-5">
+              <p
+                className="mt-1 text-[18px] font-bold text-white"
+                style={{ fontFamily: "'Libre Baskerville', serif" }}
+              >
+                Sign out?
+              </p>
+              <p className="mt-2 text-sm text-white/70">
+                You will be returned to the login page.
+              </p>
+            </div>
+            <div className="h-px w-full bg-[#c9a84c]" />
+            <div className="flex items-center justify-end gap-3 px-6 py-5">
+              <button
+                type="button"
+                onClick={() => setShowSignOutDialog(false)}
+                className="rounded-[8px] border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSignOut}
+                className="rounded-[8px] bg-[#1A1A2E] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#11111f]"
+              >
+                Sign Out
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

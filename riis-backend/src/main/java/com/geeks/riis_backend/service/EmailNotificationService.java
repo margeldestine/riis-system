@@ -177,4 +177,30 @@ public class EmailNotificationService {
 			mailSender.send(message);
 		} catch (Exception ignored) {}
 	}
+
+	// --- Add this method to EmailNotificationService.java, alongside
+//     sendResubmissionNotificationToAdmin() ---
+
+	@Async
+	public void sendUnclassifiedRecordAlert(String referenceNumber, double maxScoreReached) {
+		if (adminEmail.isBlank()) return;
+		if (referenceNumber == null || referenceNumber.isBlank()) return;
+
+		try {
+			JavaMailSender mailSender = mailSenderProvider.getIfAvailable();
+			if (mailSender == null) return;
+
+			SimpleMailMessage message = new SimpleMailMessage();
+			if (!fromEmail.isBlank()) message.setFrom(fromEmail);
+			message.setTo(adminEmail);
+			message.setSubject("Unclassified Record: " + referenceNumber);
+			message.setText(
+					"A research output could not be automatically assigned to any S&T priority cluster.\n\n" +
+							"Reference Number: " + referenceNumber + "\n" +
+							"Highest cluster score reached: " + String.format("%.2f", maxScoreReached) + " (threshold: 0.65)\n\n" +
+							"Please review and manually assign a cluster via the Data Quality Dashboard."
+			);
+			mailSender.send(message);
+		} catch (Exception ignored) {}
+	}
 }

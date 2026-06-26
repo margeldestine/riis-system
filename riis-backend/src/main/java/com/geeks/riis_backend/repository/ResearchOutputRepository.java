@@ -94,4 +94,24 @@ public interface ResearchOutputRepository extends JpaRepository<ResearchOutput, 
 	void updateSpecterEmbedding(@Param("id") String id, @Param("embedding") float[] embedding);
 
     Page<ResearchOutput> findByStatus(String status, Pageable pageable);
+
+	@Query(value = """
+        SELECT title
+        FROM research_outputs
+        WHERE institution_id = :institutionId
+          AND status = 'APPROVED'
+          AND (
+                LOWER(title) LIKE LOWER(CONCAT('%', :keyword, '%'))
+             OR LOWER(abstract_text) LIKE LOWER(CONCAT('%', :keyword, '%'))
+             OR LOWER(keywords) LIKE LOWER(CONCAT('%', :keyword, '%'))
+          )
+        ORDER BY created_at DESC
+        LIMIT :limit
+        """, nativeQuery = true)
+	List<String> findTopTitlesByInstitutionAndKeyword(
+			@org.springframework.data.repository.query.Param("institutionId") String institutionId,
+			@org.springframework.data.repository.query.Param("keyword") String keyword,
+			@org.springframework.data.repository.query.Param("limit") int limit
+	);
+
 }

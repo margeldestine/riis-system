@@ -9,6 +9,8 @@ import {
   ChevronRight,
   Info
 } from 'lucide-react'
+import '@fontsource/inter'
+import '@fontsource/libre-baskerville'
 import { Controller, useFieldArray, useForm, useWatch } from 'react-hook-form'
 import { z } from 'zod'
 import { useLocation, useNavigate } from 'react-router-dom'
@@ -240,9 +242,9 @@ const submissionSchema = z
       .array(z.string().trim().min(1))
       .min(3, 'Add at least 3 keywords.')
       .max(10, 'You can add up to 10 keywords only.'),
-    subjectDc: z.string().trim().min(1, 'Subject (DC) is required.'),
-    coverageDc: z.string().trim().min(1, 'Coverage (DC) is required.'),
-    rightsDc: z.string().trim().min(1, 'Rights (DC) is required.'),
+    subjectDc: z.string().trim().min(1, 'Subject is required.'),
+    coverageDc: z.string().trim().min(1, 'Coverage is required.'),
+    rightsDc: z.string().trim().min(1, 'Rights is required.'),
     doi: z
       .string()
       .trim()
@@ -305,7 +307,7 @@ function extractApiErrorMessage(error, fallbackMessage) {
 
 function FieldMessage({ message }) {
   if (!message) return null
-  return <p className="mt-2 text-sm text-red-600">{message}</p>
+  return <p className="mt-1 text-[11px] font-medium text-[#dc2626]">{message}</p>
 }
 
 function ErrorSummaryBanner({ errors, onDismiss }) {
@@ -320,17 +322,20 @@ function ErrorSummaryBanner({ errors, onDismiss }) {
   }
 
   return (
-    <div className="mt-5 rounded-md border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-700">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="font-bold">Submission blocked — correct the following:</p>
-          <ul className="mt-2 list-disc pl-5 space-y-1">
+    <div className="mt-5 rounded-[2px] border border-[#f87171] bg-[#fee2e2] px-4 py-4 text-[13px] text-[#991b1b]">
+      <div className="flex items-start gap-3">
+        <Info className="mt-0.5 h-5 w-5 shrink-0 text-[#b91c1c]" />
+        <div className="min-w-0 flex-1">
+          <p className="font-semibold text-[#b91c1c]">
+            Submission blocked - correct the following:
+          </p>
+          <ul className="mt-2 list-disc pl-5 space-y-1 text-[12px] text-[#b91c1c]">
             {errors.map((err, index) => (
               <li key={index}>
                 <button
                   type="button"
                   onClick={() => scrollToField(err.field)}
-                  className="text-left text-red-700 hover:text-red-900"
+                  className="text-left hover:underline"
                 >
                   {err.message}
                 </button>
@@ -341,7 +346,8 @@ function ErrorSummaryBanner({ errors, onDismiss }) {
         <button
           type="button"
           onClick={onDismiss}
-          className="shrink-0 text-red-400 hover:text-red-600"
+          className="shrink-0 text-[#b91c1c]/60 hover:text-[#b91c1c]"
+          aria-label="Dismiss"
         >
           ✕
         </button>
@@ -352,41 +358,45 @@ function ErrorSummaryBanner({ errors, onDismiss }) {
 
 function StepProgress({ currentStep }) {
   return (
-    <div className="relative mb-10 mt-4 flex items-center justify-center">
-      <div className="absolute top-5 left-0 -z-10 h-[2px] w-full px-16">
-        <div className="h-full w-full bg-slate-200"></div>
-      </div>
-      <div className="flex w-full max-w-4xl justify-between px-8">
-        {stepDefinitions.map((step) => {
+    <div className="w-full">
+      <div className="mx-auto flex w-full max-w-5xl items-center justify-between">
+        {stepDefinitions.map((step, index) => {
           const isCompleted = currentStep > step.id
           const isCurrent = currentStep === step.id
+          const connectorCompleted = currentStep > step.id
 
           return (
-            <div key={step.id} className="relative z-10 flex flex-col items-center bg-white px-2">
-              <div
-                className={`flex h-10 w-10 items-center justify-center font-bold ${
-                  isCompleted
-                    ? 'bg-[#C9A84C] text-white'
-                    : isCurrent
-                      ? 'bg-[#1A1A2E] text-white'
-                      : 'border border-slate-300 bg-white text-slate-400'
-                }`}
-              >
-                {isCompleted ? <Check className="h-5 w-5" /> : step.id}
-              </div>
-              <div className="mt-3 w-28 text-center">
-                <p
-                  className={`text-xs ${
+            <div key={step.id} className="flex flex-1 items-center">
+              <div className="flex flex-col items-center">
+                <div
+                  className={`flex h-9 w-9 items-center justify-center rounded-[6px] text-[13px] font-bold ${
                     isCompleted
-                      ? 'font-bold text-[#C9A84C]'
+                      ? 'bg-[#c9a84c] text-white'
                       : isCurrent
-                        ? 'font-bold text-[#1A1A2E]'
-                        : 'text-slate-400'
+                        ? 'bg-[#0d1f3c] text-white'
+                        : 'border border-[#d1d5db] bg-white text-[#9ca3af]'
                   }`}
                 >
-                  {step.label}
-                </p>
+                  {isCompleted ? <Check className="h-4 w-4" /> : step.id}
+                </div>
+                <div className="mt-2 w-[108px] text-center">
+                  <p
+                    className={`text-[10px] font-semibold uppercase tracking-[0.18em] ${
+                      isCompleted || isCurrent ? 'text-[#0d1f3c]' : 'text-[#9ca3af]'
+                    }`}
+                  >
+                    {step.label}
+                  </p>
+                </div>
               </div>
+
+              {index < stepDefinitions.length - 1 ? (
+                <div
+                  className={`mx-2 h-px flex-1 ${
+                    connectorCompleted ? 'bg-[#c9a84c]' : 'bg-[#e5e7eb]'
+                  }`}
+                />
+              ) : null}
             </div>
           )
         })}
@@ -397,16 +407,37 @@ function StepProgress({ currentStep }) {
 
 function StepHeader({ stepId, title }) {
   return (
-    <div className="mb-6">
-      <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-[#C9A84C]">
-        STEP {stepId} OF 5
-      </p>
-      <h3 className="border-l-4 border-[#C9A84C] pl-3 text-2xl font-serif text-[#1A1A2E]">
+    <div className="relative mb-6">
+      <div className="absolute bottom-0 left-[-32px] top-[-32px] w-1 bg-[#c9a84c]" />
+      {stepId <= 4 ? (
+        <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-[#c9a84c]">
+          STEP {stepId} OF 4
+        </p>
+      ) : null}
+      <h3
+        className="text-[22px] font-bold tracking-tight text-[#0d1f3c]"
+        style={{ fontFamily: "'Libre Baskerville', serif" }}
+      >
         {title}
       </h3>
+      <div className="mt-4 h-px w-full bg-[#e5e7eb]" />
     </div>
   )
 }
+
+const fieldLabelClass =
+  'mb-2 block text-[11px] font-semibold uppercase tracking-[0.22em] text-[#374151]'
+
+const helperTextClass = 'mt-2 text-[12px] italic text-[#9ca3af]'
+
+const fieldBaseClass =
+  'w-full rounded-[6px] border border-[#e5e7eb] bg-[#f8fafc] px-3 py-2 text-[0.875rem] text-[#111827] placeholder:text-[#cbd5e1] outline-none transition'
+
+const fieldOkClass =
+  'focus:border-[#0d1f3c] focus:ring-2 focus:ring-[#0d1f3c]/10'
+
+const fieldErrorClass =
+  'border-[#f87171] focus:border-[#f87171] focus:ring-2 focus:ring-[#f87171]/15'
 
 function BasicInfoStep({ register, errors }) {
   return (
@@ -414,25 +445,26 @@ function BasicInfoStep({ register, errors }) {
       <StepHeader stepId={1} title="Research Identification" />
       <div className="grid gap-5 md:grid-cols-2">
         <div className="space-y-2 md:col-span-2">
-          <label className="mb-2 block text-[11px] font-bold uppercase tracking-wider text-slate-500">
+          <label className={fieldLabelClass}>
             Research Title <span className="text-[#C9A84C]">*</span>
           </label>
           <input
             {...register('title')}
             id="field-title"
-            placeholder="Enter the full research title"
-            className={`w-full rounded-md border p-3 text-sm placeholder:text-slate-400 outline-none transition focus:ring-1 ${errors.title ? 'border-red-400 focus:border-red-400 focus:ring-red-400' : 'border-slate-200 bg-[#FFFFFF] focus:border-[#1A1A2E] focus:ring-[#1A1A2E]'}`}
+            placeholder="e.g., Flood Risk Assessment in Bohol Using SAR imagery and GIS"
+            className={`${fieldBaseClass} ${errors.title ? fieldErrorClass : fieldOkClass}`}
           />
+          <p className="text-[11px] text-[#94a3b8]">0 / 500</p>
           <FieldMessage message={errors.title?.message} />
         </div>
 
         <div className="space-y-2">
-          <label className="mb-2 block text-[11px] font-bold uppercase tracking-wider text-slate-500">
+          <label className={fieldLabelClass}>
             Research Type <span className="text-[#C9A84C]">*</span>
           </label>
           <select
             {...register('researchType')}
-            className={`w-full rounded-md border p-3 text-sm outline-none transition focus:ring-1 ${errors.researchType ? 'border-red-400 focus:border-red-400 focus:ring-red-400' : 'border-slate-200 bg-[#FFFFFF] focus:border-[#1A1A2E] focus:ring-[#1A1A2E]'}`}
+            className={`${fieldBaseClass} ${errors.researchType ? fieldErrorClass : fieldOkClass}`}
           >
             <option value="">Select research type</option>
             {researchTypes.map((option) => (
@@ -445,53 +477,45 @@ function BasicInfoStep({ register, errors }) {
         </div>
 
         <div className="space-y-2">
-          <label className="mb-2 block text-[11px] font-bold uppercase tracking-wider text-slate-500">
+          <label className={fieldLabelClass}>
             Completion Year <span className="text-[#C9A84C]">*</span>
           </label>
           <input
             {...register('completionYear', { valueAsNumber: true })}
             type="number"
             max={currentYear}
-            placeholder={`Up to ${currentYear}`}
-            className={`w-full rounded-md border p-3 text-sm placeholder:text-slate-400 outline-none transition focus:ring-1 ${errors.completionYear ? 'border-red-400 focus:border-red-400 focus:ring-red-400' : 'border-slate-200 bg-[#FFFFFF] focus:border-[#1A1A2E] focus:ring-[#1A1A2E]'}`}
+            placeholder="e.g., 2024"
+            className={`${fieldBaseClass} ${errors.completionYear ? fieldErrorClass : fieldOkClass}`}
           />
+          <p className="text-[11px] text-[#94a3b8]">
+            Must be ≤ {currentYear} (current year)
+          </p>
           <FieldMessage message={errors.completionYear?.message} />
         </div>
 
         <div className="space-y-2">
-          <label className="mb-2 block text-[11px] font-bold uppercase tracking-wider text-slate-500">
+          <label className={fieldLabelClass}>
             Funding Source <span className="text-[#C9A84C]">*</span>
           </label>
-          <select
+          <input
             {...register('fundingSource')}
-            className={`w-full rounded-md border p-3 text-sm outline-none transition focus:ring-1 ${errors.fundingSource ? 'border-red-400 focus:border-red-400 focus:ring-red-400' : 'border-slate-200 bg-[#FFFFFF] focus:border-[#1A1A2E] focus:ring-[#1A1A2E]'}`}
-          >
-            <option value="">Select funding source</option>
-            {['DOST-PCAARRD', 'DOST-PCIEERD', 'DOST-CHED', 'Self-Funded', 'Other'].map(f => (
-              <option key={f} value={f}>{f}</option>
-            ))}
-          </select>
+            placeholder="e.g., DOST-PCIEERD"
+            className={`${fieldBaseClass} ${errors.fundingSource ? fieldErrorClass : fieldOkClass}`}
+          />
           <FieldMessage message={errors.fundingSource?.message} />
         </div>
 
         <div className="space-y-2">
-          <label className="mb-2 block text-[11px] font-bold uppercase tracking-wider text-slate-500">
+          <label className={fieldLabelClass}>
             Publication Venue / Status <span className="text-[#C9A84C]">*</span>
           </label>
           <input
             {...register('publicationVenue')}
-            placeholder="Journal, conference, repository, or current status"
-            className={`w-full rounded-md border p-3 text-sm placeholder:text-slate-400 outline-none transition focus:ring-1 ${errors.publicationVenue ? 'border-red-400 focus:border-red-400 focus:ring-red-400' : 'border-slate-200 bg-[#FFFFFF] focus:border-[#1A1A2E] focus:ring-[#1A1A2E]'}`}
+            placeholder="e.g., DOST-PCIEERD"
+            className={`${fieldBaseClass} ${errors.publicationVenue ? fieldErrorClass : fieldOkClass}`}
           />
           <FieldMessage message={errors.publicationVenue?.message} />
         </div>
-      </div>
-
-      <div className="mt-8 flex items-center gap-3 rounded-md border border-blue-100 bg-blue-50/50 p-4 text-sm text-[#1A1A2E]">
-        <Info className="h-5 w-5 flex-shrink-0 text-blue-500" />
-        <p>
-          Ensure all information provided is accurate and matches the official documentation of your research output.
-        </p>
       </div>
     </div>
   )
@@ -506,6 +530,8 @@ function TeamAffiliationStep({
   removeAuthor,
   authorOptions,
 }) {
+  const hasAuthorGroupError = Boolean(errors?.authors?.message)
+
   return (
     <div>
       <StepHeader stepId={2} title="Team & Authors" />
@@ -513,17 +539,14 @@ function TeamAffiliationStep({
         <div className="space-y-3">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="mb-2 block text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                Authors <span className="text-[#C9A84C]">*</span>
-              </p>
-              <p className="text-sm text-slate-500">
-                Add every author included in the submission.
+              <p className={fieldLabelClass}>
+                Author(s) <span className="text-[#C9A84C]">*</span>
               </p>
             </div>
             <button
               type="button"
               onClick={appendAuthor}
-              className="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+              className="inline-flex items-center gap-2 rounded-[6px] border border-[#d1d5db] bg-white px-4 py-2 text-sm font-semibold text-[#0d1f3c] transition hover:bg-[#0d1f3c]/5"
             >
               <Plus className="h-4 w-4" />
               Add Author
@@ -534,25 +557,38 @@ function TeamAffiliationStep({
             {authorFields.map((field, index) => (
               <div
                 key={field.id}
-                className="rounded-md border border-slate-200 bg-[#F9FAFB] p-4"
+                className="rounded-[10px] border border-[#e5e7eb] bg-[#f9fafb] p-4"
               >
                 <div className="grid gap-4 md:grid-cols-[minmax(0,1fr),minmax(0,1fr),auto]">
                   <div className="space-y-2">
-                    <label className="mb-2 block text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                    <label className={fieldLabelClass}>
                       Full Name <span className="text-[#C9A84C]">*</span>
                     </label>
                     <input
                       {...register(`authors.${index}.fullName`)}
-                      placeholder="Author full name"
-                      className={`w-full rounded-md border p-3 text-sm placeholder:text-slate-400 outline-none transition focus:ring-1 ${errors.authors?.[index]?.fullName ? 'border-red-400 focus:border-red-400 focus:ring-red-400' : 'border-slate-200 bg-[#FFFFFF] focus:border-[#1A1A2E] focus:ring-[#1A1A2E]'}`}
+                      placeholder="Type author name and press Enter..."
+                      className={`${fieldBaseClass} ${
+                        (index === 0 && hasAuthorGroupError) || errors.authors?.[index]?.fullName
+                          ? fieldErrorClass
+                          : fieldOkClass
+                      }`}
                     />
-                    <FieldMessage message={errors.authors?.[index]?.fullName?.message} />
+                    <FieldMessage
+                      message={
+                        index === 0 &&
+                        (hasAuthorGroupError || Boolean(errors.authors?.[index]?.fullName))
+                          ? 'Author(s) is required'
+                          : errors.authors?.[index]?.fullName?.message
+                      }
+                    />
                   </div>
 
                   <div className="space-y-2">
-                    <label className="mb-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                    <label className={`mb-2 flex items-center gap-2 ${fieldLabelClass}`}>
                       ORCID iD
-                      <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium normal-case tracking-normal text-slate-400">optional</span>
+                      <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium normal-case tracking-normal text-slate-400">
+                        optional
+                      </span>
                     </label>
                     <Controller
                       control={control}
@@ -568,7 +604,7 @@ function TeamAffiliationStep({
                           }}
                           placeholder="0000-0000-0000-0000"
                           maxLength={19}
-                          className="w-full rounded-md border border-slate-200 bg-[#FFFFFF] p-3 text-sm placeholder:text-slate-400 outline-none transition focus:border-[#1A1A2E] focus:ring-1 focus:ring-[#1A1A2E]"
+                          className={`${fieldBaseClass} ${errors.authors?.[index]?.orcidId ? fieldErrorClass : fieldOkClass}`}
                         />
                       )}
                     />
@@ -580,7 +616,7 @@ function TeamAffiliationStep({
                       type="button"
                       onClick={() => removeAuthor(index)}
                       disabled={authorFields.length === 1}
-                      className="inline-flex h-[46px] items-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="inline-flex h-[42px] items-center gap-2 rounded-[6px] border border-[#d1d5db] bg-white px-4 text-sm font-semibold text-[#0d1f3c] transition hover:bg-[#0d1f3c]/5 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <X className="h-4 w-4" />
                       Remove
@@ -590,51 +626,59 @@ function TeamAffiliationStep({
               </div>
             ))}
           </div>
-          <FieldMessage message={errors.authors?.message} />
         </div>
 
         <div className="grid gap-5 md:grid-cols-2">
           <div className="space-y-2">
-            <label className="mb-2 block text-[11px] font-bold uppercase tracking-wider text-slate-500">
+            <label className={fieldLabelClass}>
               Principal Investigator <span className="text-[#C9A84C]">*</span>
             </label>
             <select
               {...register('principalInvestigator')}
-              className={`w-full rounded-md border p-3 text-sm outline-none transition focus:ring-1 ${errors.principalInvestigator ? 'border-red-400 focus:border-red-400 focus:ring-red-400' : 'border-slate-200 bg-[#FFFFFF] focus:border-[#1A1A2E] focus:ring-[#1A1A2E]'}`}
+              className={`${fieldBaseClass} ${errors.principalInvestigator ? fieldErrorClass : fieldOkClass}`}
             >
-              <option value="">Select principal investigator</option>
+              <option value="">Select PI from author list...</option>
               {authorOptions.map((option) => (
                 <option key={option} value={option}>
                   {option}
                 </option>
               ))}
             </select>
-            <FieldMessage message={errors.principalInvestigator?.message} />
+            <FieldMessage
+              message={
+                errors.principalInvestigator ? 'Principal Investigator is required' : undefined
+              }
+            />
           </div>
 
           <div className="space-y-2">
-            <label className="mb-2 block text-[11px] font-bold uppercase tracking-wider text-slate-500">
+            <label className={fieldLabelClass}>
               Institutional Affiliation <span className="text-[#C9A84C]">*</span>
             </label>
             <input
               {...register('institutionalAffiliation')}
               readOnly
-              className={`w-full rounded-md border p-3 text-sm text-[#1A1A2E] outline-none ${errors.institutionalAffiliation ? 'border-red-400' : 'border-slate-200 bg-slate-50'}`}
+              className={`${fieldBaseClass} ${errors.institutionalAffiliation ? fieldErrorClass : 'border-[#d1d5db] bg-[#f9fafb]'}`}
             />
-            <FieldMessage message={errors.institutionalAffiliation?.message} />
+            {errors.institutionalAffiliation ? (
+              <p className="mt-1 text-[11px] font-medium text-[#dc2626]">
+                Institutional Affiliation
+              </p>
+            ) : null}
           </div>
         </div>
 
-        <div className="mt-8 flex items-center gap-3 rounded-md border border-blue-100 bg-blue-50/50 p-4 text-sm text-[#1A1A2E]">
-          <Info className="h-5 w-5 flex-shrink-0 text-blue-500" />
-          <p>
-            By proceeding, you confirm that you have obtained the consent of all authors listed above to share their information in accordance with RA 10173 (Data Privacy Act of 2012).
+        <div className="mt-2 flex w-full items-center gap-3 rounded-[2px] border border-[#bfdbfe] bg-[#eff6ff] px-4 py-3 text-[13px] text-[#0d1f3c]">
+          <Info className="h-4 w-4 shrink-0 text-[#3b82f6]" />
+          <p className="text-[#0d1f3c]">
+            ORCID IDs and author information are processed under RA 10173 (Data Privacy Act of 2012). Only used for institutional research reporting.
           </p>
         </div>
       </div>
     </div>
   )
 }
+
 
 function KeywordsInput({
   keywords,
@@ -644,6 +688,8 @@ function KeywordsInput({
   setKeywordInput,
   error,
 }) {
+  const keywordErrorMessage = error ? `Minimum 3 keywords required (${keywords.length} added)` : ''
+
   const handleKeyDown = (event) => {
     if (event.key === 'Enter' || event.key === ',') {
       event.preventDefault()
@@ -653,21 +699,30 @@ function KeywordsInput({
 
   return (
     <div className="space-y-2">
-      <label className="mb-2 block text-[11px] font-bold uppercase tracking-wider text-slate-500">
+      <label className={fieldLabelClass}>
         Keywords <span className="text-[#C9A84C]">*</span>
       </label>
-      <div className={`rounded-md border px-4 py-3 transition focus-within:ring-1 ${error ? 'border-red-400 focus-within:border-red-400 focus-within:ring-red-400' : 'border-slate-200 bg-[#FFFFFF] focus-within:border-[#1A1A2E] focus-within:ring-[#1A1A2E]'}`}>
-        <div className="flex flex-wrap gap-2">
+      <div
+        className={`rounded-[6px] border bg-[#f8fafc] px-3 py-3 transition focus-within:ring-2 ${
+          error
+            ? 'border-[#f87171] focus-within:border-[#f87171] focus-within:ring-[#f87171]/15'
+            : 'border-[#d1d5db] focus-within:border-[#0d1f3c] focus-within:ring-[#0d1f3c]/15'
+        }`}
+      >
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="inline-flex h-10 items-center rounded-[6px] border border-[#a7f3d0] bg-[#d1fae5] px-4 text-[14px] font-semibold text-[#047857]">
+            Keyword
+          </span>
           {keywords.map((keyword) => (
             <span
               key={keyword}
-              className="inline-flex items-center gap-2 rounded-md bg-green-100 px-3 py-1 text-sm font-medium text-green-800"
+              className="inline-flex items-center gap-2 rounded-full bg-[#e5e7eb] px-3 py-1 text-[12px] font-semibold text-[#0d1f3c]"
             >
               {keyword}
               <button
                 type="button"
                 onClick={() => onRemoveKeyword(keyword)}
-                className="text-green-600 transition hover:text-green-900"
+                className="text-[#0d1f3c]/60 transition hover:text-[#0d1f3c]"
               >
                 <X className="h-3.5 w-3.5" />
               </button>
@@ -679,16 +734,18 @@ function KeywordsInput({
               onChange={(event) => setKeywordInput(event.target.value)}
               onKeyDown={handleKeyDown}
               onBlur={onAddKeyword}
-              placeholder="Type a keyword and press Enter"
-              className="min-w-[220px] flex-1 border-0 bg-transparent p-0 text-sm placeholder:text-slate-400 outline-none"
+              placeholder="Type Keyword and press Enter or comma...."
+              className="h-10 min-w-[260px] flex-1 rounded-[6px] border border-[#e5e7eb] bg-white px-4 text-[14px] placeholder:text-[#cbd5e1] outline-none"
             />
           ) : null}
         </div>
       </div>
       <div className="mt-1 flex justify-end">
-        <p className="text-xs text-slate-400">{keywords.length} / 10 keywords</p>
+        <p className="text-[12px] text-[#9ca3af]">{keywords.length} / 10 keywords</p>
       </div>
-      <FieldMessage message={error} />
+      {error ? (
+        <p className="mt-1 text-[12px] font-mono text-[#dc2626]">{keywordErrorMessage}</p>
+      ) : null}
     </div>
   )
 }
@@ -710,26 +767,28 @@ function ResearchDetailsStep({
       <StepHeader stepId={3} title="Research Details" />
       <div className="space-y-5">
         <div className="space-y-2">
-          <label className="mb-2 block text-[11px] font-bold uppercase tracking-wider text-slate-500">
+          <label className={fieldLabelClass}>
             Abstract <span className="text-[#C9A84C]">*</span>
           </label>
           <textarea
             {...register('abstractText')}
             id="field-abstractText"
             rows={9}
-            placeholder="Write a concise abstract"
-            className={`w-full rounded-md border p-3 text-sm placeholder:text-slate-400 outline-none transition focus:ring-1 ${errors.abstractText ? 'border-red-400 focus:border-red-400 focus:ring-red-400' : 'border-slate-200 bg-[#FFFFFF] focus:border-[#1A1A2E] focus:ring-[#1A1A2E]'}`}
+            placeholder="Provide a structured abstract covering background, methodology, findings, and conclusions..."
+            className={`${fieldBaseClass} ${errors.abstractText ? fieldErrorClass : fieldOkClass}`}
           />
           <div className="mt-1 flex justify-end">
             <span
-              className={`text-xs ${
-                words >= 100 && words <= 500 ? 'text-slate-400' : 'text-amber-600'
+              className={`text-[12px] italic ${
+                words >= 100 && words <= 500 ? 'text-[#9ca3af]' : 'text-amber-600'
               }`}
             >
               {words} / 100-500 words
             </span>
           </div>
-          <FieldMessage message={errors.abstractText?.message} />
+          {errors.abstractText ? (
+            <p className="mt-1 text-[11px] font-medium text-[#dc2626]">Abstract is required</p>
+          ) : null}
         </div>
 
         <KeywordsInput
@@ -745,7 +804,7 @@ function ResearchDetailsStep({
   )
 }
 
-function AttachmentDropzone({ attachment, onFileSelect, error }) {
+function AttachmentDropzone({ attachment, existingAttachmentKey, onFileSelect, onClearExisting, error }) {
   const [isDragging, setIsDragging] = useState(false)
 
   const handleDrop = (event) => {
@@ -757,9 +816,11 @@ function AttachmentDropzone({ attachment, onFileSelect, error }) {
 
   return (
     <div className="mt-4 space-y-2">
-      <label className="mb-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+      <label className={`mb-2 flex items-center gap-2 ${fieldLabelClass}`}>
         Full Paper PDF
-        <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium normal-case tracking-normal text-slate-400">optional</span>
+        <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium normal-case tracking-normal text-slate-400">
+          optional
+        </span>
       </label>
       <div
         onDragOver={(event) => {
@@ -768,20 +829,19 @@ function AttachmentDropzone({ attachment, onFileSelect, error }) {
         }}
         onDragLeave={() => setIsDragging(false)}
         onDrop={handleDrop}
-        className={`flex flex-col items-center justify-center rounded-xl border-2 border-dashed py-10 text-center transition ${
+        className={`flex flex-col items-center justify-center rounded-[10px] border-2 border-dashed py-10 text-center transition ${
           isDragging
-            ? 'border-[#C9A84C] bg-[#FFFBF1]'
-            : 'border-slate-300 bg-slate-50'
+            ? 'border-[#c9a84c] bg-[#fff7e6]'
+            : 'border-[#d1d5db] bg-[#f9fafb]'
         }`}
       >
-        <UploadCloud className="mb-4 h-10 w-10 text-slate-400" />
-        <p className="text-sm font-semibold text-[#1A1A2E]">
+        <UploadCloud className="mb-4 h-10 w-10 text-[#9ca3af]" />
+        <p className="text-sm font-semibold text-[#0d1f3c]">
           Drag and drop a PDF file here
         </p>
-        <p className="mt-1 text-xs text-slate-500">
-          The file stays local until the final submission step.
+        <p className={helperTextClass}>
         </p>
-        <label className="mt-4 inline-flex cursor-pointer items-center gap-2 rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50">
+        <label className="mt-4 inline-flex cursor-pointer items-center gap-2 rounded-[6px] border border-[#d1d5db] bg-white px-4 py-2 text-sm font-semibold text-[#0d1f3c] transition hover:bg-[#0d1f3c]/5">
           <input
             type="file"
             accept="application/pdf"
@@ -791,13 +851,39 @@ function AttachmentDropzone({ attachment, onFileSelect, error }) {
           Choose PDF
         </label>
         {attachment ? (
-          <div className="mt-4 rounded-md border border-slate-200 bg-white px-4 py-3 text-left text-sm text-[#1A1A2E] shadow-sm">
-            <p className="font-semibold">{attachment.name}</p>
-            <p className="mt-1 text-xs text-slate-500">
-              {(attachment.size / 1024 / 1024).toFixed(2)} MB
-            </p>
+          <div className="mt-4 w-full max-w-sm rounded-[10px] border border-[#e5e7eb] bg-white px-4 py-3 text-left text-sm text-[#0d1f3c]">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <p className="font-semibold">{attachment.name}</p>
+                <p className="mt-1 text-[12px] text-[#6b7280]">{(attachment.size / 1024 / 1024).toFixed(2)} MB</p>
+              </div>
+              <button type="button" onClick={() => onFileSelect(null)} className="shrink-0 text-slate-400 hover:text-red-500">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
           </div>
-        ) : null}
+        ) : existingAttachmentKey ? (() => {
+          const parts = existingAttachmentKey.split('/')
+          const last = parts[parts.length - 1] || ''
+          const fileName = last.replace(/^[a-f0-9]{8}-/, '') || existingAttachmentKey
+          return (
+            <div className="mt-4 w-full max-w-sm rounded-[10px] border border-[#e5e7eb] bg-white px-4 py-3 text-left text-sm text-[#0d1f3c]">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <p className="font-semibold">{fileName}</p>
+                  <p className="mt-1 text-[12px] text-[#6b7280]">Previously attached</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onClearExisting()}
+                  className="shrink-0 text-slate-400 hover:text-red-500"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          )
+        })() : null}
       </div>
       <FieldMessage message={error} />
     </div>
@@ -809,7 +895,9 @@ function DublinCoreMetadataStep({
   register,
   errors,
   attachment,
+  existingAttachmentKey,
   onFileSelect,
+  onClearExisting,
 }) {
   return (
     <div>
@@ -817,12 +905,12 @@ function DublinCoreMetadataStep({
       <div className="space-y-5">
         <div className="grid gap-5 md:grid-cols-2">
           <div className="space-y-2">
-            <label className="mb-2 block text-[11px] font-bold uppercase tracking-wider text-slate-500">
-              Subject (DC) <span className="text-[#C9A84C]">*</span>
+            <label className={fieldLabelClass}>
+              Subject (RESEARCH DOMAIN) <span className="text-[#C9A84C]">*</span>
             </label>
             <select
               {...register('subjectDc')}
-              className={`w-full rounded-md border p-3 text-sm outline-none transition focus:ring-1 ${errors.subjectDc ? 'border-red-400 focus:border-red-400 focus:ring-red-400' : 'border-slate-200 bg-[#FFFFFF] focus:border-[#1A1A2E] focus:ring-[#1A1A2E]'}`}
+              className={`${fieldBaseClass} ${errors.subjectDc ? fieldErrorClass : fieldOkClass}`}
           >
             <option value="">Select S&amp;T theme</option>
               {themeOptions.map((option) => (
@@ -835,33 +923,35 @@ function DublinCoreMetadataStep({
           </div>
 
           <div className="space-y-2">
-            <label className="mb-2 block text-[11px] font-bold uppercase tracking-wider text-slate-500">
-              Coverage (DC) <span className="text-[#C9A84C]">*</span>
+            <label className={fieldLabelClass}>
+              Coverage (SCOPE) <span className="text-[#C9A84C]">*</span>
             </label>
             <input
               {...register('coverageDc')}
               placeholder="Region VII, institution, or relevant locale"
-              className={`w-full rounded-md border p-3 text-sm placeholder:text-slate-400 outline-none transition focus:ring-1 ${errors.coverageDc ? 'border-red-400 focus:border-red-400 focus:ring-red-400' : 'border-slate-200 bg-[#FFFFFF] focus:border-[#1A1A2E] focus:ring-[#1A1A2E]'}`}
+              className={`${fieldBaseClass} ${errors.coverageDc ? fieldErrorClass : fieldOkClass}`}
           />
           <FieldMessage message={errors.coverageDc?.message} />
           </div>
 
           <div className="space-y-2">
-            <label className="mb-2 block text-[11px] font-bold uppercase tracking-wider text-slate-500">
-              Rights (DC) <span className="text-[#C9A84C]">*</span>
+            <label className={fieldLabelClass}>
+              Rights (LICENSE/ACCESS) <span className="text-[#C9A84C]">*</span>
             </label>
             <input
               {...register('rightsDc')}
               placeholder="Copyright, usage notes, or permissions"
-              className={`w-full rounded-md border p-3 text-sm placeholder:text-slate-400 outline-none transition focus:ring-1 ${errors.rightsDc ? 'border-red-400 focus:border-red-400 focus:ring-red-400' : 'border-slate-200 bg-[#FFFFFF] focus:border-[#1A1A2E] focus:ring-[#1A1A2E]'}`}
+              className={`${fieldBaseClass} ${errors.rightsDc ? fieldErrorClass : fieldOkClass}`}
           />
           <FieldMessage message={errors.rightsDc?.message} />
           </div>
 
           <div className="space-y-2">
-            <label className="mb-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+            <label className={`mb-2 flex items-center gap-2 ${fieldLabelClass}`}>
               DOI
-              <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium normal-case tracking-normal text-slate-400">optional</span>
+              <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium normal-case tracking-normal text-slate-400">
+                optional
+              </span>
             </label>
             <Controller
               control={control}
@@ -876,7 +966,7 @@ function DublinCoreMetadataStep({
                     )
                   }}
                   placeholder="10.1234/example"
-                  className="w-full rounded-md border border-slate-200 bg-[#FFFFFF] p-3 text-sm placeholder:text-slate-400 outline-none transition focus:border-[#1A1A2E] focus:ring-1 focus:ring-[#1A1A2E]"
+                  className={`${fieldBaseClass} ${errors.doi ? fieldErrorClass : fieldOkClass}`}
                 />
               )}
             />
@@ -885,9 +975,11 @@ function DublinCoreMetadataStep({
         </div>
 
         <div className="space-y-2">
-          <label className="mb-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+          <label className={`mb-2 flex items-center gap-2 ${fieldLabelClass}`}>
             Conference URL
-            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium normal-case tracking-normal text-slate-400">optional</span>
+            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium normal-case tracking-normal text-slate-400">
+              optional
+            </span>
           </label>
           <Controller
             control={control}
@@ -902,7 +994,7 @@ function DublinCoreMetadataStep({
                   )
                 }}
                 placeholder="https://conference.example.org/paper"
-                className="w-full rounded-md border border-slate-200 bg-[#FFFFFF] p-3 text-sm placeholder:text-slate-400 outline-none transition focus:border-[#1A1A2E] focus:ring-1 focus:ring-[#1A1A2E]"
+                className={`${fieldBaseClass} ${errors.conferenceUrl ? fieldErrorClass : fieldOkClass}`}
               />
             )}
           />
@@ -911,7 +1003,9 @@ function DublinCoreMetadataStep({
 
         <AttachmentDropzone
           attachment={attachment}
+          existingAttachmentKey={existingAttachmentKey}
           onFileSelect={onFileSelect}
+          onClearExisting={onClearExisting}
           error={errors.attachment?.message}
         />
       </div>
@@ -929,10 +1023,10 @@ function ReviewSubmitStep({ values }) {
     ['Principal Investigator', values.principalInvestigator],
     ['Institutional Affiliation', values.institutionalAffiliation],
     ['Abstract', values.abstractText],
-    ['Keywords', values.keywords.join(', ')],
-    ['Subject (DC)', values.subjectDc],
-    ['Coverage (DC)', values.coverageDc],
-    ['Rights (DC)', values.rightsDc],
+    ['Keywords', values.keywords],
+    ['Subject', values.subjectDc],
+    ['Coverage', values.coverageDc],
+    ['Rights', values.rightsDc],
     ['DOI', values.doi || 'Not provided'],
     ['Conference URL', values.conferenceUrl || 'Not provided'],
     ['Attachment', values.attachment?.name || 'No file attached'],
@@ -941,31 +1035,47 @@ function ReviewSubmitStep({ values }) {
   return (
     <div>
       <StepHeader stepId={5} title="Review & Submit" />
-      <div className="space-y-5">
-        <div className="rounded-md border border-slate-200 bg-[#F9FAFB] px-5 py-4">
-          <p className="text-sm text-slate-500">
-            Review every section carefully before final submission.
-          </p>
-        </div>
+      <div className="space-y-6">
+        <p className="text-[13px] text-[#6b7280]">
+          Review every section carefully before final submission.
+        </p>
 
         <div className="overflow-hidden">
           <table className="min-w-full">
-            <tbody className="divide-y divide-slate-100 bg-white">
+            <tbody className="divide-y divide-[#e5e7eb] bg-white">
               {summaryRows.map(([label, value]) => (
-                <tr key={label}>
-                  <td className="w-1/3 border-b border-slate-100 py-4 text-sm text-slate-500">
+                <tr key={label} className="align-top">
+                  <td className="w-[260px] py-4 pr-6 text-[13px] text-[#6b7280]">
                     {label}
                   </td>
-                  <td className="border-b border-slate-100 py-4 text-sm font-medium text-[#1A1A2E]">
-                    {value}
+                  <td className="py-4 text-[13px] font-medium text-[#0d1f3c]">
+                    {Array.isArray(value) ? (
+                      value.length ? (
+                        <div className="flex flex-wrap gap-2">
+                          {value.map((item) => (
+                            <span
+                              key={item}
+                              className="inline-flex rounded-full bg-[#f3f4f6] px-3 py-1 text-[12px] font-semibold text-[#0d1f3c]"
+                            >
+                              {item}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-[#9ca3af]">None</span>
+                      )
+                    ) : (
+                      <span className="whitespace-pre-wrap">{value}</span>
+                    )}
                   </td>
                 </tr>
               ))}
-              <tr>
-                <td className="w-1/3 border-b border-slate-100 py-4 text-sm text-slate-500">
+
+              <tr className="align-top">
+                <td className="w-[260px] py-4 pr-6 text-[13px] text-[#6b7280]">
                   Authors
                 </td>
-                <td className="border-b border-slate-100 py-4 text-sm font-medium text-[#1A1A2E]">
+                <td className="py-4 text-[13px] font-medium text-[#0d1f3c]">
                   <div className="space-y-1">
                     {values.authors.map((author, index) => (
                       <div key={`${author.fullName}-${index}`}>
@@ -994,11 +1104,14 @@ export default function SubmissionPortal({ onSubmitted }) {
   const [bannerErrors, setBannerErrors] = useState([])
   const [isFinalSubmitting, setIsFinalSubmitting] = useState(false)
   const [editSubmissionId, setEditSubmissionId] = useState(null)
+  const [existingAttachmentKey, setExistingAttachmentKey] = useState(null)
 
   const institutionName =
     localStorage.getItem('institutionName') ||
     localStorage.getItem('userInstitution') ||
     'Higher Education Institution'
+
+  const academicYearLabel = `${currentYear - 1}-${currentYear}`
 
   const {
     control,
@@ -1066,6 +1179,7 @@ export default function SubmissionPortal({ onSubmitted }) {
     setBannerErrors([])
     setCurrentStep(1)
     setKeywordInput('')
+    setExistingAttachmentKey(null)
     reset({
       title: '',
       researchType: '',
@@ -1142,6 +1256,7 @@ export default function SubmissionPortal({ onSubmitted }) {
         conferenceUrl: submission.conferenceUrl || '',
         attachment: null,
       })
+      setExistingAttachmentKey(submission.s3PdfKey || null)
       setCurrentStep(1)
       setKeywordInput('')
       setSubmitError('')
@@ -1216,11 +1331,28 @@ export default function SubmissionPortal({ onSubmitted }) {
     const step = stepDefinitions.find((item) => item.id === currentStep)
     const isValid = await trigger(step?.fields, { shouldFocus: true })
     if (!isValid) {
+      const normalizeStepErrorMessage = (stepId, field, message) => {
+        if (stepId !== 2) return message
+        if (field === 'authors') return 'Author(s) is required'
+        if (field === 'principalInvestigator') return 'Principal Investigator is required'
+        if (field === 'institutionalAffiliation') return 'Institutional Affiliation is required'
+        return message
+      }
+
       const currentErrors = step?.fields
         .map((field) => {
           const err = errors[field]
           if (!err) return null
-          return { field, message: err?.message || `${field} is invalid.` }
+          const fallback = `${field} is invalid.`
+          const message = err?.message || fallback
+          if (currentStep === 3) {
+            if (field === 'abstractText') return { field, message: 'Abstract is required' }
+            if (field === 'keywords') {
+              const count = Array.isArray(getValues('keywords')) ? getValues('keywords').length : 0
+              return { field, message: `Minimum 3 keywords required (${count} added)` }
+            }
+          }
+          return { field, message: normalizeStepErrorMessage(currentStep, field, message) }
         })
         .filter(Boolean)
       setBannerErrors(currentErrors)
@@ -1283,7 +1415,7 @@ export default function SubmissionPortal({ onSubmitted }) {
 
   const maybeUploadAttachment = async (file) => {
     if (!file) return null
-    const token = await ensureFreshToken()
+    const token = localStorage.getItem('token') || ''
 
     try {
       const formData = new FormData()
@@ -1377,7 +1509,56 @@ export default function SubmissionPortal({ onSubmitted }) {
     setIsFinalSubmitting(true)
 
     try {
-      await submitToBackend(values)
+      const token = localStorage.getItem('token')
+      let attachmentMeta = null
+
+      try {
+        attachmentMeta = await maybeUploadAttachment(values.attachment)
+      } catch {
+        alert('Failed to upload attachment. Please try again.')
+        return
+      }
+
+      const payload = {
+        title: values.title,
+        researchType: values.researchType,
+        completionYear: values.completionYear,
+        fundingSource: values.fundingSource,
+        publicationVenue: values.publicationVenue,
+        principalInvestigator: values.principalInvestigator,
+        institutionalAffiliation: values.institutionalAffiliation,
+        authors: values.authors,
+        abstractText: values.abstractText,
+        keywords: values.keywords,
+        sAndTTheme: values.subjectDc,
+        coverageDc: values.coverageDc,
+        rightsDc: values.rightsDc,
+        doi: values.doi || null,
+        conferenceUrl: values.conferenceUrl || null,
+        attachmentKey: attachmentMeta?.fileKey || existingAttachmentKey || null,
+      }
+
+      // Use PUT if editing, POST if new
+      if (editSubmissionId) {
+        await axios.patch(
+          `http://localhost:8080/api/v1/submissions/${editSubmissionId}`,
+          payload,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+          },
+        )
+      } else {
+        await axios.post('http://localhost:8080/api/v1/submissions', payload, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        })
+      }
+
       resetWizard()
       onSubmitted?.()
     } catch (error) {
@@ -1446,7 +1627,9 @@ export default function SubmissionPortal({ onSubmitted }) {
             register={register}
             errors={errors}
             attachment={watchedAttachment}
+            existingAttachmentKey={existingAttachmentKey}
             onFileSelect={handleFileSelect}
+            onClearExisting={() => setExistingAttachmentKey(null)}
           />
         )
       case 5:
@@ -1457,97 +1640,138 @@ export default function SubmissionPortal({ onSubmitted }) {
   }
 
   return (
-    <div className="flex w-full flex-col gap-6">
-      <section className="w-full border border-slate-200 bg-white">
-        <div className="flex items-start justify-between gap-6 border-t-4 border-t-[#C9A84C] border-b border-slate-200 px-8 py-6">
-          <div>
-            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-              DASHBOARD &gt; <span className="text-[#C9A84C]">SUBMISSION PORTAL</span>
-            </p>
-            <h2 className="mt-2 text-3xl font-serif text-[#1A1A2E]">
-              Submission Portal
-            </h2>
-            <p className="mt-2 text-sm text-slate-500">
-              Submit research outputs through the standardized DOST form
-            </p>
+    <div className="w-full" style={{ fontFamily: "'Inter', sans-serif" }}>
+      <style>{``}</style>
+
+      <div className="-mx-[32px] -mt-[32px] w-[calc(100%+64px)]">
+        <div className="relative overflow-hidden bg-[#f8fafc] px-8 py-8">
+          <div
+            className="pointer-events-none absolute inset-0"
+            style={{
+              backgroundImage: 'url(/DOST_Building.png)',
+              backgroundSize: 'cover',
+              backgroundPosition: '78% 32%',
+              opacity: 0.18,
+            }}
+          />
+          <div
+            className="pointer-events-none absolute inset-0"
+            style={{ background: 'rgba(13, 31, 60, 0.08)' }}
+          />
+          <div className="relative z-10 flex items-start justify-between gap-6">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-[#94a3b8]">
+                DASHBOARD &gt; <span className="text-[#c9a84c]">SUBMISSION PORTAL</span>
+              </p>
+              <h2
+                className="mt-2 text-[30px] font-bold tracking-tight text-[#0d1f3c]"
+                style={{ fontFamily: "'Libre Baskerville', serif" }}
+              >
+                Submission Portal
+              </h2>
+              <p className="mt-2 text-[13px] text-[#6b7280]">
+                Submit research outputs through the standardized DOST form
+              </p>
+            </div>
+
+            <div className="text-right">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-[#94a3b8]">
+                ACADEMIC YEAR
+              </p>
+              <p className="text-[13px] font-bold text-[#0d1f3c]">{academicYearLabel}</p>
+              <p className="mt-1 text-[12px] text-[#6b7280]">{institutionName}</p>
+            </div>
           </div>
 
-          <div className="text-right">
-            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-              ACADEMIC YEAR
-            </p>
-            <p className="text-sm font-bold text-[#1A1A2E]">2025-2026</p>
-            <p className="text-xs text-slate-500">{institutionName}</p>
-          </div>
         </div>
-
+        <div className="h-px w-full bg-[#c9a84c]" />
         <div className="px-8 py-6">
           <StepProgress currentStep={currentStep} />
+        </div>
+      </div>
 
-          {submitError ? (
-            <div className="mt-5 rounded-[8px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {submitError}
-            </div>
-          ) : null}
+      <div
+        onKeyDown={handleFormKeyDown}
+        className="mx-auto mt-6 w-full max-w-6xl"
+      >
+        <div className="w-full overflow-hidden rounded-[4px] border border-[#e5e7eb] bg-white">
+          <div className="px-8 py-8">
+            {submitError ? (
+              <div className="mb-6 rounded-[10px] border border-red-200 bg-red-50 px-4 py-3 text-[13px] text-red-700">
+                {submitError}
+              </div>
+            ) : null}
 
-          <div
-            onKeyDown={handleFormKeyDown}
-            className="mt-6 flex w-full flex-col space-y-6"
-          >
             {renderStep()}
+
+            {currentStep === 1 ? (
+              <div className="mt-6 flex w-full items-center gap-3 rounded-[2px] border border-[#bfdbfe] bg-[#eff6ff] px-4 py-3 text-[13px] text-[#0d1f3c]">
+                <Info className="h-4 w-4 shrink-0 text-[#3b82f6]" />
+                <p>
+                  Institution{' '}
+                  <span className="font-semibold text-[#1d4ed8]">{institutionName}</span>
+                  , is pre-linked. Submission period:{' '}
+                  <span className="font-semibold text-[#1d4ed8]">AY {academicYearLabel}</span>
+                </p>
+              </div>
+            ) : null}
+
+            {bannerErrors.length > 0 ? (
+              <div className="mt-6">
+                <ErrorSummaryBanner
+                  errors={bannerErrors}
+                  onDismiss={() => setBannerErrors([])}
+                />
+              </div>
+            ) : null}
           </div>
-        </div>
 
-        {bannerErrors.length > 0 ? (
-          <div className="px-8">
-            <ErrorSummaryBanner
-              errors={bannerErrors}
-              onDismiss={() => setBannerErrors([])}
-            />
-          </div>
-        ) : null}
-
-        <div className="mt-8 flex items-center justify-between border-t border-slate-100 px-8 pb-6 pt-4">
-          <button
-            type="button"
-            onClick={() => setCurrentStep((value) => Math.max(1, value - 1))}
-            disabled={currentStep === 1 || isFinalSubmitting}
-            className="rounded-md border border-slate-200 bg-white px-6 py-2 text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Previous
-          </button>
-
-          {currentStep < stepDefinitions.length ? (
+          <div className="flex w-full items-center justify-between border-t border-[#e5e7eb] bg-[#f8fafc] px-8 py-4">
             <button
               type="button"
-              onClick={handleContinue}
-              className="flex items-center gap-2 rounded-md bg-[#1A1A2E] px-6 py-2 text-white transition hover:bg-[#11111f]"
+              onClick={() => setCurrentStep((value) => Math.max(1, value - 1))}
+              disabled={currentStep === 1 || isFinalSubmitting}
+              className={`h-10 rounded-[6px] border px-4 text-sm font-semibold transition disabled:cursor-not-allowed ${
+                currentStep === 1 || isFinalSubmitting
+                  ? 'border-[#e5e7eb] bg-[#f8fafc] text-[#cbd5e1]'
+                  : 'border-[#e5e7eb] bg-white text-[#0d1f3c] hover:bg-[#f8fafc]'
+              }`}
             >
-              Continue
-              <ChevronRight className="h-4 w-4" />
+              Previous
             </button>
-          ) : (
-            <button
-              type="button"
-              onClick={handleSubmit(onFinalSubmit, onFinalSubmitError)}
-              disabled={isFinalSubmitting}
-              className="flex items-center gap-2 rounded-md bg-[#1A1A2E] px-6 py-2 text-white transition hover:bg-[#11111f] disabled:cursor-not-allowed disabled:opacity-70"
-            >
-              {isFinalSubmitting ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Submitting...
-                </>
-              ) : (
-                <>
-                  Submit
-                  <ChevronRight className="h-4 w-4" />
-                </>
-              )}
-            </button>
-          )}
+
+            {currentStep < stepDefinitions.length ? (
+              <button
+                type="button"
+                onClick={handleContinue}
+                className="flex h-10 items-center gap-2 rounded-[6px] bg-[#0d1f3c] px-6 text-sm font-semibold text-white transition hover:bg-[#0b1a33]"
+              >
+                Continue
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleSubmit(onFinalSubmit, onFinalSubmitError)}
+                disabled={isFinalSubmitting}
+                className="flex h-10 items-center gap-2 rounded-[6px] bg-[#0d1f3c] px-6 text-sm font-semibold text-white transition hover:bg-[#0b1a33] disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {isFinalSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Submitting...
+                  </>
+                ) : (
+                  <>
+                    Submit
+                    <ChevronRight className="h-4 w-4" />
+                  </>
+                )}
+              </button>
+            )}
+          </div>
         </div>
-      </section>
+      </div>
     </div>
   )
 }

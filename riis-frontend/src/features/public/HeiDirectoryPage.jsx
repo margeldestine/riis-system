@@ -4,7 +4,14 @@ import apiClient from '../../services/apiClient'
 
 function getInitials(name) {
   if (!name) return '??'
-  return name.split(' ').filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('')
+  const stopwords = new Set(['of', 'the', 'and', '&'])
+  const words = name
+    .replace(/[^A-Za-z0-9\s]/g, ' ')
+    .split(/\s+/g)
+    .filter(Boolean)
+    .filter((word) => !stopwords.has(word.toLowerCase()))
+  const initials = words.map((word) => word[0].toUpperCase()).join('')
+  return initials.slice(0, 4) || '??'
 }
 
 const avatarColors = [
@@ -29,46 +36,46 @@ function InstitutionCard({ hei, onClick }) {
   const color = getAvatarColor(hei.name)
   const initials = getInitials(hei.name)
   const keywords = hei.themeKeywords || []
-  const typeLabel = hei.type?.toUpperCase().includes('SUC') ? 'SUC' : hei.type?.toUpperCase().includes('PRIVATE') ? 'Private' : hei.type || '—'
-  const typeColor = hei.type?.toUpperCase().includes('SUC') ? { bg: '#dbeafe', color: '#1d4ed8' } : { bg: '#ede9fe', color: '#7c3aed' }
+  const typeLabel = hei.type?.toUpperCase().includes('SUC') ? 'SUC' : hei.type?.toUpperCase().includes('PRIVATE') ? 'PRIVATE' : hei.type || '—'
 
   return (
     <div
       onClick={onClick}
-      style={{
-        borderRadius: 16, border: '1px solid #e2e8f0', background: '#fff',
-        padding: 24, cursor: 'pointer', transition: 'box-shadow 0.15s',
-        display: 'flex', flexDirection: 'column', gap: 12,
-      }}
-      onMouseEnter={e => e.currentTarget.style.boxShadow = '0 4px 20px rgba(0,0,0,0.1)'}
-      onMouseLeave={e => e.currentTarget.style.boxShadow = 'none'}
+      className="flex cursor-pointer flex-col gap-4 rounded-xl border border-slate-200 bg-white p-6 shadow-sm transition hover:shadow-md"
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-        <div style={{ width: 48, height: 48, borderRadius: 12, background: color, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 800, flexShrink: 0 }}>
+      <div className="flex items-center gap-4">
+        <div
+          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-[14px] font-extrabold text-white"
+          style={{ background: color }}
+        >
           {initials}
         </div>
-        <div style={{ minWidth: 0 }}>
-          <p style={{ margin: 0, fontWeight: 700, fontSize: 15, color: '#1a1a2e', lineHeight: 1.3 }}>{hei.name}</p>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
-            <span style={{ background: typeColor.bg, color: typeColor.color, borderRadius: 20, padding: '2px 8px', fontSize: 11, fontWeight: 700 }}>{typeLabel}</span>
-            <span style={{ fontSize: 12, color: '#94a3b8' }}>· {hei.province}</span>
+        <div className="min-w-0">
+          <p className="truncate text-[15px] font-bold text-[#1A1A2E]">{hei.name}</p>
+          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+            <span className="text-[12px] font-medium uppercase text-slate-500">{typeLabel}</span>
+            <span className="text-[12px] text-slate-400">·</span>
+            <span className="text-[12px] text-blue-600">{hei.province}</span>
           </div>
         </div>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#10b981', fontWeight: 600 }}>
-        📄 {hei.approvedOutputCount ?? 0} research outputs
+      <div className="flex items-center gap-2 text-sm font-semibold text-emerald-600">
+        <svg className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125V5.625A3.375 3.375 0 0 0 10.125 2.25H8.25m2.25 0H6.375A1.125 1.125 0 0 0 5.25 3.375v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+        </svg>
+        {hei.approvedOutputCount ?? 0} research outputs
       </div>
 
       {keywords.length > 0 && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+        <div className="flex flex-wrap gap-2">
           {keywords.slice(0, 4).map((kw, i) => (
-            <span key={kw.keyword || kw} style={{ background: tagColors[i % tagColors.length].bg, color: tagColors[i % tagColors.length].color, borderRadius: 20, padding: '3px 10px', fontSize: 11, fontWeight: 500 }}>
+            <span key={kw.keyword || kw} className="rounded-full px-3 py-1 text-xs font-medium" style={{ background: tagColors[i % tagColors.length].bg, color: tagColors[i % tagColors.length].color }}>
               {kw.keyword || kw}
             </span>
           ))}
           {keywords.length > 4 && (
-            <span style={{ background: '#f1f5f9', color: '#64748b', borderRadius: 20, padding: '3px 10px', fontSize: 11, fontWeight: 500 }}>
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
               +{keywords.length - 4} more
             </span>
           )}
@@ -100,73 +107,59 @@ export default function HeiDirectoryPage() {
   )
 
   return (
-   <div style={{ minHeight: '100vh', background: '#f8fafc', fontFamily: 'system-ui, sans-serif', display: 'flex', flexDirection: 'column' }}>
+   <div className="min-h-screen bg-[#F4F6F9] flex flex-col" style={{ fontFamily: "'Inter', sans-serif" }}>
       {/* Nav */}
       {/* Nav */}
       {/* Nav */}
       {/* Nav */}
-      <nav style={{ background: '#fff', borderBottom: '1px solid #e2e8f0', padding: '12px 40px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ width: 36, height: 36, borderRadius: 8, background: '#1a1a2e', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <span style={{ color: '#c9a84c', fontWeight: 800, fontSize: 14 }}>D</span>
+      <nav className="bg-white border-b border-slate-200 px-8 py-3 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="h-8 w-8 rounded-lg bg-[#1A1A2E] flex items-center justify-center">
+            <span className="text-xs font-bold text-[#C9A84C]">D</span>
           </div>
           <div>
-            <p style={{ margin: 0, fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#94a3b8' }}>Republic of the Philippines</p>
-            <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: '#1a1a2e' }}>DASIG Research Information System</p>
+            <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-400">Republic of the Philippines</p>
+            <p className="text-xs font-bold text-[#1A1A2E]">DASIG Research Information System</p>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 24 }}>
-          <button onClick={() => navigate('/')} style={{ border: 'none', background: 'transparent', fontSize: 14, color: '#64748b', cursor: 'pointer', fontWeight: 500 }}>Browse Research</button>
-          <button style={{ border: 'none', background: 'transparent', fontSize: 14, color: '#1a1a2e', fontWeight: 700, cursor: 'pointer', borderBottom: '2px solid #1a1a2e', paddingBottom: 2 }}>HEI Directory</button>
+        <div className="flex items-center gap-6">
+          <button type="button" onClick={() => navigate('/')} className="text-sm text-slate-500 hover:text-[#1A1A2E]">Browse Research</button>
+          <button type="button" className="text-sm font-semibold text-[#1A1A2E] border-b-2 border-[#1A1A2E] pb-0.5">HEI Directory</button>
         </div>
-        <div style={{ display: 'flex', gap: 12 }}>
-          <button onClick={() => navigate('/login')} style={{ border: 'none', background: 'transparent', fontSize: 14, fontWeight: 600, color: '#1a1a2e', cursor: 'pointer' }}>Login</button>
-          <button onClick={() => navigate('/register')} style={{ border: 'none', background: '#1a1a2e', color: '#fff', borderRadius: 8, padding: '8px 18px', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>Register</button>
+        <div className="flex items-center gap-3">
+          <button type="button" onClick={() => navigate('/login')} className="text-sm font-semibold text-[#1A1A2E] hover:text-slate-600">Login</button>
+          <button type="button" onClick={() => navigate('/register')} className="rounded-lg bg-[#1A1A2E] px-4 py-2 text-sm font-semibold text-white hover:bg-[#11111f] transition">Register</button>
         </div>
       </nav>
 
       {/* Hero */}
-      <div style={{ background: '#1a3a6b', padding: '48px 40px', textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
-        <div style={{ position: 'absolute', inset: 0, backgroundImage: 'url(/DOST_Building.png)', backgroundSize: 'cover', backgroundPosition: '50% 30%', opacity: 0.25, mixBlendMode: 'luminosity' }} />
-        <div style={{ position: 'absolute', inset: 0, background: 'rgba(15, 40, 90, 0.72)' }} />
-        <div style={{ position: 'relative', zIndex: 1 }}>
-          <h1 style={{ margin: 0, fontSize: 36, fontWeight: 800, color: '#fff', fontFamily: 'Georgia, serif' }}>
-            Higher Institutional Education
-          </h1>
-          <p style={{ margin: '8px auto 0', fontSize: 13, color: 'rgba(255,255,255,0.7)' }}>
-            from Region VII HEIs
+      <div className="relative py-16 text-center overflow-hidden" style={{ background: '#1a3a6b' }}>
+        <div className="absolute inset-0" style={{ backgroundImage: 'url(/DOST_Building.png)', backgroundSize: 'cover', backgroundPosition: '50% 30%', opacity: 0.25, mixBlendMode: 'luminosity' }} />
+        <div className="absolute inset-0" style={{ background: 'rgba(15, 40, 90, 0.72)' }} />
+        <div className="relative z-10">
+          <h1 className="text-4xl font-bold text-white" style={{ fontFamily: "'Libre Baskerville', serif" }}>Higher Education Institutions</h1>
+          <p className="mt-2 text-sm" style={{ color: 'rgba(255,255,255,0.7)' }}>from Region VII HEIs</p>
+          <p className="mt-3 text-sm max-w-xl mx-auto" style={{ color: 'rgba(255,255,255,0.6)', lineHeight: 1.7 }}>
+            Search through thousands of research papers, projects, and innovations from Higher Education Institutions across Central Visayas. Discover groundbreaking work in science, technology, and social development.
           </p>
-          <p style={{ margin: '12px auto 0', maxWidth: 640, fontSize: 14, color: 'rgba(255,255,255,0.6)', lineHeight: 1.7 }}>
-            Search through thousands of research papers, projects, and innovations from Higher Education Institutions across Central Visayas.
-            Discover groundbreaking work in science, technology, and social development.
-          </p>
-          <div style={{ marginTop: 24, display: 'flex', justifyContent: 'center', gap: 8, maxWidth: 700, margin: '24px auto 0' }}>
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(255,255,255,0.12)', border: '1.5px solid rgba(255,255,255,0.25)', borderRadius: 12, padding: '10px 18px' }}>
-              <svg width="16" height="16" fill="none" stroke="rgba(255,255,255,0.6)" strokeWidth="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-              <input
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                placeholder="Search institutions by name or province..."
-                style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', fontSize: 14, color: '#fff' }}
-              />
+          <div className="mt-6 mx-auto flex gap-2" style={{ maxWidth: 700 }}>
+            <div className="flex-1 flex items-center gap-3 px-4 py-3 shadow-lg" style={{ background: 'rgba(255,255,255,0.12)', border: '1.5px solid rgba(255,255,255,0.25)', borderRadius: 12 }}>
+              <svg className="h-5 w-5 shrink-0" style={{ color: 'rgba(255,255,255,0.6)' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><circle cx="11" cy="11" r="8"/><path strokeLinecap="round" strokeLinejoin="round" d="m21 21-4.35-4.35"/></svg>
+              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search institutions by name or province..." style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', fontSize: 14, color: '#fff' }} />
             </div>
-            <button
-              style={{ background: '#1a6e3c', color: '#fff', border: 'none', borderRadius: 12, padding: '10px 28px', fontSize: 14, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
-            >
-              Search
-            </button>
+            <button type="button" className="rounded-xl px-6 py-3 text-sm font-semibold text-white transition" style={{ backgroundColor: '#1a6e3c', borderRadius: 12 }}>Search</button>
           </div>
         </div>
       </div>
 
       {/* Grid */}
-      <div style={{ maxWidth: 1100, margin: '0 auto', padding: '40px 24px 64px', flex: 1 }}>
+      <div className="mx-auto w-full max-w-6xl px-6 py-10 flex-1">
         {isLoading ? (
-          <div style={{ textAlign: 'center', color: '#94a3b8', padding: '64px 0' }}>Loading institutions...</div>
+          <div className="py-16 text-center text-sm text-slate-400">Loading institutions...</div>
         ) : filtered.length === 0 ? (
-          <div style={{ textAlign: 'center', color: '#94a3b8', padding: '64px 0' }}>No institutions found.</div>
+          <div className="py-16 text-center text-sm text-slate-400">No institutions found.</div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20 }}>
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {filtered.map(hei => (
               <InstitutionCard
                 key={hei.id}
@@ -179,12 +172,12 @@ export default function HeiDirectoryPage() {
       </div>
 
       {/* Footer */}
-      <footer style={{ borderTop: '1px solid #e2e8f0', background: '#fff', padding: '16px 40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, color: '#94a3b8' }}>
-        <span style={{ fontWeight: 700, color: '#1a1a2e' }}>DASIG</span>
-        <div style={{ display: 'flex', gap: 16 }}>
+      <footer className="border-t border-slate-200 bg-white px-8 py-4 flex items-center justify-between text-xs text-slate-400">
+        <span className="font-semibold text-[#1A1A2E]">DASIG</span>
+        <div className="flex items-center gap-4">
           <span>Privacy Policy</span>
           <span>Technical Support</span>
-          <span style={{ color: '#c9a84c', fontWeight: 600 }}>DOST</span>
+          <span className="text-[#C9A84C] font-semibold">DOST</span>
         </div>
       </footer>
     </div>
