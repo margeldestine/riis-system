@@ -45,7 +45,6 @@ function getTypeBadge(type) {
 function OutputCard({ output, isOwnInstitution }) {
   const navigate = useNavigate()
   const statusColors = {
-    APPROVED: 'bg-emerald-100 text-emerald-700',
     PENDING_REVIEW: 'bg-blue-100 text-blue-700',
     REQUIRES_CORRECTION: 'bg-red-100 text-red-700',
     REJECTED: 'bg-red-100 text-red-700',
@@ -318,14 +317,14 @@ export default function PublicInstitutionProfilePage() {
                 </div>
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   <span className="inline-flex items-center gap-1 rounded-full bg-purple-500 px-2.5 py-0.5 text-xs font-semibold text-white"><Globe className="h-3.5 w-3.5" />Public Access</span>
-                  <span className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-0.5 text-xs font-semibold text-white"><Calendar className="h-3.5 w-3.5 text-white/80" />2016–2025</span>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-0.5 text-xs font-semibold text-white"><Calendar className="h-3.5 w-3.5 text-white/80" />2015 – 2026</span>
                 </div>
               </div>
             </div>
-            <div className="mt-6 grid grid-cols-4 gap-4">
+
+            <div className="mt-6 grid grid-cols-3 gap-4">
               {[
                 { value: profile.stats?.totalApprovedOutputs ?? 0, label: 'Total Outputs' },
-                { value: profile.stats?.totalApprovedOutputs ?? 0, label: 'Approved' },
                 { value: Object.entries(profile.stats?.researchTypeDistribution || {}).find(([k]) => k.toLowerCase().includes('funded'))?.[1] ?? 0, label: 'Funded Projects' },
                 { value: profile.stats?.totalUniqueAuthors ?? 0, label: 'Unique Authors' },
               ].map((s, i) => (
@@ -335,6 +334,7 @@ export default function PublicInstitutionProfilePage() {
                 </div>
               ))}
             </div>
+            
           </div>
 
           <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
@@ -353,6 +353,7 @@ export default function PublicInstitutionProfilePage() {
                 {profile.themeKeywords?.length > 0 ? (
                   <div className="mt-4 space-y-4">
                     <div className="flex flex-wrap gap-2">
+
                       {profile.themeKeywords.slice(0, 6).map((tag, i) => {
                         const tagColors = [
                           'bg-emerald-50 text-emerald-700',
@@ -400,6 +401,7 @@ export default function PublicInstitutionProfilePage() {
                     </p>
                   </div>
                 )}
+                
               </div>
 
               <div className="space-y-3">
@@ -425,7 +427,7 @@ export default function PublicInstitutionProfilePage() {
                   />
                 </div>
                 <p className="text-xs text-slate-500">
-                  Showing {outputs.length} of {profile.stats?.totalApprovedOutputs ?? 0} approved results
+                  Showing {outputs.length} of {profile.stats?.totalApprovedOutputs ?? 0}  results
                 </p>
               </div>
 
@@ -438,7 +440,7 @@ export default function PublicInstitutionProfilePage() {
                   Searching...
                 </div>
               ) : outputs.length === 0 ? (
-                <p className="text-sm text-slate-500">No approved outputs yet.</p>
+                <p className="text-sm text-slate-500">No outputs yet.</p>
               ) : (
                 <div className="space-y-4">
                   {outputs.map((output) => (
@@ -505,19 +507,20 @@ export default function PublicInstitutionProfilePage() {
                       Year Range
                     </p>
                     <input
-                      type="range"
-                      min="2015"
-                      max="2025"
-                      className="w-full accent-[#C9A84C]"
-                      onChange={(event) => {
-                        setYearRange(Number(event.target.value))
-                        setPage(0)
-                      }}
-                    />
-                    <div className="mt-1 flex justify-between text-[10px] text-slate-400">
-                      <span>2015</span>
-                      <span>2025</span>
-                    </div>
+  type="range"
+  min="2015"
+  max="2026"
+  value={yearRange || 2026}
+  className="w-full accent-[#C9A84C]"
+  onChange={(event) => {
+    setYearRange(Number(event.target.value))
+    setPage(0)
+  }}
+/>
+<div className="mt-1 flex items-center justify-between text-[10px] text-slate-400">
+  <span>2015</span>
+  <span>2026</span>
+</div>
                   </div>
                   <div>
                     <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400">

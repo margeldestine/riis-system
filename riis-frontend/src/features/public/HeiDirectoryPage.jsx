@@ -51,8 +51,7 @@ function InstitutionCard({ hei, onClick }) {
           {initials}
         </div>
         <div className="min-w-0">
-          <p className="truncate text-[15px] font-bold text-[#1A1A2E]">{hei.name}</p>
-          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+        <p className="text-[15px] font-bold text-[#1A1A2E] leading-snug">{hei.name}</p>          <div className="mt-1 flex flex-wrap items-center gap-1.5">
             <span className="text-[12px] font-medium uppercase text-slate-500">{typeLabel}</span>
             <span className="text-[12px] text-slate-400">·</span>
             <span className="text-[12px] text-blue-600">{hei.province}</span>
@@ -68,19 +67,25 @@ function InstitutionCard({ hei, onClick }) {
       </div>
 
       {keywords.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          {keywords.slice(0, 4).map((kw, i) => (
-            <span key={kw.keyword || kw} className="rounded-full px-3 py-1 text-xs font-medium" style={{ background: tagColors[i % tagColors.length].bg, color: tagColors[i % tagColors.length].color }}>
-              {kw.keyword || kw}
-            </span>
-          ))}
-          {keywords.length > 4 && (
-            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
-              +{keywords.length - 4} more
-            </span>
-          )}
-        </div>
-      )}
+  <div className="flex flex-row flex-wrap content-start items-start gap-x-2 gap-y-2">
+    {keywords.slice(0, 5).map((kw, i) => (
+      <span
+        key={kw.keyword || kw}
+        className="inline-flex w-fit shrink-0 whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium"
+        style={{ background: tagColors[i % tagColors.length].bg, color: tagColors[i % tagColors.length].color }}
+      >
+        {kw.keyword || kw}
+      </span>
+    ))}
+    {keywords.length > 5 && (
+      <span className="inline-flex w-fit shrink-0 whitespace-nowrap rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
+        +{keywords.length - 5} more
+      </span>
+    )}
+  </div>
+)}
+
+
     </div>
   )
 }

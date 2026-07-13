@@ -41,8 +41,8 @@ function ResultCard({ result, onSelect }) {
         <div className="flex-1 min-w-0">
           {/* Title */}
           {result.doi ? (
-            <a
-              href={`https://doi.org/${result.doi}`}
+            
+            <a  href={`https://doi.org/${result.doi}`}
               target="_blank"
               rel="noreferrer"
               className="text-lg font-semibold text-[#1A1A2E] hover:text-blue-600 leading-snug"
@@ -104,10 +104,22 @@ function ResultCard({ result, onSelect }) {
 
           {/* Type + venue */}
           <div className="mt-3 flex items-center gap-3">
-          <TypeBadge type={result.researchType} />
-          {result.publicationVenue && (
-            <span className="text-xs text-slate-400">{result.publicationVenue}</span>
-          )}
+            <span className="shrink-0">
+              <TypeBadge type={result.researchType} />
+            </span>
+            {result.publicationVenue && (
+              <span
+                className="min-w-0 flex-1 truncate text-xs text-slate-400"
+                title={result.publicationVenue}
+              >
+                {result.publicationVenue}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="shrink-0 flex flex-col items-end gap-2">
           {result.similarityScore != null && (
             <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
               result.similarityScore >= 85 ? 'bg-emerald-100 text-emerald-700' :
@@ -117,24 +129,19 @@ function ResultCard({ result, onSelect }) {
               {result.similarityScore}% match
             </span>
           )}
-        </div>
-        </div>
-
-        {/* Actions */}
-        <div className="shrink-0 flex flex-col gap-2">
           <button
-          type="button"
-          onClick={() => {
-            console.log('similarity score being passed:', result.similarityScore)
-            navigate(`/research/${result.id}`, { state: { similarityScore: result.similarityScore ?? null } })
-          }}
-          className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition whitespace-nowrap"
-        >
-          View Details
-        </button>
+            type="button"
+            onClick={() => {
+              console.log('similarity score being passed:', result.similarityScore)
+              navigate(`/research/${result.id}`, { state: { similarityScore: result.similarityScore ?? null } })
+            }}
+            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition whitespace-nowrap"
+          >
+            View Details
+          </button>
           {result.doi && (
-            <a
-              href={`https://doi.org/${result.doi}`}
+            
+            <a href={`https://doi.org/${result.doi}`}
               target="_blank"
               rel="noreferrer"
               className="flex items-center justify-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
@@ -207,8 +214,8 @@ function RelatedDrawer({ open, record, related, relatedLoading, onClose }) {
           {record.doi && (
             <div>
               <p className="text-[10px] uppercase tracking-wider text-slate-400 mb-1">DOI</p>
-              <a
-                href={`https://doi.org/${record.doi}`}
+              
+              <a href={`https://doi.org/${record.doi}`}
                 target="_blank"
                 rel="noreferrer"
                 className="text-sm text-blue-600 hover:underline flex items-center gap-1"
@@ -396,8 +403,6 @@ export default function DiscoveryPortalPage({ embedded = false }) {
         </div>
       </nav>}
 
-      {/* Hero section */}
-      {/* Hero section */}
       {/* Hero section */}
       <div className={`relative py-16 text-center overflow-hidden ${embedded ? '-mx-[32px] -mt-[32px] w-[calc(100%+64px)]' : ''}`} style={{ background: '#1a3a6b' }}>
         <div
