@@ -270,4 +270,8 @@ public class InstitutionService {
 
         auditLogEntryRepository.save(entry);
     }
+
+    public long countAll() {
+        return institutionRepository.count();
+    }
 }

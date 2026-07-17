@@ -9,6 +9,8 @@ import com.geeks.riis_backend.dto.UploadUrlRequest;
 import com.geeks.riis_backend.dto.UploadUrlResponse;
 import com.geeks.riis_backend.service.S3UploadService;
 import com.geeks.riis_backend.service.SubmissionService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -27,7 +29,10 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/submissions")
@@ -40,6 +45,8 @@ public class SubmissionController {
 		this.submissionService = submissionService;
 		this.s3UploadService = s3UploadService;
 	}
+
+
 
 	@PostMapping
 	@PreAuthorize("hasAnyAuthority('HEI_STAFF', 'ROLE_HEI_STAFF')")
@@ -56,7 +63,7 @@ public class SubmissionController {
 		String institutionId = submissionService.getInstitutionIdForUser(userId);
 
 		// Proper logging (imports should be at the top of the file)
-		org.slf4j.Logger logger = org.slf4j.LoggerFactory.getLogger(SubmissionController.class);
+		Logger logger = LoggerFactory.getLogger(SubmissionController.class);
 		logger.info("Controller: Current authorities: " + SecurityContextHolder.getContext().getAuthentication().getAuthorities());
 
 		S3UploadService.PresignedUpload presigned = s3UploadService.createPresignedPutUrl(
@@ -69,7 +76,7 @@ public class SubmissionController {
 
 	@PostMapping("/upload")
 	@PreAuthorize("hasAnyAuthority('HEI_STAFF', 'ROLE_HEI_STAFF')")
-	public ResponseEntity<UploadUrlResponse> uploadFile(@RequestParam("file") org.springframework.web.multipart.MultipartFile file) {
+	public ResponseEntity<UploadUrlResponse> uploadFile(@RequestParam("file") MultipartFile file) {
 		String userId = getAuthenticatedUserId();
 		String institutionId = submissionService.getInstitutionIdForUser(userId);
 
@@ -94,7 +101,7 @@ public class SubmissionController {
 						: pageable.getSort()
 		);
 		if (status != null && !status.isBlank()) {
-			filter.setStatuses(java.util.List.of(status));
+			filter.setStatuses(List.of(status));
 		}
 		return ResponseEntity.ok(submissionService.listSubmissions(userId, filter, safePageable, keyword));
 	}

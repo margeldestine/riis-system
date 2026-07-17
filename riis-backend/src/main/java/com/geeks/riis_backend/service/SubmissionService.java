@@ -404,17 +404,15 @@ public class SubmissionService {
 		return "DASIG-" + year + "-" + uuidShort;
 	}
 
-	private List<String> parseKeywords(String keywords) {
-		if (keywords == null || keywords.isBlank()) {
-			return List.of();
-		}
-		return Arrays.stream(keywords.split(","))
-				.map(String::trim)
-				.filter(v -> !v.isBlank())
-				.toList();
-	}
+    private List<String> parseKeywords(String keywords) {
+        return null;
+    }
 
 	private boolean isBlank(String value) {
 		return value == null || value.isBlank();
+	}
+
+	public long countAllApproved() {
+		return researchOutputRepository.count();
 	}
 }

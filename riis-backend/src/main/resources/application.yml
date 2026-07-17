@@ -7,6 +7,18 @@ spring:
     hibernate:
       ddl-auto: validate
     show-sql: true
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: margeldestinekrizia@gmail.com
+    password: slzdcagizcombjqm
+    from: margeldestinekrizia@gmail.com
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
 
 app:
   security:
@@ -14,3 +26,7 @@ app:
       secret: ${jwt.secret:PLEASE_SET_JWT_SECRET}
       issuer: ${JWT_ISSUER:riis-backend}
       access-token-ttl-seconds: ${JWT_ACCESS_TOKEN_TTL_SECONDS:3600}
+      remember-me-ttl-seconds: 2592000   # 30 days
+    password-reset-token-ttl-minutes: 30
+  frontend:
+    base-url: http://localhost:5173

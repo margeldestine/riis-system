@@ -3,8 +3,10 @@ package com.geeks.riis_backend.controller;
 import com.geeks.riis_backend.dto.InstitutionDropdownItem;
 import com.geeks.riis_backend.dto.InstitutionProfileDTO;
 import com.geeks.riis_backend.dto.InstitutionSummaryDTO;
+import com.geeks.riis_backend.dto.PublicStatsDTO;
 import com.geeks.riis_backend.model.Institution;
 import com.geeks.riis_backend.service.InstitutionService;
+import com.geeks.riis_backend.service.SubmissionService;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
@@ -23,6 +25,21 @@ import org.springframework.web.bind.annotation.RestController;
 public class InstitutionController {
 
     private final InstitutionService institutionService;
+    private final SubmissionService submissionService;
+
+    /**
+     * Public, unauthenticated stats used on the sign-in page (shown before
+     * anyone logs in). Lives here rather than in SubmissionController
+     * because /api/v1/institutions/** is already permitted without auth in
+     * the security config; SubmissionController's routes are not.
+     */
+    @GetMapping("/public/stats")
+    public ResponseEntity<PublicStatsDTO> getPublicStats() {
+        return ResponseEntity.ok(new PublicStatsDTO(
+                submissionService.countAllApproved(),
+                institutionService.countAll()
+        ));
+    }
 
     @GetMapping("/active")
     public ResponseEntity<List<InstitutionDropdownItem>> getActiveInstitutions() {
