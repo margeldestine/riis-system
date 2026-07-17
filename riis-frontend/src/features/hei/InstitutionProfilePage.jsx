@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
+  ArrowLeft,
   BarChart3,
   Building2,
   Calendar,
   ChevronDown,
+  Copy,
+  ExternalLink,
   FileText,
   Globe,
   MapPin,
@@ -53,62 +56,9 @@ function getTypeBadgeClass(type) {
   return 'bg-slate-100 text-slate-600'
 }
 
-function StatCard({ value, label }) {
+function OutputCard({ output, isOwnInstitution, onViewDetails }) {
   return (
-    <div className="flex flex-col items-center justify-center px-6 py-4">
-      <p className="text-2xl font-bold text-white">{value}</p>
-      <p className="mt-1 text-xs text-slate-300">{label}</p>
-    </div>
-  )
-}
-
-function ResearchTypeBar({ distribution }) {
-  if (!distribution || Object.keys(distribution).length === 0) return null
-  const total = Object.values(distribution).reduce((a, b) => a + b, 0)
-  const colors = [
-    'bg-blue-500', 'bg-emerald-500', 'bg-amber-500', 'bg-rose-500', 'bg-purple-500',
-  ]
-  const entries = Object.entries(distribution)
-
-  return (
-    <div>
-      <div className="flex h-2 w-full overflow-hidden rounded-full">
-        {entries.map(([type, count], i) => (
-          <div
-            key={type}
-            className={colors[i % colors.length]}
-            style={{ width: `${(count / total) * 100}%` }}
-            title={`${type}: ${count}`}
-          />
-        ))}
-      </div>
-      <div className="mt-2 flex flex-wrap gap-3">
-        {entries.map(([type, count], i) => (
-          <div key={type} className="flex items-center gap-1.5 text-xs text-slate-500">
-            <div className={`h-2 w-2 rounded-full ${colors[i % colors.length]}`} />
-            <span>{type} ({count})</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-function OutputCard({ output, isOwnInstitution }) {
-  const navigate = useNavigate()
-  const statusColors = {
-    APPROVED: 'bg-emerald-100 text-emerald-700',
-    PENDING_REVIEW: 'bg-blue-100 text-blue-700',
-    REQUIRES_CORRECTION: 'bg-red-100 text-red-700',
-    REJECTED: 'bg-red-100 text-red-700',
-  }
-  const statusLabel = output.status === 'APPROVED' ? 'Approved'
-    : output.status === 'PENDING_REVIEW' ? 'Under Review'
-      : output.status === 'REQUIRES_CORRECTION' ? 'Requires Correction'
-        : output.status || 'Unknown'
-
-  return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-3 border-l-4 border-l-emerald-500">
+    <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-3">
       {/* Title + status badge */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
@@ -125,15 +75,6 @@ function OutputCard({ output, isOwnInstitution }) {
             <p className="font-semibold text-[#1A1A2E] leading-snug">{output.title}</p>
           )}
         </div>
-        {isOwnInstitution ? (
-          <span
-            className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-              statusColors[output.status] || 'bg-slate-100 text-slate-600'
-            }`}
-          >
-            {statusLabel}
-          </span>
-        ) : null}
       </div>
 
       {/* Authors */}
@@ -211,7 +152,7 @@ function OutputCard({ output, isOwnInstitution }) {
       <div className="pt-1">
         <button
           type="button"
-          onClick={() => navigate(`/research/${output.id}`)}
+          onClick={() => onViewDetails(output)}
           className="rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
         >
           View Details
@@ -275,17 +216,309 @@ function OtherHEIsPanel({ currentId }) {
               </div>
             </div>
           </button>
-        ))}x
+        ))}
       </div>
+    </div>
+  )
+}
+
+/* ---------------------------------------------------------------------- */
+/* Full-page output detail — mirrors the public Research Explorer detail  */
+/* page's layout, but rendered inline (no route change, no drawer) so     */
+/* DashboardLayout's sidebar/topbar never unmount.                        */
+/* ---------------------------------------------------------------------- */
+
+function TypeBadge({ type }) {
+  const colors = {
+    'Funded Project': 'bg-amber-100 text-amber-700',
+    'Journal Article': 'bg-blue-100 text-blue-700',
+    'Conference Paper': 'bg-purple-100 text-purple-700',
+    'Innovation Output': 'bg-teal-100 text-teal-700',
+    'IP Registration': 'bg-rose-100 text-rose-700',
+  }
+  return (
+    <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${colors[type] || 'bg-slate-100 text-slate-600'}`}>
+      {type || '—'}
+    </span>
+  )
+}
+
+function MetaField({ label, value, children }) {
+  if (!value && !children) return null
+  return (
+    <div>
+      <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-0.5">{label}</p>
+      {children || <p className="text-sm font-medium text-[#1A1A2E]">{value}</p>}
+    </div>
+  )
+}
+
+function RelatedCard({ record, onSelect }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(record.id)}
+      className="w-full text-left rounded-lg border border-slate-200 bg-white p-3 hover:bg-slate-50 transition space-y-1.5"
+    >
+      <p className="text-sm font-semibold text-[#1A1A2E] leading-snug line-clamp-2">{record.title}</p>
+      <span className="text-xs text-slate-500">{record.institutionName}</span>
+    </button>
+  )
+}
+
+function OutputFullDetailView({ output, onBack }) {
+  const [currentId, setCurrentId] = useState(output.id)
+  const [record, setRecord] = useState(null)
+  const [related, setRelated] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [copied, setCopied] = useState(false)
+
+  useEffect(() => {
+    if (!currentId) return
+    setLoading(true)
+    setError('')
+
+    Promise.all([
+      apiClient.get(`/search/${currentId}`),
+      apiClient.get(`/search/related/${currentId}`).catch(() => ({ data: [] })),
+    ])
+      .then(([recordRes, relatedRes]) => {
+        setRecord(recordRes.data)
+        setRelated(Array.isArray(relatedRes.data) ? relatedRes.data : [])
+      })
+      .catch((err) => setError(extractApiErrorMessage(err, 'Unable to load research record.')))
+      .finally(() => setLoading(false))
+  }, [currentId])
+
+  const handleCopyCitation = () => {
+    if (!record) return
+    const authors = Array.isArray(record.authors)
+      ? record.authors.map((a) => a.fullName).filter(Boolean).join(', ')
+      : ''
+    const citation = `${authors} (${record.completionYear}). ${record.title}. ${record.publicationVenue || record.institutionName || ''}. ${record.doi ? `https://doi.org/${record.doi}` : ''}`
+    navigator.clipboard.writeText(citation).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
+
+  const keywords = Array.isArray(record?.keywords) ? record.keywords : []
+  const authors = Array.isArray(record?.authors) ? record.authors : []
+  const principalInvestigator = authors[0]?.fullName || '—'
+
+  return (
+    <div className="space-y-0">
+      {/* Header banner */}
+      <div className="relative overflow-hidden rounded-[12px]" style={{ background: '#1a3a6b' }}>
+        <div
+          className="absolute inset-0"
+          style={{
+            backgroundImage: 'url(/DOST_Building.png)',
+            backgroundSize: 'cover',
+            backgroundPosition: '60% 10%',
+            opacity: 0.25,
+            mixBlendMode: 'luminosity',
+          }}
+        />
+        <div className="absolute inset-0" style={{ background: 'rgba(15, 40, 90, 0.72)' }} />
+        <div className="relative z-10 px-8 py-7 w-full">
+          <button
+            type="button"
+            onClick={onBack}
+            className="flex items-center gap-1.5 text-xs text-white/60 hover:text-white/90 transition mb-5"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            Back to Research Outputs
+          </button>
+          <h1
+            className="text-2xl leading-snug text-white"
+            style={{ fontFamily: "'Libre Baskerville', serif", fontWeight: 700 }}
+          >
+            {record?.title || output.title || 'Research Output Details'}
+          </h1>
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            {record?.institutionName && (
+              <span className="rounded-full border border-white/30 bg-white/10 px-3 py-0.5 text-xs text-white/90">
+                {record.institutionName}
+              </span>
+            )}
+            {record?.province && (
+              <span className="rounded-full border border-white/30 bg-white/10 px-3 py-0.5 text-xs text-white/90">
+                {record.province}
+              </span>
+            )}
+            {record?.subjectDc && (
+              <span className="rounded-full border border-white/30 bg-white/10 px-3 py-0.5 text-xs text-white/90">
+                {record.subjectDc}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center py-24">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#C9A84C] border-t-transparent" />
+        </div>
+      ) : error ? (
+        <div className="mt-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      ) : record ? (
+        <div className="mt-6 flex gap-6 items-start">
+          {/* Left — metadata */}
+          <div className="flex-1 min-w-0 space-y-6">
+            {/* Record Metadata */}
+            <div className="rounded-xl border border-slate-200 bg-white p-6">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-5">
+                Record Metadata
+              </p>
+
+              <div className="grid grid-cols-3 gap-x-8 gap-y-5">
+                <MetaField label="Content Authors">
+                  <div className="space-y-0.5">
+                    {authors.length > 0 ? authors.map((a, i) => (
+                      <p key={i} className="text-sm font-medium text-[#1A1A2E]">
+                        {a.fullName}
+                        {a.orcidId && (
+                          <a
+                            href={`https://orcid.org/${a.orcidId}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="ml-1 text-[#A6CE39] text-xs font-bold hover:underline"
+                          >
+                            iD
+                          </a>
+                        )}
+                      </p>
+                    )) : <p className="text-sm text-slate-400">—</p>}
+                  </div>
+                </MetaField>
+
+                <MetaField label="Funding Source" value={record.fundingSource} />
+
+                <MetaField label="DOI">
+                  {record.doi ? (
+                    <a
+                      href={`https://doi.org/${record.doi}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-sm text-blue-600 hover:underline flex items-center gap-1"
+                    >
+                      {record.doi}
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  ) : <p className="text-sm text-slate-400">—</p>}
+                </MetaField>
+
+                <MetaField label="Completion Year" value={record.completionYear} />
+                <MetaField label="Publisher" value={record.publisherDc || record.publicationVenue} />
+                <MetaField label="Research Type">
+                  <TypeBadge type={record.researchType} />
+                </MetaField>
+
+                <MetaField label="DC Coverage" value={record.coverageDc} />
+                <MetaField label="Principal Investigator" value={principalInvestigator} />
+                <MetaField label="Has License" value={record.rightsDc} />
+
+                {record.subjectDc && (
+                  <MetaField label="S&T Cluster" value={record.subjectDc} />
+                )}
+              </div>
+            </div>
+
+            {/* Abstract */}
+            {(record.abstractText || record.abstractExcerpt) && (
+              <div className="rounded-xl border border-slate-200 bg-white p-6">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-3">
+                  Abstract
+                </p>
+                <p className="text-sm text-slate-600 leading-relaxed">
+                  {record.abstractText || record.abstractExcerpt}
+                </p>
+              </div>
+            )}
+
+            {/* Keywords */}
+            {keywords.length > 0 && (
+              <div className="rounded-xl border border-slate-200 bg-white p-6">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-3">
+                  Keywords
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {keywords.map((kw) => (
+                    <span
+                      key={kw}
+                      className="rounded-full border border-slate-200 bg-slate-50 px-3 py-0.5 text-xs text-slate-600"
+                    >
+                      {kw}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Right sidebar */}
+          <div className="w-72 shrink-0 space-y-4">
+            {/* Access panel */}
+            <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-3">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                Access
+              </p>
+              {record.doi ? (
+                <a
+                  href={`https://doi.org/${record.doi}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center justify-center gap-2 w-full rounded-lg px-4 py-2.5 text-sm font-semibold text-white transition"
+                  style={{ background: '#1a6e3c' }}
+                >
+                  <FileText className="h-4 w-4" />
+                  View Full Paper PDF
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </a>
+              ) : (
+                <div className="flex items-center justify-center gap-2 w-full rounded-lg bg-slate-100 px-4 py-2.5 text-sm font-medium text-slate-400">
+                  <FileText className="h-4 w-4" />
+                  No PDF available
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={handleCopyCitation}
+                className="flex items-center justify-center gap-2 w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition"
+              >
+                <Copy className="h-4 w-4" />
+                {copied ? 'Copied!' : 'Copy Citation'}
+              </button>
+            </div>
+
+            {/* Related */}
+            {related.length > 0 && (
+              <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-3">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  You Might Also Be Interested In
+                </p>
+                {related.map((r) => (
+                  <RelatedCard
+                    key={r.id}
+                    record={r}
+                    onSelect={(newId) => setCurrentId(newId)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }
 
 export default function InstitutionProfilePage() {
   const { id } = useParams()
-  const navigate = useNavigate()
-  const minYear = 2015
-  const maxYear = Math.max(2025, new Date().getFullYear())
   const [profile, setProfile] = useState(null)
   const [status, setStatus] = useState('idle')
   const [error, setError] = useState('')
@@ -294,13 +527,9 @@ export default function InstitutionProfilePage() {
   const [debouncedSearchKeyword, setDebouncedSearchKeyword] = useState('')
   const [selectedTypes, setSelectedTypes] = useState([])
   const [selectedClusters, setSelectedClusters] = useState([])
-  const [yearRange, setYearRange] = useState(maxYear)
+  const [yearRange, setYearRange] = useState(0)
   const [isFiltering, setIsFiltering] = useState(false)
-
-  const loggedInInstitutionName =
-    localStorage.getItem('institutionName') ||
-    localStorage.getItem('userInstitution') ||
-    'Higher Education Institution'
+  const [selectedOutput, setSelectedOutput] = useState(null)
 
   const academicYearLabel = `${new Date().getFullYear() - 1}-${new Date().getFullYear()}`
   const clusterOptions = [
@@ -362,19 +591,7 @@ export default function InstitutionProfilePage() {
   const initials = getInitials(profile?.name)
   const avatarColor = getAvatarColor(profile?.name)
   const totalPages = profile?.outputs?.totalPages || 1
-  const outputsRaw = profile?.outputs?.content || []
-  const outputs = yearRange
-    ? outputsRaw.filter((output) => {
-        const yearValue =
-          output?.completionYear ??
-          output?.year ??
-          output?.publicationYear ??
-          output?.publishedYear
-        const parsedYear = Number.parseInt(String(yearValue || ''), 10)
-        if (Number.isNaN(parsedYear)) return true
-        return parsedYear <= yearRange
-      })
-    : outputsRaw
+  const outputs = profile?.outputs?.content || []
   const isOwnInstitution = String(profile?.name || '') === String(localStorage.getItem('institutionName') || localStorage.getItem('userInstitution') || '')
 
   return (
@@ -385,50 +602,13 @@ export default function InstitutionProfilePage() {
       navItems={heiNavItems}
     >
       <div className="space-y-6">
-        <div className="-mx-[32px] -mt-[32px] w-[calc(100%+64px)]">
-          <div className="relative overflow-hidden bg-[#f8fafc] px-8 py-8">
-            <div
-              className="pointer-events-none absolute inset-0"
-              style={{
-                backgroundImage: 'url(/DOST_Building.png)',
-                backgroundSize: 'cover',
-                backgroundPosition: '78% 32%',
-                opacity: 0.18,
-              }}
-            />
-            <div
-              className="pointer-events-none absolute inset-0"
-              style={{ background: 'rgba(13, 31, 60, 0.08)' }}
-            />
-            <div className="relative z-10 flex items-start justify-between gap-6">
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-[#94a3b8]">
-                  DASHBOARD &gt; <span className="text-[#c9a84c]">RESEARCH DETAILS</span>
-                </p>
-                <h1
-                  className="mt-2 text-[30px] font-bold tracking-tight text-[#0d1f3c]"
-                  style={{ fontFamily: "'Libre Baskerville', serif" }}
-                >
-                  Research Output Details
-                </h1>
-                <p className="mt-2 text-[13px] text-[#6b7280]">
-                  Full research project details and metadata
-                </p>
-              </div>
-
-              <div className="text-right">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-[#94a3b8]">
-                  ACADEMIC YEAR
-                </p>
-                <p className="text-[13px] font-bold text-[#0d1f3c]">{academicYearLabel}</p>
-                <p className="mt-1 text-[12px] text-[#6b7280]">{loggedInInstitutionName}</p>
-              </div>
-            </div>
-          </div>
-          <div className="h-px w-full bg-[#c9a84c]" />
-        </div>
-
-        {status === 'loading' && !profile ? (
+        {selectedOutput ? (
+          /* Full-page output detail — stays inside DashboardLayout, sidebar untouched */
+          <OutputFullDetailView
+            output={selectedOutput}
+            onBack={() => setSelectedOutput(null)}
+          />
+        ) : status === 'loading' && !profile ? (
           <div className="text-sm text-slate-500">Loading profile...</div>
         ) : error ? (
           <div className="rounded-[10px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -469,33 +649,23 @@ export default function InstitutionProfilePage() {
                       </span>
                       <span className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-0.5 text-xs font-semibold text-white">
                         <Calendar className="h-3.5 w-3.5 text-white/80" />
-                        2016–2025
+                        2015 – 2026
                       </span>
                   </div>
                 </div>
               </div>
 
-              <div className="mt-6 grid grid-cols-4 gap-4">
-                <div className="rounded-[10px] bg-white/10 px-6 py-4">
-                  <p className="text-2xl font-bold text-white">{profile.stats?.totalApprovedOutputs ?? 0}</p>
-                  <p className="mt-1 text-xs text-white/70">Total Outputs</p>
-                </div>
-                <div className="rounded-[10px] bg-white/10 px-6 py-4">
-                  <p className="text-2xl font-bold text-white">{profile.stats?.totalApprovedOutputs ?? 0}</p>
-                  <p className="mt-1 text-xs text-white/70">Approved</p>
-                </div>
-                <div className="rounded-[10px] bg-white/10 px-6 py-4">
-                  <p className="text-2xl font-bold text-white">
-                    {Object.entries(profile.stats?.researchTypeDistribution || {}).find(([k]) => k.toLowerCase().includes('funded'))?.[1] ?? 0}
-                  </p>
-                  <p className="mt-1 text-xs text-white/70">Funded Projects</p>
-                </div>
-                <div className="rounded-[10px] bg-white/10 px-6 py-4">
-                  <p className="text-2xl font-bold text-white">
-                    {Object.entries(profile.stats?.researchTypeDistribution || {}).find(([k]) => k.toLowerCase().includes('applied'))?.[1] ?? 0}
-                  </p>
-                  <p className="mt-1 text-xs text-white/70">Applied Research</p>
-                </div>
+              <div className="mt-6 grid grid-cols-3 gap-4">
+                {[
+                  { value: profile.stats?.totalApprovedOutputs ?? 0, label: 'Total Outputs' },
+                  { value: Object.entries(profile.stats?.researchTypeDistribution || {}).find(([k]) => k.toLowerCase().includes('funded'))?.[1] ?? 0, label: 'Funded Projects' },
+                  { value: profile.stats?.totalUniqueAuthors ?? 0, label: 'Unique Authors' },
+                ].map((s, i) => (
+                  <div key={i} className="rounded-[10px] bg-white/10 px-6 py-4">
+                    <p className="text-2xl font-bold text-white">{s.value}</p>
+                    <p className="mt-1 text-xs text-white/70">{s.label}</p>
+                  </div>
+                ))}
               </div>
             </div>
 
@@ -575,25 +745,23 @@ export default function InstitutionProfilePage() {
                         Publications from this institution on record
                       </p>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="text"
-                        placeholder="Filter research..."
-                        value={searchKeyword}
-                        onChange={(event) => {
-                          setSearchKeyword(event.target.value)
-                          setPage(0)
-                        }}
-                        className="w-44 rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-600 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-[#C9A84C]"
-                      />
-                    </div>
+                    <input
+                      type="text"
+                      placeholder="Filter research..."
+                      value={searchKeyword}
+                      onChange={(event) => {
+                        setSearchKeyword(event.target.value)
+                        setPage(0)
+                      }}
+                      className="w-44 rounded-lg border border-slate-200 px-3 py-1.5 text-xs text-slate-600 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-[#C9A84C]"
+                    />
                   </div>
                   <p className="text-xs text-slate-500">
-                    Showing {outputs.length} of {profile.stats?.totalApprovedOutputs ?? 0} approved results
+                    Showing {outputs.length} of {profile.stats?.totalApprovedOutputs ?? 0} results
                   </p>
                 </div>
 
-                {status === 'loading' ? (
+                {isFiltering ? (
                   <div className="flex items-center justify-center py-16 text-sm text-slate-400">
                     <svg className="mr-2 h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
@@ -602,11 +770,16 @@ export default function InstitutionProfilePage() {
                     Searching...
                   </div>
                 ) : outputs.length === 0 ? (
-                  <p className="text-sm text-slate-500">No approved outputs yet.</p>
+                  <p className="text-sm text-slate-500">No outputs yet.</p>
                 ) : (
                   <div className="space-y-4">
                     {outputs.map((output) => (
-                      <OutputCard key={output.id} output={output} isOwnInstitution={isOwnInstitution} />
+                      <OutputCard
+                        key={output.id}
+                        output={output}
+                        isOwnInstitution={isOwnInstitution}
+                        onViewDetails={setSelectedOutput}
+                      />
                     ))}
                   </div>
                 )}
@@ -652,12 +825,11 @@ export default function InstitutionProfilePage() {
                             className="h-3 w-3 accent-[#1A1A2E]"
                             checked={selectedTypes.includes(type)}
                             onChange={() => {
-                              setSelectedTypes((prev) => {
-                                const next = prev.includes(type)
+                              setSelectedTypes((prev) =>
+                                prev.includes(type)
                                   ? prev.filter((t) => t !== type)
-                                  : [...prev, type]
-                                return next
-                              })
+                                  : [...prev, type],
+                              )
                               setPage(0)
                             }}
                           />
@@ -671,18 +843,18 @@ export default function InstitutionProfilePage() {
                       </p>
                       <input
                         type="range"
-                        min={minYear}
-                        max={maxYear}
-                        value={yearRange}
+                        min="2015"
+                        max="2026"
+                        value={yearRange || 2026}
                         className="w-full accent-[#C9A84C]"
                         onChange={(event) => {
                           setYearRange(Number(event.target.value))
                           setPage(0)
                         }}
                       />
-                      <div className="mt-1 flex justify-between text-[10px] text-slate-400">
-                        <span>{minYear}</span>
-                        <span>{maxYear}</span>
+                      <div className="mt-1 flex items-center justify-between text-[10px] text-slate-400">
+                        <span>2015</span>
+                        <span>2026</span>
                       </div>
                     </div>
                     <div>

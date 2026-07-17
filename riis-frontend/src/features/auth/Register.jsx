@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { CheckCircle2, ChevronDown, ChevronLeft } from 'lucide-react'
+import { CheckCircle2, ChevronDown, ChevronLeft, Eye, EyeOff } from 'lucide-react'
 import Input from '../../components/Input'
 import apiClient from '../../services/apiClient'
 import dostLogo from '../../assets/dost-logo.png'
@@ -33,7 +33,9 @@ export default function Register() {
   const [position, setPosition] = useState('')
   const [employeeId, setEmployeeId] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [accepted, setAccepted] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
@@ -368,26 +370,50 @@ export default function Register() {
                 id="password"
                 name="password"
                 label="Password"
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Minimum 8 characters"
                 autoComplete="new-password"
                 required
                 disabled={isSubmitting}
+                rightElement={
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    disabled={isSubmitting}
+                    tabIndex={-1}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    className="text-gray-400 transition hover:text-gray-600 disabled:cursor-not-allowed"
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                }
               />
 
               <Input
                 id="confirmPassword"
                 name="confirmPassword"
                 label="Confirm Password"
-                type="password"
+                type={showConfirmPassword ? 'text' : 'password'}
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="Re-enter password"
                 autoComplete="new-password"
                 required
                 disabled={isSubmitting}
+                rightElement={
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword((v) => !v)}
+                    disabled={isSubmitting}
+                    tabIndex={-1}
+                    aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                    className="text-gray-400 transition hover:text-gray-600 disabled:cursor-not-allowed"
+                  >
+                    {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                }
               />
 
               <div className="flex items-start gap-3">

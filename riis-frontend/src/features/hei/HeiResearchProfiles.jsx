@@ -48,6 +48,12 @@ function getTypeBadge(type) {
   return <span className="text-xs text-slate-500">{type}</span>
 }
 
+function getResearchOutputLabel(count) {
+  if (!count) return 'No research outputs'
+  if (count === 1) return '1 research output'
+  return `${count} research outputs`
+}
+
 function InstitutionCard({ institution, onClick }) {
   const initials = getInitials(institution.name)
   const avatarColor = getAvatarColor(institution.name)
@@ -80,7 +86,7 @@ function InstitutionCard({ institution, onClick }) {
           <div className="mt-2 flex items-center gap-1.5 text-xs">
             <FileText className="h-3.5 w-3.5 text-slate-400" />
             <span className="font-semibold text-emerald-600">
-              {institution.approvedOutputCount} research outputs
+              {getResearchOutputLabel(institution.approvedOutputCount)}
             </span>
           </div>
         </div>

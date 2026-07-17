@@ -19,6 +19,7 @@ import ResearchOutputDetailPage from './features/public/ResearchOutputDetailPage
 import DataQualityDashboard from './features/admin/DataQualityDashboard'
 import ReportGeneratorPage from './features/admin/ReportGeneratorPage'
 import HeiReportsPage from './features/hei/HeiReportsPage'
+import ResetPassword from './features/auth/ResetPassword'
 
 function HeiPlaceholderPage({ activeLabel, title }) {
   return (
@@ -59,6 +60,7 @@ function App() {
         {/* Public routes */}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/" element={<DiscoveryPortalPage />} />
         <Route path="/discover" element={<HeiDirectoryPage />} />
         <Route path="/institutions/:id" element={<PublicInstitutionProfilePage />} />

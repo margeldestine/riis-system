@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { Eye, EyeOff } from 'lucide-react'
 import '@fontsource/inter'
 import '@fontsource/libre-baskerville'
 import apiClient from '../../services/apiClient'
@@ -72,10 +73,19 @@ export default function Login() {
   const location = useLocation()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [rememberMe, setRememberMe] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
+  const [stats, setStats] = useState({ submissions: null, institutions: null })
+
+  // Forgot password modal state
+  const [showForgotModal, setShowForgotModal] = useState(false)
+  const [forgotEmail, setForgotEmail] = useState('')
+  const [forgotSubmitting, setForgotSubmitting] = useState(false)
+  const [forgotStatus, setForgotStatus] = useState('') // 'success' | 'error' | ''
+  const [forgotMessage, setForgotMessage] = useState('')
 
   const copyrightYear = useMemo(() => new Date().getFullYear(), [])
 
@@ -85,6 +95,32 @@ export default function Login() {
     setSuccessMessage(message)
     navigate(location.pathname, { replace: true, state: null })
   }, [location.pathname, location.state, navigate])
+
+  useEffect(() => {
+    let cancelled = false
+
+    async function loadStats() {
+      try {
+        const res = await apiClient.get('/institutions/public/stats')
+        const data = res.data || {}
+        if (!cancelled) {
+          setStats({
+            submissions: data.totalSubmissions ?? null,
+            institutions: data.totalInstitutions ?? null,
+          })
+        }
+      } catch {
+        if (!cancelled) {
+          setStats({ submissions: null, institutions: null })
+        }
+      }
+    }
+
+    loadStats()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -195,6 +231,33 @@ export default function Login() {
     }
   }
 
+  const handleForgotPassword = async (e) => {
+    e.preventDefault()
+    setForgotSubmitting(true)
+    setForgotStatus('')
+    setForgotMessage('')
+
+    try {
+      await apiClient.post('/auth/forgot-password', { email: forgotEmail })
+      setForgotStatus('success')
+      setForgotMessage('If that email exists, a reset link has been sent. Please check your inbox.')
+    } catch (err) {
+      setForgotStatus('error')
+      setForgotMessage(
+        err?.response?.data?.message || 'Something went wrong. Please try again.'
+      )
+    } finally {
+      setForgotSubmitting(false)
+    }
+  }
+
+  const closeForgotModal = () => {
+    setShowForgotModal(false)
+    setForgotEmail('')
+    setForgotStatus('')
+    setForgotMessage('')
+  }
+
   return (
     <div
       className="min-h-screen bg-white text-gray-900"
@@ -261,13 +324,17 @@ export default function Login() {
             <div className="mt-auto pt-14">
               <div className="flex gap-10">
                 <div className="text-left">
-                  <p className="text-xl font-semibold text-white">0</p>
+                  <p className="text-xl font-semibold text-white">
+                    {stats.submissions != null ? stats.submissions : '—'}
+                  </p>
                   <p className="text-[10px] font-medium uppercase tracking-widest text-white/50">
                     Submissions
                   </p>
                 </div>
                 <div className="text-left">
-                  <p className="text-xl font-semibold text-white">0</p>
+                  <p className="text-xl font-semibold text-white">
+                    {stats.institutions != null ? stats.institutions : '—'}
+                  </p>
                   <p className="text-[10px] font-medium uppercase tracking-widest text-white/50">
                     Institutions
                   </p>
@@ -351,23 +418,35 @@ export default function Login() {
                   <button
                     type="button"
                     className="text-[11px] font-semibold text-[#0d1f3c] hover:underline"
-                    onClick={() => {}}
+                    onClick={() => setShowForgotModal(true)}
                   >
                     Forgot password?
                   </button>
                 </div>
-                <input
-                  id="password"
-                  name="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter your password"
-                  autoComplete="current-password"
-                  required
-                  disabled={isSubmitting}
-                  className="w-full rounded-[6px] border border-[#d1d5db] bg-white px-4 py-3 text-[14px] text-gray-900 placeholder:text-gray-400 outline-none transition focus:border-[#0d1f3c] focus:ring-2 focus:ring-[#0d1f3c]/15 disabled:cursor-not-allowed disabled:bg-gray-100"
-                />
+                <div className="relative">
+                  <input
+                    id="password"
+                    name="password"
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Enter your password"
+                    autoComplete="current-password"
+                    required
+                    disabled={isSubmitting}
+                    className="w-full rounded-[6px] border border-[#d1d5db] bg-white px-4 py-3 pr-11 text-[14px] text-gray-900 placeholder:text-gray-400 outline-none transition focus:border-[#0d1f3c] focus:ring-2 focus:ring-[#0d1f3c]/15 disabled:cursor-not-allowed disabled:bg-gray-100"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    disabled={isSubmitting}
+                    tabIndex={-1}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 transition hover:text-gray-600 disabled:cursor-not-allowed"
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
               </div>
 
               <div className="flex items-center gap-3">
@@ -415,6 +494,73 @@ export default function Login() {
           </div>
         </section>
       </div>
+
+      {showForgotModal ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="w-full max-w-sm rounded-lg bg-white p-8 shadow-xl">
+            <h3
+              className="text-xl font-bold text-[#0d1f3c]"
+              style={{ fontFamily: "'Libre Baskerville', serif" }}
+            >
+              Reset your password
+            </h3>
+            <p className="mt-2 text-[13px] text-gray-500">
+              Enter your institutional email and we&apos;ll send you a reset link.
+            </p>
+
+            {forgotMessage ? (
+              <div
+                className={`mt-4 rounded-md border px-4 py-3 text-sm ${
+                  forgotStatus === 'success'
+                    ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                    : 'border-red-200 bg-red-50 text-red-700'
+                }`}
+              >
+                {forgotMessage}
+              </div>
+            ) : null}
+
+            {forgotStatus !== 'success' ? (
+              <form onSubmit={handleForgotPassword} className="mt-6 flex flex-col gap-4">
+                <input
+                  type="email"
+                  value={forgotEmail}
+                  onChange={(e) => setForgotEmail(e.target.value)}
+                  placeholder="name@university.edu"
+                  required
+                  disabled={forgotSubmitting}
+                  className="w-full rounded-[6px] border border-[#d1d5db] bg-white px-4 py-3 text-[14px] text-gray-900 placeholder:text-gray-400 outline-none transition focus:border-[#0d1f3c] focus:ring-2 focus:ring-[#0d1f3c]/15"
+                />
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={closeForgotModal}
+                    disabled={forgotSubmitting}
+                    className="h-11 flex-1 rounded-[6px] border border-gray-300 text-sm font-semibold text-gray-600 hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={forgotSubmitting}
+                    className="h-11 flex-1 rounded-[6px] bg-[#0d1f3c] text-sm font-semibold text-white hover:bg-[#0b1a33] disabled:opacity-70"
+                  >
+                    {forgotSubmitting ? 'Sending…' : 'Send reset link'}
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <button
+                type="button"
+                onClick={closeForgotModal}
+                className="mt-6 h-11 w-full rounded-[6px] bg-[#0d1f3c] text-sm font-semibold text-white hover:bg-[#0b1a33]"
+              >
+                Close
+              </button>
+            )}
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }
