@@ -42,13 +42,9 @@ public class SearchService {
                 results = executeKeywordSearch(query, filters);
                 fallback = true;
             } else {
-                final float[] finalEmbedding = embedding;
-                CompletableFuture<List<Map<String, Object>>> keywordFuture =
-                        CompletableFuture.supplyAsync(() -> executeKeywordSearch(query, filters));
-                CompletableFuture<List<Map<String, Object>>> semanticFuture =
-                        CompletableFuture.supplyAsync(() -> executeSemanticSearch(finalEmbedding, filters));
-                CompletableFuture.allOf(keywordFuture, semanticFuture).join();
-                results = mergeAndRankResults(keywordFuture.join(), semanticFuture.join());
+                List<Map<String, Object>> keywordResults = executeKeywordSearch(query, filters);
+                List<Map<String, Object>> semanticResults = executeSemanticSearch(embedding, filters);
+                results = mergeAndRankResults(keywordResults, semanticResults);
                 fallback = false;
             }
         } else {
