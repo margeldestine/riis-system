@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Search, Filter, X, Download, ChevronDown, ExternalLink } from 'lucide-react'
 import apiClient from '../../services/apiClient'
@@ -302,6 +302,7 @@ export default function DiscoveryPortalPage({ embedded = false }) {
   const [relatedLoading, setRelatedLoading] = useState(false)
 
   const [institutions, setInstitutions] = useState([])
+  const isFirstRender = useRef(true)
 
   useEffect(() => {
     apiClient.get('/institutions').then(res => {
@@ -338,6 +339,14 @@ export default function DiscoveryPortalPage({ embedded = false }) {
     if (searchParams.get('q')) handleSearch(searchParams.get('q'))
     else handleSearch('')
   }, [])
+
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false
+      return
+    }
+    handleSearch()
+  }, [mode])
 
   const handleSelectRecord = async (record) => {
     setSelectedRecord(record)
