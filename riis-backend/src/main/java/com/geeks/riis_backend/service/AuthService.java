@@ -100,9 +100,13 @@ public class AuthService {
 
 		String whitelistStatus = user.getInstitution() == null ? null : user.getInstitution().getWhitelistStatus();
 
-		if ("PENDING".equalsIgnoreCase(user.getStatus()) || "PENDING".equalsIgnoreCase(whitelistStatus)) {
-			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Account pending DOST approval.");
-		}
+        if ("PENDING".equalsIgnoreCase(user.getStatus()) || "PENDING".equalsIgnoreCase(whitelistStatus)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Account pending DOST approval.");
+        }
+
+        if ("REJECTED".equalsIgnoreCase(user.getStatus())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This account has been rejected and cannot sign in.");
+        }
 
 		if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
 			throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials.");

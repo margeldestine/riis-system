@@ -42,19 +42,24 @@ public class HeiManagementController {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String adminId = auth != null ? auth.getName() : null;
 
-        Institution saved = institutionService.registerHEI(dto, adminId);
+        try {
+            Institution saved = institutionService.registerHEI(dto, adminId);
 
-        InstitutionSummaryDTO response = new InstitutionSummaryDTO(
-                saved.getId(),
-                saved.getName(),
-                saved.getType(),
-                saved.getProvince(),
-                saved.getEmailDomain(),
-                saved.getWhitelistStatus(),
-                0L,
-                List.of()
-        );
-        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+            InstitutionSummaryDTO response = new InstitutionSummaryDTO(
+                    saved.getId(),
+                    saved.getName(),
+                    saved.getType(),
+                    saved.getProvince(),
+                    saved.getEmailDomain(),
+                    saved.getWhitelistStatus(),
+                    0L,
+                    List.of()
+            );
+            return ResponseEntity.status(HttpStatus.CREATED).body(response);
+        } catch (org.springframework.web.server.ResponseStatusException ex) {
+            return ResponseEntity.status(ex.getStatusCode())
+                    .body(java.util.Map.of("message", ex.getReason()));
+        }
     }
 
     // PATCH /api/v1/admin/institutions/{id}/status — toggle active/inactive

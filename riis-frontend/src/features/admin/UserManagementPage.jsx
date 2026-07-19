@@ -81,7 +81,7 @@ function RejectModal({ user, onConfirm, onCancel, loading }) {
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           rows={4}
-          style={{ width: '100%', marginTop: 6, padding: '10px 12px', border: '1.5px solid #d1d5db', borderRadius: 8, fontSize: 14, resize: 'vertical', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
+          style={{ width: '100%', marginTop: 6, padding: '10px 12px', border: '1.5px solid #d1d5db', borderRadius: 8, fontSize: 14, resize: 'none', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
           placeholder="Enter reason..."
         />
         <p style={{ fontSize: 12, color: '#9ca3af', margin: '6px 0 20px' }}>
@@ -356,28 +356,35 @@ function ReviewScreen({ user, onBack, onApprove, onReject, loading }) {
   )
 }
 
-function SuccessScreen({ user, onBackToQueue, onReviewNext }) {
+function SuccessScreen({ user, mode = 'approved', reason, onBackToQueue, onReviewNext }) {
+  const isRejected = mode === 'rejected'
+
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
       <div style={{ background: '#fff', borderRadius: 16, padding: '48px 56px', maxWidth: 560, width: '100%', textAlign: 'center', boxShadow: '0 4px 24px rgba(0,0,0,0.07)' }}>
-        <div style={{ width: 72, height: 72, borderRadius: '50%', border: '3px solid #bbf7d0', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px', background: '#f0fdf4' }}>
-          <span style={{ fontSize: 32, color: '#16a34a' }}>✓</span>
+        <div style={{ width: 72, height: 72, borderRadius: '50%', border: `3px solid ${isRejected ? '#fecaca' : '#bbf7d0'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px', background: isRejected ? '#fef2f2' : '#f0fdf4' }}>
+          <span style={{ fontSize: 32, color: isRejected ? '#dc2626' : '#16a34a' }}>{isRejected ? '⊗' : '✓'}</span>
         </div>
-        <h2 style={{ margin: '0 0 10px', fontSize: 24, fontWeight: 800, color: '#111827' }}>Account Approved Successfully</h2>
+        <h2 style={{ margin: '0 0 10px', fontSize: 24, fontWeight: 800, color: '#111827' }}>
+          {isRejected ? 'Registration Rejected Successfully' : 'Account Approved Successfully'}
+        </h2>
         <p style={{ margin: '0 0 32px', fontSize: 14, color: '#6b7280', lineHeight: 1.6 }}>
-          The HEI Staff account is now active. An email notification has been sent — the staff member can now log in to DASIG.
+          {isRejected
+            ? 'The registration request has been rejected. An email notification with the reason has been sent to the applicant.'
+            : 'The HEI Staff account is now active. An email notification has been sent — the staff member can now log in to DASIG.'}
         </p>
         <div style={{ borderTop: '1px solid #f3f4f6', textAlign: 'left' }}>
           {[
             { label: 'Full Name',           value: user.fullName },
             { label: 'Institution',         value: user.institutionName },
             { label: 'Email Address',       value: user.email },
-            { label: 'Account Status',      value: '● Active', green: true },
+            { label: 'Account Status',      value: isRejected ? '● Rejected' : '● Active', green: !isRejected, red: isRejected },
+            ...(isRejected ? [{ label: 'Reason Provided', value: reason || '—' }] : []),
             { label: 'Email Notification',  value: 'Sent successfully' },
           ].map((row) => (
             <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '14px 0', borderBottom: '1px solid #f3f4f6', fontSize: 14 }}>
               <span style={{ color: '#6b7280' }}>{row.label}</span>
-              <span style={{ fontWeight: 600, color: row.green ? '#16a34a' : '#111827' }}>{row.value}</span>
+              <span style={{ fontWeight: 600, color: row.green ? '#16a34a' : row.red ? '#dc2626' : '#111827' }}>{row.value}</span>
             </div>
           ))}
         </div>
@@ -398,6 +405,8 @@ export default function UserManagementPage() {
   const [screen, setScreen] = useState('queue')
   const [selectedUser, setSelectedUser] = useState(null)
   const [approvedUser, setApprovedUser] = useState(null)
+  const [actionMode, setActionMode] = useState('approved')
+  const [rejectReason, setRejectReason] = useState('')
   const [showRejectModal, setShowRejectModal] = useState(false)
 
   const [pendingUsers, setPendingUsers] = useState([])
@@ -433,6 +442,7 @@ export default function UserManagementPage() {
       })
 
       setApprovedUser(selectedUser)
+      setActionMode('approved')
       setScreen('success')
 
       await loadPendingUsers()
@@ -453,9 +463,11 @@ export default function UserManagementPage() {
         reason,
       })
 
-      setScreen('queue')
-      setSelectedUser(null)
+      setApprovedUser(selectedUser)
+      setActionMode('rejected')
+      setRejectReason(reason)
       setShowRejectModal(false)
+      setScreen('success')
 
       await loadPendingUsers()
     } catch (error) {
@@ -517,6 +529,8 @@ export default function UserManagementPage() {
       >
         <SuccessScreen
           user={approvedUser}
+          mode={actionMode}
+          reason={rejectReason}
           onBackToQueue={handleBackToQueue}
           onReviewNext={handleReviewNext}
         />

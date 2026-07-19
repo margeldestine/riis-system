@@ -203,9 +203,22 @@ public class InstitutionService {
     public Institution registerHEI(RegisterHEIDTO dto, String adminEmail) {
         String domain = dto.emailDomain().trim().toLowerCase();
 
+        if (!dto.name().trim().matches("^[a-zA-Z0-9 .-]+$")) {
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Institution name can only contain letters, numbers, spaces, hyphens, and periods.");
+        }
+
         if (!DOMAIN_PATTERN.matcher(domain).matches()) {
             throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
                     "Invalid email domain format. Must be like @domain.edu.ph");
+        }
+
+        boolean nameAlreadyExists = institutionRepository.findAll().stream()
+                .anyMatch(i -> i.getName() != null && i.getName().equalsIgnoreCase(dto.name().trim()));
+
+        if (nameAlreadyExists) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "An institution with this name is already registered.");
         }
 
         if (institutionRepository.findByEmailDomain(domain).isPresent()) {
@@ -221,7 +234,7 @@ public class InstitutionService {
 
         Institution institution = Institution.builder()
                 .name(dto.name().trim())
-                .type(dto.type())
+                .type(dto.type().trim().toUpperCase())
                 .province(dto.province())
                 .emailDomain(cleanDomain)
                 .contactEmail(cleanDomain)
@@ -230,7 +243,7 @@ public class InstitutionService {
                 .build();
 
         try {
-            Institution saved = institutionRepository.save(institution);
+            Institution saved = institutionRepository.saveAndFlush(institution);
             writeAuditLog("REGISTER_HEI", saved.getId(), adminEmail, null);
             return saved;
         } catch (DataIntegrityViolationException ex) {

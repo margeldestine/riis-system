@@ -77,6 +77,8 @@ function RegisterHEIModal({ onClose, onSuccess }) {
   const validate = () => {
     const e = {}
     if (!form.name.trim())     e.name = 'Institution name is required.'
+    else if (!/^[a-zA-Z0-9 .-]+$/.test(form.name.trim()))
+      e.name = 'Only letters, numbers, spaces, hyphens, and periods are allowed.'
     if (!form.type)            e.type = 'Institution type is required.'
     if (!form.province)        e.province = 'Province is required.'
     if (!form.emailDomain.trim()) e.emailDomain = 'Email domain is required.'
@@ -103,7 +105,8 @@ function RegisterHEIModal({ onClose, onSuccess }) {
     } catch (err) {
       const status = err?.response?.status
       const msg = err?.response?.data?.message || 'Unable to save institution.'
-      if (status === 409) setErrors({ emailDomain: 'This email domain is already registered.' })
+      if (status === 409 && msg.toLowerCase().includes('name')) setErrors({ name: 'This institution name is already registered.' })
+      else if (status === 409) setErrors({ emailDomain: 'This email domain is already registered.' })
       else if (status === 422) setErrors({ emailDomain: 'Invalid email domain format.' })
       else setErrors({ _global: msg })
     } finally {
@@ -286,6 +289,10 @@ export default function HeiManagementPage() {
   const [filterStatus,   setFilterStatus]   = useState('')
   const [search,         setSearch]         = useState('')
 
+  // Pagination
+  const [page, setPage] = useState(0)
+  const pageSize = 10
+
   const load = async () => {
     setIsLoading(true)
     try {
@@ -327,6 +334,9 @@ export default function HeiManagementPage() {
     const matchSearch   = !search         || i.name?.toLowerCase().includes(search.toLowerCase())
     return matchType && matchProvince && matchStatus && matchSearch
   })
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
+  const paginated  = filtered.slice(page * pageSize, page * pageSize + pageSize)
 
   const statCards = [
     { value: total,    label: 'Total HEIs',    sublabel: 'All whitelisted institutions', color: '#1e3a5f' },
@@ -403,7 +413,7 @@ export default function HeiManagementPage() {
             <select
               key={label}
               value={value}
-              onChange={e => setter(e.target.value)}
+              onChange={e => { setter(e.target.value); setPage(0) }}
               style={{ padding: '6px 28px 6px 10px', border: '1.5px solid #e5e7eb', borderRadius: 7, fontSize: 13, color: '#374151', background: '#fff', cursor: 'pointer', appearance: 'none' }}
             >
               <option value="">{label}</option>
@@ -413,7 +423,7 @@ export default function HeiManagementPage() {
           <div style={{ marginLeft: 'auto' }}>
             <input
               value={search}
-              onChange={e => setSearch(e.target.value)}
+              onChange={e => { setSearch(e.target.value); setPage(0) }}
               placeholder="Type of institution name"
               style={{ padding: '7px 14px', border: '1.5px solid #e5e7eb', borderRadius: 8, fontSize: 13, width: 220, outline: 'none' }}
             />
@@ -443,9 +453,9 @@ export default function HeiManagementPage() {
               </tr>
             </thead>
             <tbody>
-              {filtered.map((inst, idx) => (
+              {paginated.map((inst, idx) => (
                 <tr key={inst.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                  <td style={{ padding: '14px 16px', textAlign: 'center', fontSize: 13, color: '#9ca3af', fontWeight: 600 }}>{idx + 1}</td>
+                  <td style={{ padding: '14px 16px', textAlign: 'center', fontSize: 13, color: '#9ca3af', fontWeight: 600 }}>{page * pageSize + idx + 1}</td>
                   <td style={{ padding: '14px 16px', fontWeight: 600, fontSize: 14, color: '#111827' }}>{inst.name}</td>
                   <td style={{ padding: '14px 16px' }}>{getTypeBadge(inst.type)}</td>
                   <td style={{ padding: '14px 16px', fontSize: 14, color: '#374151' }}>{inst.province}</td>
@@ -471,8 +481,22 @@ export default function HeiManagementPage() {
 
         {/* Footer */}
         {!isLoading && filtered.length > 0 && (
-          <div style={{ padding: '12px 24px', borderTop: '1px solid #f3f4f6', fontSize: 13, color: '#6b7280' }}>
-            Showing {filtered.length} of {total} institutions
+          <div style={{ padding: '12px 24px', borderTop: '1px solid #f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 13, color: '#6b7280' }}>
+            <button
+              onClick={() => setPage(p => Math.max(0, p - 1))}
+              disabled={page === 0}
+              style={{ padding: '6px 14px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: page === 0 ? 'not-allowed' : 'pointer', border: '1.5px solid #e5e7eb', background: '#fff', color: '#374151', opacity: page === 0 ? 0.5 : 1 }}
+            >
+              Previous
+            </button>
+            <span>Page {page + 1} of {totalPages} — showing {paginated.length} of {filtered.length} institutions</span>
+            <button
+              onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
+              disabled={page >= totalPages - 1}
+              style={{ padding: '6px 14px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: page >= totalPages - 1 ? 'not-allowed' : 'pointer', border: '1.5px solid #e5e7eb', background: '#fff', color: '#374151', opacity: page >= totalPages - 1 ? 0.5 : 1 }}
+            >
+              Next
+            </button>
           </div>
         )}
       </div>

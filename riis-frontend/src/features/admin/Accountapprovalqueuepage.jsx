@@ -36,9 +36,9 @@ const getInitials = (name = '') =>
 // ---------------------------------------------------------------------------
 // Shared sub-components
 // ---------------------------------------------------------------------------
-function StatCard({ value, label, sublabel, borderColor, textColor }) {
+function StatCard({ value, label, sublabel, borderColor, textColor, onClick }) {
   return (
-    <div style={{ border: `1.5px solid ${borderColor}`, borderRadius: 10, padding: '20px 24px', flex: 1 }}>
+    <div onClick={onClick} style={{ border: `1.5px solid ${borderColor}`, borderRadius: 10, padding: '20px 24px', flex: 1, cursor: onClick ? 'pointer' : 'default' }}>
       <div style={{ fontSize: 36, fontWeight: 700, color: textColor, lineHeight: 1 }}>{value}</div>
       <div style={{ fontWeight: 600, marginTop: 6, color: '#111827' }}>{label}</div>
       <div style={{ fontSize: 13, color: '#6b7280', marginTop: 2 }}>{sublabel}</div>
@@ -95,7 +95,7 @@ function RejectAccountModal({ user, onConfirm, onCancel, loading }) {
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           rows={4}
-          style={{ width: '100%', marginTop: 6, padding: '10px 12px', border: '1.5px solid #d1d5db', borderRadius: 8, fontSize: 14, resize: 'vertical', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
+          style={{ width: '100%', marginTop: 6, padding: '10px 12px', border: '1.5px solid #d1d5db', borderRadius: 8, fontSize: 14, resize: 'none', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
           placeholder="Enter reason..."
         />
         <p style={{ fontSize: 12, color: '#9ca3af', margin: '6px 0 20px' }}>
@@ -121,13 +121,18 @@ function RejectAccountModal({ user, onConfirm, onCancel, loading }) {
 // ---------------------------------------------------------------------------
 // QueueScreen
 // ---------------------------------------------------------------------------
-function QueueScreen({ users, onReview, approvedCount, rejectedCount, countsLoading }) {
+function QueueScreen({ users, onReview, approvedCount, rejectedCount, countsLoading, onViewApproved }) {
   const [search, setSearch] = useState('')
+  const [currentPage, setCurrentPage] = useState(1)
+  const pageSize = 10
   const filtered = users.filter(
     (u) =>
       u.fullName?.toLowerCase().includes(search.toLowerCase()) ||
       u.email?.toLowerCase().includes(search.toLowerCase()),
   )
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
+  const paginatedUsers = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize)
 
   const total = users.length + (approvedCount ?? 0) + (rejectedCount ?? 0)
 
@@ -163,6 +168,7 @@ function QueueScreen({ users, onReview, approvedCount, rejectedCount, countsLoad
           sublabel="Active staff accounts"
           borderColor="#86efac"
           textColor="#16a34a"
+          onClick={onViewApproved}
         />
         <StatCard
           value={countsLoading ? '…' : (rejectedCount ?? '—')}
@@ -187,7 +193,7 @@ function QueueScreen({ users, onReview, approvedCount, rejectedCount, countsLoad
           </div>
           <input
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => { setSearch(e.target.value); setCurrentPage(1) }}
             placeholder="Search by name or email..."
             style={{ padding: '8px 14px', borderRadius: 8, border: '1.5px solid #e5e7eb', fontSize: 14, width: 260, outline: 'none' }}
           />
@@ -214,7 +220,7 @@ function QueueScreen({ users, onReview, approvedCount, rejectedCount, countsLoad
               </tr>
             </thead>
             <tbody>
-              {filtered.map((user) => (
+              {paginatedUsers.map((user) => (
                 <tr key={user.id} style={{ borderBottom: '1px solid #f9fafb' }}>
                   <td style={{ padding: '14px 12px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -247,6 +253,28 @@ function QueueScreen({ users, onReview, approvedCount, rejectedCount, countsLoad
             </tbody>
           </table>
         )}
+
+        {filtered.length > 0 && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 16, paddingTop: 16, borderTop: '1px solid #f3f4f6' }}>
+            <button
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              style={{ padding: '8px 16px', borderRadius: 8, border: '1.5px solid #e5e7eb', background: '#fff', fontSize: 13, fontWeight: 600, cursor: currentPage === 1 ? 'not-allowed' : 'pointer', color: currentPage === 1 ? '#9ca3af' : '#374151' }}
+            >
+              Previous
+            </button>
+            <p style={{ fontSize: 13, color: '#6b7280', margin: 0 }}>
+              Page {currentPage} of {totalPages}
+            </p>
+            <button
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              style={{ padding: '8px 16px', borderRadius: 8, border: '1.5px solid #e5e7eb', background: '#fff', fontSize: 13, fontWeight: 600, cursor: currentPage === totalPages ? 'not-allowed' : 'pointer', color: currentPage === totalPages ? '#9ca3af' : '#374151' }}
+            >
+              Next
+            </button>
+          </div>
+        )}
       </div>
     </>
   )
@@ -255,6 +283,130 @@ function QueueScreen({ users, onReview, approvedCount, rejectedCount, countsLoad
 // ---------------------------------------------------------------------------
 // ReviewScreen
 // ---------------------------------------------------------------------------
+function ApprovedListScreen({ users, onBack }) {
+  const [search, setSearch] = useState('')
+  const [currentPage, setCurrentPage] = useState(1)
+  const pageSize = 10
+  const filtered = users.filter(
+    (u) =>
+      u.fullName?.toLowerCase().includes(search.toLowerCase()) ||
+      u.email?.toLowerCase().includes(search.toLowerCase()),
+  )
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
+  const paginatedUsers = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+
+  return (
+    <>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
+        <div>
+          <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 4px' }}>
+            Submissions &nbsp;›&nbsp; User Management &nbsp;›&nbsp; <strong style={{ color: '#111827' }}>Approved Accounts</strong>
+          </p>
+          <h1 style={{ margin: 0, fontSize: 28, fontWeight: 800, color: '#111827' }}>Approved Accounts</h1>
+          <p style={{ margin: '4px 0 0', color: '#6b7280', fontSize: 14 }}>
+            HEI Research Office staff accounts that are currently active
+          </p>
+        </div>
+        <div style={{ fontSize: 13, textAlign: 'right', color: '#6b7280' }}>
+          ACADEMIC YEAR<br />
+          <strong style={{ fontSize: 15, color: '#111827' }}>2025 – 2026</strong>
+        </div>
+      </div>
+
+      <div style={{ background: '#fff', borderRadius: 12, border: '1px solid #e5e7eb', padding: 24 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+            Active Accounts
+          </div>
+          <input
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setCurrentPage(1) }}
+            placeholder="Search by name or email..."
+            style={{ padding: '8px 14px', borderRadius: 8, border: '1.5px solid #e5e7eb', fontSize: 14, width: 260, outline: 'none' }}
+          />
+        </div>
+
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontWeight: 700, fontSize: 15, color: '#111827' }}>HEI Staff Active Accounts</div>
+          <div style={{ fontSize: 13, color: '#6b7280' }}>
+            {filtered.length} account{filtered.length !== 1 ? 's' : ''} active
+          </div>
+        </div>
+
+        {filtered.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '48px 0', color: '#9ca3af', fontSize: 14 }}>No approved accounts.</div>
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ borderBottom: '1.5px solid #f3f4f6' }}>
+                {['Applicant', 'Institution', 'Department / Position', 'Submitted', 'Status'].map((h) => (
+                  <th key={h} style={{ textAlign: 'left', padding: '10px 12px', fontSize: 11, fontWeight: 700, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '0.07em' }}>
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {paginatedUsers.map((user) => (
+                <tr key={user.id} style={{ borderBottom: '1px solid #f9fafb' }}>
+                  <td style={{ padding: '14px 12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{ width: 36, height: 36, borderRadius: 8, background: '#1e3a5f', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, flexShrink: 0 }}>
+                        {getInitials(user.fullName)}
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: 600, fontSize: 14, color: '#111827' }}>{user.fullName}</div>
+                        <div style={{ fontSize: 12, color: '#6b7280' }}>{user.email}</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td style={{ padding: '14px 12px', fontSize: 14, color: '#374151' }}>{user.institutionName || '—'}</td>
+                  <td style={{ padding: '14px 12px' }}>
+                    <div style={{ fontSize: 14, color: '#374151' }}>{user.department || '—'}</div>
+                    <div style={{ fontSize: 12, color: '#6b7280' }}>{user.position || '—'}</div>
+                  </td>
+                  <td style={{ padding: '14px 12px', fontSize: 14, color: '#374151' }}>{formatDate(user.submittedAt)}</td>
+                  <td style={{ padding: '14px 12px' }}><StatusBadge status={user.status} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+
+        {filtered.length > 0 && (
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 16, paddingTop: 16, borderTop: '1px solid #f3f4f6' }}>
+            <button
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              style={{ padding: '8px 16px', borderRadius: 8, border: '1.5px solid #e5e7eb', background: '#fff', fontSize: 13, fontWeight: 600, cursor: currentPage === 1 ? 'not-allowed' : 'pointer', color: currentPage === 1 ? '#9ca3af' : '#374151' }}
+            >
+              Previous
+            </button>
+            <p style={{ fontSize: 13, color: '#6b7280', margin: 0 }}>
+              Page {currentPage} of {totalPages}
+            </p>
+            <button
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              style={{ padding: '8px 16px', borderRadius: 8, border: '1.5px solid #e5e7eb', background: '#fff', fontSize: 13, fontWeight: 600, cursor: currentPage === totalPages ? 'not-allowed' : 'pointer', color: currentPage === totalPages ? '#9ca3af' : '#374151' }}
+            >
+              Next
+            </button>
+          </div>
+        )}
+      </div>
+
+      <button
+        onClick={onBack}
+        style={{ marginTop: 24, padding: '8px 16px', borderRadius: 8, border: '1.5px solid #d1d5db', background: '#fff', fontSize: 13, fontWeight: 500, cursor: 'pointer', color: '#374151' }}
+      >
+        « Back to Queue
+      </button>
+    </>
+  )
+}
+
 function ReviewScreen({ user, onBack, onApprove, onReject, loading }) {
   const emailDomain = user.emailDomain || (user.email?.includes('@') ? `@${user.email.split('@')[1]}` : '')
 
@@ -381,28 +533,34 @@ function ReviewScreen({ user, onBack, onApprove, onReject, loading }) {
 // ---------------------------------------------------------------------------
 // SuccessScreen
 // ---------------------------------------------------------------------------
-function SuccessScreen({ user, onBackToQueue, onReviewNext }) {
+function SuccessScreen({ user, mode = 'approved', reason, onBackToQueue, onReviewNext }) {
+  const isRejected = mode === 'rejected'
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
       <div style={{ background: '#fff', borderRadius: 16, padding: '48px 56px', maxWidth: 560, width: '100%', textAlign: 'center', boxShadow: '0 4px 24px rgba(0,0,0,0.07)' }}>
-        <div style={{ width: 72, height: 72, borderRadius: '50%', border: '3px solid #bbf7d0', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px', background: '#f0fdf4' }}>
-          <span style={{ fontSize: 32, color: '#16a34a' }}>✓</span>
+        <div style={{ width: 72, height: 72, borderRadius: '50%', border: `3px solid ${isRejected ? '#fecaca' : '#bbf7d0'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px', background: isRejected ? '#fef2f2' : '#f0fdf4' }}>
+          <span style={{ fontSize: 32, color: isRejected ? '#dc2626' : '#16a34a' }}>{isRejected ? '⊗' : '✓'}</span>
         </div>
-        <h2 style={{ margin: '0 0 10px', fontSize: 24, fontWeight: 800, color: '#111827' }}>Account Approved Successfully</h2>
+        <h2 style={{ margin: '0 0 10px', fontSize: 24, fontWeight: 800, color: '#111827' }}>
+          {isRejected ? 'Registration Rejected Successfully' : 'Account Approved Successfully'}
+        </h2>
         <p style={{ margin: '0 0 32px', fontSize: 14, color: '#6b7280', lineHeight: 1.6 }}>
-          The HEI Staff account is now active. An email notification has been sent — the staff member can now log in to DASIG.
+          {isRejected
+            ? 'The registration request has been rejected. An email notification with the reason has been sent to the applicant.'
+            : 'The HEI Staff account is now active. An email notification has been sent — the staff member can now log in to DASIG.'}
         </p>
         <div style={{ borderTop: '1px solid #f3f4f6', textAlign: 'left' }}>
           {[
             { label: 'Full Name',          value: user.fullName },
             { label: 'Institution',        value: user.institutionName },
             { label: 'Email Address',      value: user.email },
-            { label: 'Account Status',     value: '● Active', green: true },
+            { label: 'Account Status',     value: isRejected ? '● Rejected' : '● Active', green: !isRejected, red: isRejected },
+            ...(isRejected ? [{ label: 'Reason Provided', value: reason || '—' }] : []),
             { label: 'Email Notification', value: 'Sent successfully' },
           ].map((row) => (
             <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '14px 0', borderBottom: '1px solid #f3f4f6', fontSize: 14 }}>
               <span style={{ color: '#6b7280' }}>{row.label}</span>
-              <span style={{ fontWeight: 600, color: row.green ? '#16a34a' : '#111827' }}>{row.value}</span>
+              <span style={{ fontWeight: 600, color: row.green ? '#16a34a' : row.red ? '#dc2626' : '#111827' }}>{row.value}</span>
             </div>
           ))}
         </div>
@@ -426,9 +584,12 @@ export default function AccountApprovalQueue() {
   const [screen, setScreen]               = useState('queue')
   const [selectedUser, setSelectedUser]   = useState(null)
   const [approvedUser, setApprovedUser]   = useState(null)
+  const [actionMode, setActionMode]       = useState('approved')
+  const [rejectReason, setRejectReason]   = useState('')
   const [showRejectModal, setShowRejectModal] = useState(false)
 
   const [pendingUsers, setPendingUsers]   = useState([])
+  const [approvedUsers, setApprovedUsers] = useState([])
   const [approvedCount, setApprovedCount] = useState(null)
   const [rejectedCount, setRejectedCount] = useState(null)
 
@@ -443,6 +604,7 @@ export default function AccountApprovalQueue() {
         fetchUsersByStatus('ACTIVE'),
         fetchUsersByStatus('REJECTED'),
       ])
+      setApprovedUsers(approved)
       setApprovedCount(approved.length)
       setRejectedCount(rejected.length)
     } catch (err) {
@@ -478,6 +640,7 @@ export default function AccountApprovalQueue() {
       setLoadingAction(true)
       await patchUserStatus({ id: selectedUser.id, action: 'APPROVED' })
       setApprovedUser(selectedUser)
+      setActionMode('approved')
       setScreen('success')
       await loadAll()
     } catch (error) {
@@ -491,9 +654,11 @@ export default function AccountApprovalQueue() {
     try {
       setLoadingAction(true)
       await patchUserStatus({ id: selectedUser.id, action: 'REJECTED', reason })
-      setScreen('queue')
-      setSelectedUser(null)
+      setApprovedUser(selectedUser)
+      setActionMode('rejected')
+      setRejectReason(reason)
       setShowRejectModal(false)
+      setScreen('success')
       await loadAll()
     } catch (error) {
       console.error('[AccountApprovalQueue] Reject failed:', error)
@@ -532,7 +697,15 @@ export default function AccountApprovalQueue() {
   if (screen === 'success' && approvedUser) {
     return (
       <DashboardLayout navItems={dostNavItems} userName="DOST Administrator" organization="DOST Region VII">
-        <SuccessScreen user={approvedUser} onBackToQueue={handleBackToQueue} onReviewNext={handleReviewNext} />
+        <SuccessScreen user={approvedUser} mode={actionMode} reason={rejectReason} onBackToQueue={handleBackToQueue} onReviewNext={handleReviewNext} />
+      </DashboardLayout>
+    )
+  }
+
+  if (screen === 'approvedList') {
+    return (
+      <DashboardLayout navItems={dostNavItems} userName="DOST Administrator" organization="DOST Region VII">
+        <ApprovedListScreen users={approvedUsers} onBack={handleBackToQueue} />
       </DashboardLayout>
     )
   }
@@ -567,6 +740,7 @@ export default function AccountApprovalQueue() {
         approvedCount={approvedCount}
         rejectedCount={rejectedCount}
         countsLoading={countsLoading}
+        onViewApproved={() => setScreen('approvedList')}
       />
     </DashboardLayout>
   )
