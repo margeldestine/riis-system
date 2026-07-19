@@ -127,9 +127,11 @@ public class AdminReviewService {
                 .orElseThrow(() -> new ResourceNotFoundException("Submission not found: " + submissionId));
 
         User admin = userRepository.findById(adminUserId).orElse(null);
+            
+        String trimmedComment = comment == null ? null : comment.trim();
 
         output.setStatus(normalizedAction);
-        output.setCorrectionNotes(requiresComment ? comment.trim() : null);
+        output.setCorrectionNotes(trimmedComment != null && !trimmedComment.isBlank() ? trimmedComment : null);
         output.setReviewedBy(admin);
         output.setReviewedAt(LocalDateTime.now());
 

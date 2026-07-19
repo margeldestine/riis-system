@@ -21,6 +21,12 @@ const currentYear = new Date().getFullYear()
 const doiPattern = /^10\.\d{4,9}\/[-._;()/:A-Z0-9]+$/i
 const orcidPattern = /^(\d{4}-){3}\d{3}[\dX]$/i
 const conferenceUrlPattern = /^https?:\/\/.+/i
+const alphabeticContentPattern = /[a-zA-Z]/
+const keywordPattern = /^[a-zA-Z0-9]+(-[a-zA-Z0-9]+)?(\s[a-zA-Z0-9]+(-[a-zA-Z0-9]+)?)?$/
+
+function isValidKeyword(word) {
+  return keywordPattern.test(word) && alphabeticContentPattern.test(word)
+}
 
 function formatOrcidInput(value) {
   const digits = (value ?? '').toString().replace(/\D/g, '').slice(0, 16)
@@ -198,11 +204,14 @@ const authorSchema = z.object({
 
 const submissionSchema = z
   .object({
-    title: z
+   title: z
       .string()
       .trim()
       .min(1, 'Research title is required.')
-      .max(500, 'Research title must be 500 characters or fewer.'),
+      .max(500, 'Research title must be 500 characters or fewer.')
+      .refine((value) => alphabeticContentPattern.test(value), {
+        message: 'Research title must contain words, not just numbers or symbols.',
+      }),
     researchType: z.string().trim().min(1, 'Research type is required.'),
     completionYear: z.coerce
       .number({
@@ -211,11 +220,20 @@ const submissionSchema = z
       .int('Completion year must be a whole number.')
       .min(1900, 'Completion year must be valid.')
       .max(currentYear, `Completion year cannot exceed ${currentYear}.`),
-    fundingSource: z.string().trim().min(1, 'Funding source is required.'),
+    fundingSource: z
+      .string()
+      .trim()
+      .min(1, 'Funding source is required.')
+      .refine((value) => alphabeticContentPattern.test(value), {
+        message: 'Funding source must contain words, not just numbers or symbols.',
+      }),
     publicationVenue: z
       .string()
       .trim()
-      .min(1, 'Publication venue or status is required.'),
+      .min(1, 'Publication venue or status is required.')
+      .refine((value) => alphabeticContentPattern.test(value), {
+        message: 'Publication venue must contain words, not just numbers or symbols.',
+      }),  
     authors: z.array(authorSchema).min(1, 'Add at least one author.'),
     principalInvestigator: z
       .string()
@@ -226,25 +244,51 @@ const submissionSchema = z
       .trim()
       .min(1, 'Institutional affiliation is required.'),
     abstractText: z
-      .string()
-      .trim()
-      .min(1, 'Abstract is required.')
-      .superRefine((value, ctx) => {
-        const words = countWords(value)
-        if (words < 100 || words > 500) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: 'Abstract must be between 100 and 500 words.',
-          })
-        }
-      }),
+    .string()
+    .trim()
+    .min(1, 'Abstract is required.')
+    .superRefine((value, ctx) => {
+      const words = countWords(value)
+      if (words < 100 || words > 500) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Abstract must be between 100 and 500 words.',
+        })
+      }
+      if (!alphabeticContentPattern.test(value)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Abstract must contain words, not just numbers or symbols.',
+        })
+      }
+    }),
     keywords: z
-      .array(z.string().trim().min(1))
+      .array(
+        z
+          .string()
+          .trim()
+          .min(1)
+          .refine((value) => isValidKeyword(value), {
+            message: 'Keywords must be words, not justsymbols or numbers only.',
+          }),
+      )
       .min(3, 'Add at least 3 keywords.')
       .max(10, 'You can add up to 10 keywords only.'),
     subjectDc: z.string().trim().min(1, 'Subject is required.'),
-    coverageDc: z.string().trim().min(1, 'Coverage is required.'),
-    rightsDc: z.string().trim().min(1, 'Rights is required.'),
+    coverageDc: z
+      .string()
+      .trim()
+      .min(1, 'Coverage is required.')
+      .refine((value) => alphabeticContentPattern.test(value), {
+        message: 'Coverage must contain words, not just numbers or symbols.',
+      }),
+    rightsDc: z
+      .string()
+      .trim()
+      .min(1, 'Rights is required.')
+      .refine((value) => alphabeticContentPattern.test(value), {
+        message: 'Rights must contain words, not just numbers or symbols.',
+      }),
     doi: z
       .string()
       .trim()
@@ -267,6 +311,35 @@ const submissionSchema = z
       .optional(),
   })
   .superRefine((values, ctx) => {
+    const seenNames = new Set()
+    const seenOrcids = new Set()
+    values.authors.forEach((author, index) => {
+      const normalizedName = author.fullName.trim().toLowerCase()
+      if (normalizedName) {
+        if (seenNames.has(normalizedName)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['authors', index, 'fullName'],
+            message: 'This author has already been added.',
+          })
+        } else {
+          seenNames.add(normalizedName)
+        }
+      }
+
+      const normalizedOrcid = (author.orcidId || '').trim().toLowerCase()
+      if (normalizedOrcid) {
+        if (seenOrcids.has(normalizedOrcid)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['authors', index, 'orcidId'],
+            message: 'This ORCID iD is already used by another author.',
+          })
+        } else {
+          seenOrcids.add(normalizedOrcid)
+        }
+      }
+    })
     const authorNames = values.authors
       .map((author) => author.fullName.trim())
       .filter(Boolean)
@@ -525,6 +598,7 @@ function TeamAffiliationStep({
   control,
   register,
   errors,
+  touchedFields,
   authorFields,
   appendAuthor,
   removeAuthor,
@@ -591,26 +665,38 @@ function TeamAffiliationStep({
                       </span>
                     </label>
                     <Controller
-                      control={control}
-                      name={`authors.${index}.orcidId`}
-                      render={({ field: controllerField }) => (
-                        <input
-                          {...controllerField}
-                          value={controllerField.value ?? ''}
-                          onChange={(event) => {
-                            controllerField.onChange(
-                              formatOrcidInput(event.target.value),
-                            )
-                          }}
-                          placeholder="0000-0000-0000-0000"
-                          maxLength={19}
-                          className={`${fieldBaseClass} ${errors.authors?.[index]?.orcidId ? fieldErrorClass : fieldOkClass}`}
-                        />
-                      )}
+                control={control}
+                name={`authors.${index}.orcidId`}
+                render={({ field: controllerField }) => {
+                  const isTouched = Boolean(touchedFields.authors?.[index]?.orcidId)
+                  const showError = isTouched && Boolean(errors.authors?.[index]?.orcidId)
+                  return (
+                    <input
+                      {...controllerField}
+                      value={controllerField.value ?? ''}
+                      onChange={(event) => {
+                        controllerField.onChange(
+                          formatOrcidInput(event.target.value),
+                        )
+                      }}
+                      onBlur={() => {
+                        controllerField.onBlur()
+                      }}
+                      placeholder="0000-0000-0000-0000"
+                      maxLength={19}
+                      className={`${fieldBaseClass} ${showError ? fieldErrorClass : fieldOkClass}`}
                     />
-                    <FieldMessage message={errors.authors?.[index]?.orcidId?.message} />
-                  </div>
-
+                  )
+                }}
+              />
+              <FieldMessage
+                message={
+                  touchedFields.authors?.[index]?.orcidId
+                    ? errors.authors?.[index]?.orcidId?.message
+                    : undefined
+                }
+            />
+            </div>
                   <div className="flex items-end pb-[2px]">
                     <button
                       type="button"
@@ -627,6 +713,7 @@ function TeamAffiliationStep({
             ))}
           </div>
         </div>
+        
 
         <div className="grid gap-5 md:grid-cols-2">
           <div className="space-y-2">
@@ -753,6 +840,7 @@ function KeywordsInput({
 function ResearchDetailsStep({
   register,
   errors,
+  touchedFields,
   abstractText,
   keywords,
   onAddKeyword,
@@ -761,6 +849,7 @@ function ResearchDetailsStep({
   setKeywordInput,
 }) {
   const words = countWords(abstractText)
+  const showAbstractError = Boolean(touchedFields?.abstractText) && Boolean(errors.abstractText)
 
   return (
     <div>
@@ -775,7 +864,7 @@ function ResearchDetailsStep({
             id="field-abstractText"
             rows={9}
             placeholder="Provide a structured abstract covering background, methodology, findings, and conclusions..."
-            className={`${fieldBaseClass} ${errors.abstractText ? fieldErrorClass : fieldOkClass}`}
+            className={`${fieldBaseClass} ${showAbstractError ? fieldErrorClass : fieldOkClass}`}
           />
           <div className="mt-1 flex justify-end">
             <span
@@ -786,8 +875,10 @@ function ResearchDetailsStep({
               {words} / 100-500 words
             </span>
           </div>
-          {errors.abstractText ? (
-            <p className="mt-1 text-[11px] font-medium text-[#dc2626]">Abstract is required</p>
+          {showAbstractError ? (
+            <p className="mt-1 text-[11px] font-medium text-[#dc2626]">
+              {errors.abstractText?.message || 'Abstract is required'}
+            </p>
           ) : null}
         </div>
 
@@ -1123,7 +1214,7 @@ export default function SubmissionPortal({ onSubmitted }) {
     clearErrors,
     getValues,
     trigger,
-    formState: { errors },
+    formState: { errors, touchedFields },
   } = useForm({
     resolver: zodResolver(submissionSchema),
     mode: 'onChange',
@@ -1293,22 +1384,34 @@ export default function SubmissionPortal({ onSubmitted }) {
     remove(index)
   }
 
-  const addKeyword = () => {
-    const value = keywordInput.trim()
-    if (!value) return
+  const MIN_KEYWORD_LENGTH = 2
+
+const addKeyword = () => {
+    const raw = keywordInput.trim()
+    if (!raw) return
+
+    const words = raw.split(/\s+/).filter(Boolean)
+
+    const candidates = words.length <= 2 ? [words.join(' ')] : words
 
     const existing = getValues('keywords')
-    if (existing.includes(value)) {
-      setKeywordInput('')
-      return
-    }
-    if (existing.length >= 10) return
+    const next = [...existing]
 
-    setValue('keywords', [...existing, value], {
-      shouldDirty: true,
-      shouldValidate: true,
+    candidates.forEach((candidate) => {
+      if (candidate.length < MIN_KEYWORD_LENGTH) return
+      if (!isValidKeyword(candidate)) return
+      const alreadyAdded = next.some(
+        (item) => item.toLowerCase() === candidate.toLowerCase(),
+      )
+      if (alreadyAdded || next.length >= 10) return
+      next.push(candidate)
     })
-    clearErrors('keywords')
+
+    if (next.length !== existing.length) {
+      setValue('keywords', next, { shouldDirty: true, shouldValidate: true })
+      clearErrors('keywords')
+    }
+
     setKeywordInput('')
   }
 
@@ -1596,30 +1699,32 @@ export default function SubmissionPortal({ onSubmitted }) {
       case 1:
         return <BasicInfoStep register={register} errors={errors} />
       case 2:
-        return (
-          <TeamAffiliationStep
-            control={control}
-            register={register}
-            errors={errors}
-            authorFields={authorFields}
-            appendAuthor={addAuthor}
-            removeAuthor={removeAuthor}
-            authorOptions={authorOptions}
-          />
-        )
+      return (
+        <TeamAffiliationStep
+          control={control}
+          register={register}
+          errors={errors}
+          touchedFields={touchedFields}
+          authorFields={authorFields}
+          appendAuthor={addAuthor}
+          removeAuthor={removeAuthor}
+          authorOptions={authorOptions}
+        />
+      )
       case 3:
-        return (
-          <ResearchDetailsStep
-            register={register}
-            errors={errors}
-            abstractText={watchedAbstract}
-            keywords={watchedKeywords}
-            onAddKeyword={addKeyword}
-            onRemoveKeyword={removeKeyword}
-            keywordInput={keywordInput}
-            setKeywordInput={setKeywordInput}
-          />
-        )
+      return (
+        <ResearchDetailsStep
+          register={register}
+          errors={errors}
+          touchedFields={touchedFields}
+          abstractText={watchedAbstract}
+          keywords={watchedKeywords}
+          onAddKeyword={addKeyword}
+          onRemoveKeyword={removeKeyword}
+          keywordInput={keywordInput}
+          setKeywordInput={setKeywordInput}
+        />
+      )
       case 4:
         return (
           <DublinCoreMetadataStep
@@ -1728,17 +1833,22 @@ export default function SubmissionPortal({ onSubmitted }) {
 
           <div className="flex w-full items-center justify-between border-t border-[#e5e7eb] bg-[#f8fafc] px-8 py-4">
             <button
-              type="button"
-              onClick={() => setCurrentStep((value) => Math.max(1, value - 1))}
-              disabled={currentStep === 1 || isFinalSubmitting}
-              className={`h-10 rounded-[6px] border px-4 text-sm font-semibold transition disabled:cursor-not-allowed ${
-                currentStep === 1 || isFinalSubmitting
-                  ? 'border-[#e5e7eb] bg-[#f8fafc] text-[#cbd5e1]'
-                  : 'border-[#e5e7eb] bg-white text-[#0d1f3c] hover:bg-[#f8fafc]'
-              }`}
-            >
-              Previous
-            </button>
+            type="button"
+            onClick={() => {
+              setBannerErrors([])
+              setFieldBanner('')
+              clearErrors()
+              setCurrentStep((value) => Math.max(1, value - 1))
+            }}
+            disabled={currentStep === 1 || isFinalSubmitting}
+            className={`h-10 rounded-[6px] border px-4 text-sm font-semibold transition disabled:cursor-not-allowed ${
+              currentStep === 1 || isFinalSubmitting
+                ? 'border-[#e5e7eb] bg-[#f8fafc] text-[#cbd5e1]'
+                : 'border-[#e5e7eb] bg-white text-[#0d1f3c] hover:bg-[#f8fafc]'
+            }`}
+          >
+            Previous
+          </button>
 
             {currentStep < stepDefinitions.length ? (
               <button

@@ -125,6 +125,26 @@ export default function SubmissionHistory() {
     return Array.from(years).sort((a, b) => Number(b) - Number(a))
   }, [items])
 
+  const mapStatusForApi = (value) => {
+    if (!value) return undefined
+    if (value === 'UNDER_REVIEW') return 'PENDING_REVIEW'
+    return value
+  }
+
+  
+  const researchTypeApiMap = {
+    FUNDED_PROJECT: 'Funded Project',
+    JOURNAL_ARTICLE: 'Journal Article',
+    CONFERENCE_PAPER: 'Conference Paper',
+    INNOVATION_OUTPUT: 'Innovation Output',
+    COMMUNITY_EXTENSION_RESEARCH: 'Community Extension Research',
+  }
+
+  const mapResearchTypeForApi = (value) => {
+    if (!value) return undefined
+    return researchTypeApiMap[value] || value
+  }
+
   const fetchSubmissions = useCallback(
     async (signal) => {
       setStatus('loading')
@@ -136,8 +156,8 @@ export default function SubmissionHistory() {
             page,
             size: 5,
             keyword: search || undefined,
-            status: filterStatus || undefined,
-            researchType: filterType || undefined,
+            status: mapStatusForApi(filterStatus),
+            researchType: mapResearchTypeForApi(filterType),
             year: filterYear || undefined,
             sort: 'updatedAt,desc',
           },
@@ -206,7 +226,7 @@ export default function SubmissionHistory() {
               signal: controller.signal,
             }),
             apiClient.get('/submissions', {
-              params: { page: 0, size: 1, status: 'UNDER_REVIEW' },
+              params: { page: 0, size: 1, status: mapStatusForApi('UNDER_REVIEW') },
               signal: controller.signal,
             }),
             apiClient.get('/submissions', {
@@ -252,8 +272,14 @@ export default function SubmissionHistory() {
       localStorage.getItem('userEmail') ||
       localStorage.getItem('institutionEmail') ||
       ''
+    const normalizedSearch = search.trim().toLowerCase()
 
     return items.filter((item) => {
+      if (normalizedSearch) {
+        const title = (item?.title || '').toString().toLowerCase()
+        if (!title.includes(normalizedSearch)) return false
+      }
+
       if (filterSubmittedBy === 'me' && currentUserEmail) {
         const submittedBy =
           item?.submittedByEmail ||
@@ -288,7 +314,7 @@ export default function SubmissionHistory() {
       }
       return true
     })
-  }, [items, filterSubmittedBy, filterStatus, filterType, filterYear])
+  }, [items, search, filterSubmittedBy, filterStatus, filterType, filterYear])
 
   const handleViewPdf = useCallback(async (submissionId) => {
     if (!submissionId) return
@@ -445,6 +471,7 @@ export default function SubmissionHistory() {
               <option value="">All Statuses</option>
               <option value="APPROVED">Approved</option>
               <option value="UNDER_REVIEW">Under Review</option>
+              <option value="REQUIRES_CORRECTION">Requires Correction</option>
               <option value="REJECTED">Rejected</option>
               <option value="DRAFT">Draft</option>
             </select>
@@ -458,8 +485,10 @@ export default function SubmissionHistory() {
             >
               <option value="">All Types</option>
               <option value="FUNDED_PROJECT">Funded Project</option>
-              <option value="RESEARCH_PROJECT">Research Project</option>
+              <option value="JOURNAL_ARTICLE">Journal Article</option>
+              <option value="CONFERENCE_PAPER">Conference Paper</option>
               <option value="INNOVATION_OUTPUT">Innovation Output</option>
+              <option value="COMMUNITY_EXTENSION_RESEARCH">Community Extension Research</option>
             </select>
             <select
               value={filterYear}

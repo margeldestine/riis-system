@@ -89,6 +89,7 @@ public class SubmissionController {
 	public ResponseEntity<Page<SubmissionSummaryDTO>> listSubmissions(
 			@RequestParam(required = false) String keyword,
 			@RequestParam(required = false) String status,
+			@RequestParam(required = false) String researchType,
 			Pageable pageable,
 			SubmissionFilterDTO filter
 	) {
@@ -102,6 +103,9 @@ public class SubmissionController {
 		);
 		if (status != null && !status.isBlank()) {
 			filter.setStatuses(List.of(status));
+		}
+		if (researchType != null && !researchType.isBlank()) {
+			filter.setResearchTypes(List.of(researchType));
 		}
 		return ResponseEntity.ok(submissionService.listSubmissions(userId, filter, safePageable, keyword));
 	}
