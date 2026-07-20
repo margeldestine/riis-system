@@ -266,6 +266,35 @@ public class InstitutionService {
         writeAuditLog("UPDATE_HEI_STATUS", inst.getId(), adminEmail, newStatus);
     }
 
+    public Institution updateInstitutionDetails(UUID id, String type, String province, String emailDomain, String status, String adminEmail) {
+        Institution inst = institutionRepository.findById(id.toString())
+                .orElseThrow(() -> new ResourceNotFoundException("Institution not found: " + id));
+
+        if (type != null && !type.isBlank()) {
+            inst.setType(type.trim().toUpperCase());
+        }
+        if (province != null && !province.isBlank()) {
+            inst.setProvince(province.trim());
+        }
+        if (emailDomain != null && !emailDomain.isBlank()) {
+            String domain = emailDomain.trim().toLowerCase();
+            if (!DOMAIN_PATTERN.matcher(domain).matches()) {
+                throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
+                        "Invalid email domain format. Must be like @domain.edu.ph");
+            }
+            String cleanDomain = domain.startsWith("@") ? domain.substring(1) : domain;
+            inst.setEmailDomain(cleanDomain);
+            inst.setContactEmail(cleanDomain);
+        }
+        if (status != null && !status.isBlank()) {
+            inst.setWhitelistStatus(status.trim().toUpperCase());
+        }
+
+        Institution saved = institutionRepository.save(inst);
+        writeAuditLog("UPDATE_HEI_DETAILS", saved.getId(), adminEmail, null);
+        return saved;
+    }
+
 
     private void writeAuditLog(String actionType, String targetId, String adminEmail, String comment) {
         User admin = adminEmail != null

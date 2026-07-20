@@ -75,4 +75,41 @@ public class HeiManagementController {
         institutionService.updateStatus(id, status, adminId);
         return ResponseEntity.ok().build();
     }
+
+    // PATCH /api/v1/admin/institutions/{id} — edit type, province, emailDomain, status
+    @PatchMapping("/{id}")
+    @PreAuthorize("hasRole('DOST_ADMIN')")
+    public ResponseEntity<?> updateInstitution(
+            @PathVariable UUID id,
+            @RequestBody Map<String, String> body
+    ) {
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        String adminId = auth != null ? auth.getName() : null;
+
+        try {
+            Institution saved = institutionService.updateInstitutionDetails(
+                    id,
+                    body.get("type"),
+                    body.get("province"),
+                    body.get("emailDomain"),
+                    body.get("status"),
+                    adminId
+            );
+
+            InstitutionSummaryDTO response = new InstitutionSummaryDTO(
+                    saved.getId(),
+                    saved.getName(),
+                    saved.getType(),
+                    saved.getProvince(),
+                    saved.getEmailDomain(),
+                    saved.getWhitelistStatus(),
+                    0L,
+                    List.of()
+            );
+            return ResponseEntity.ok(response);
+        } catch (org.springframework.web.server.ResponseStatusException ex) {
+            return ResponseEntity.status(ex.getStatusCode())
+                    .body(java.util.Map.of("message", ex.getReason()));
+        }
+    }
 }

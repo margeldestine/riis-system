@@ -18,6 +18,11 @@ const patchInstitutionStatus = async (id, status) => {
   return data
 }
 
+const patchInstitutionDetails = async (id, payload) => {
+  const { data } = await apiClient.patch(`/admin/institutions/${id}`, payload)
+  return data
+}
+
 
 const TYPES = ['SUC', 'Private', 'LUC']
 const PROVINCES = [
@@ -277,11 +282,169 @@ function RegisterHEIModal({ onClose, onSuccess }) {
 }
 
 
+function EditHEIModal({ institution, onClose, onSuccess }) {
+  const matchedType = TYPES.find(t => t.toUpperCase() === institution.type?.toUpperCase()) || ''
+  const [form, setForm] = useState({
+    type: matchedType,
+    province: institution.province || '',
+    emailDomain: institution.emailDomain ? `@${institution.emailDomain}` : '',
+    status: institution.whitelistStatus || 'ACTIVE',
+  })
+  const [errors, setErrors] = useState({})
+  const [submitting, setSubmitting] = useState(false)
+
+  const set = (field, value) => {
+    setForm(f => ({ ...f, [field]: value }))
+    setErrors(e => ({ ...e, [field]: '' }))
+  }
+
+  const validate = () => {
+    const e = {}
+    if (!form.type)            e.type = 'Institution type is required.'
+    if (!form.province)        e.province = 'Province is required.'
+    if (!form.emailDomain.trim()) e.emailDomain = 'Email domain is required.'
+    else if (!/^@[a-z0-9.-]+\.[a-z]{2,}$/.test(form.emailDomain.trim().toLowerCase()))
+      e.emailDomain = 'Must be in format @domain.edu.ph'
+    if (!form.status)          e.status = 'Status is required.'
+    return e
+  }
+
+  const handleSubmit = async () => {
+    const e = validate()
+    if (Object.keys(e).length) { setErrors(e); return }
+
+    setSubmitting(true)
+    try {
+      await patchInstitutionDetails(institution.id, {
+        type:        form.type,
+        province:    form.province,
+        emailDomain: form.emailDomain.trim().toLowerCase(),
+        status:      form.status,
+      })
+      onSuccess()
+      onClose()
+    } catch (err) {
+      const msg = err?.response?.data?.message || 'Unable to update institution.'
+      setErrors({ _global: msg })
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const inputStyle = (hasErr) => ({
+    width: '100%', padding: '10px 12px', border: `1.5px solid ${hasErr ? '#fca5a5' : '#e5e7eb'}`,
+    borderRadius: 8, fontSize: 14, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box',
+    background: '#fff',
+  })
+
+  const selectStyle = (hasErr) => ({ ...inputStyle(hasErr), appearance: 'none', cursor: 'pointer' })
+
+  const labelStyle = {
+    fontSize: 11, fontWeight: 700, color: '#374151',
+    textTransform: 'uppercase', letterSpacing: '0.07em', display: 'block', marginBottom: 6,
+  }
+
+  const errStyle = { fontSize: 12, color: '#dc2626', marginTop: 4 }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16 }}>
+      <div style={{ background: '#fff', borderRadius: 16, width: '100%', maxWidth: 620, boxShadow: '0 8px 40px rgba(0,0,0,0.12)', overflow: 'hidden' }}>
+        <div style={{ background: '#1e3a5f', padding: '20px 28px' }}>
+          <h3 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: '#fff' }}>Institution Details</h3>
+        </div>
+
+        <div style={{ background: '#eff6ff', borderBottom: '1px solid #bfdbfe', padding: '12px 28px', fontSize: 13, color: '#1d4ed8' }}>
+          <strong>Only institutions sourced from the CHED PhilGovt Database</strong> should be added to the whitelist.
+          Verify the institution's official email domain before saving.
+        </div>
+
+        <div style={{ padding: '24px 28px 28px' }}>
+          {errors._global && (
+            <div style={{ marginBottom: 16, padding: '10px 14px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, fontSize: 13, color: '#dc2626' }}>
+              {errors._global}
+            </div>
+          )}
+
+          <div style={{ marginBottom: 18 }}>
+            <label style={labelStyle}>Institution Name</label>
+            <input
+              value={institution.name}
+              disabled
+              style={{ ...inputStyle(false), background: '#f9fafb', color: '#6b7280', cursor: 'not-allowed' }}
+            />
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 18 }}>
+            <div>
+              <label style={labelStyle}>Institution Type <span style={{ color: '#dc2626' }}>*</span></label>
+              <select value={form.type} onChange={e => set('type', e.target.value)} style={selectStyle(errors.type)}>
+                <option value="">Select type</option>
+                {TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+              {errors.type && <div style={errStyle}>{errors.type}</div>}
+            </div>
+            <div>
+              <label style={labelStyle}>Province <span style={{ color: '#dc2626' }}>*</span></label>
+              <select value={form.province} onChange={e => set('province', e.target.value)} style={selectStyle(errors.province)}>
+                <option value="">Select province</option>
+                {PROVINCES.map(p => <option key={p} value={p}>{p}</option>)}
+              </select>
+              {errors.province && <div style={errStyle}>{errors.province}</div>}
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
+            <div>
+              <label style={labelStyle}>Email Domain <span style={{ color: '#dc2626' }}>*</span></label>
+              <input
+                value={form.emailDomain}
+                onChange={e => set('emailDomain', e.target.value)}
+                placeholder="@university.edu.ph"
+                style={inputStyle(errors.emailDomain)}
+              />
+              <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 4 }}>
+                Must match the institution's official domain.
+              </div>
+              {errors.emailDomain && <div style={errStyle}>{errors.emailDomain}</div>}
+            </div>
+            <div>
+              <label style={labelStyle}>Status <span style={{ color: '#dc2626' }}>*</span></label>
+              <select value={form.status} onChange={e => set('status', e.target.value)} style={selectStyle(errors.status)}>
+                <option value="">Select status</option>
+                {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+              <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 4 }}>
+                Set to Active to allow staff registration immediately.
+              </div>
+              {errors.status && <div style={errStyle}>{errors.status}</div>}
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <button onClick={onClose} style={{ padding: '10px 20px', borderRadius: 8, border: '1.5px solid #d1d5db', background: '#fff', fontWeight: 500, fontSize: 14, cursor: 'pointer', color: '#374151' }}>
+              Cancel
+            </button>
+            <button
+              onClick={handleSubmit}
+              disabled={submitting}
+              style={{ padding: '10px 24px', borderRadius: 8, border: 'none', background: '#1e3a5f', color: '#fff', fontWeight: 700, fontSize: 14, cursor: submitting ? 'not-allowed' : 'pointer', opacity: submitting ? 0.7 : 1 }}
+            >
+              {submitting ? 'Saving…' : 'Save »'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+
 export default function HeiManagementPage() {
   const [institutions, setInstitutions] = useState([])
   const [isLoading, setIsLoading]       = useState(true)
   const [showModal, setShowModal]       = useState(false)
   const [editingId, setEditingId]       = useState(null)
+  const [editingInstitution, setEditingInstitution] = useState(null)
 
   // Filters
   const [filterType,     setFilterType]     = useState('')
@@ -463,14 +626,13 @@ export default function HeiManagementPage() {
                   <td style={{ padding: '14px 16px' }}>{getStatusBadge(inst.whitelistStatus)}</td>
                   <td style={{ padding: '14px 16px' }}>
                     <button
-                      onClick={() => handleToggleStatus(inst)}
-                      disabled={editingId === inst.id}
+                      onClick={() => setEditingInstitution(inst)}
                       style={{
                         padding: '6px 14px', borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: 'pointer',
                         border: '1.5px solid #e5e7eb', background: '#fff', color: '#374151',
                       }}
                     >
-                      {editingId === inst.id ? '…' : 'Edit'}
+                      Edit
                     </button>
                   </td>
                 </tr>
@@ -505,6 +667,13 @@ export default function HeiManagementPage() {
       {showModal && (
         <RegisterHEIModal
           onClose={() => setShowModal(false)}
+          onSuccess={load}
+        />
+      )}
+      {editingInstitution && (
+        <EditHEIModal
+          institution={editingInstitution}
+          onClose={() => setEditingInstitution(null)}
           onSuccess={load}
         />
       )}
