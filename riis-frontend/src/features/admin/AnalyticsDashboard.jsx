@@ -602,6 +602,13 @@ export default function AnalyticsDashboard({
 
   const totalOutputs = summary?.totalApprovedOutputs ?? 0
 
+  // DAS-036/037/038 fix: institutions with zero matching records after the
+  // current filters are applied should not render as empty rows/cards.
+  // HEI Submission Overview already excluded these (item.count > 0); the
+  // Heatmap and Niche Landscape now share that same filtered list instead
+  // of each re-deriving it, so all three sections stay in sync.
+  const activeHeiComparison = heiComparison.filter((item) => item.count > 0)
+
   const clusterHeatmapLookup = new Map()
   let maxClusterCellCount = 0
   for (const cell of clusterHeatmap.cells || []) {
@@ -814,8 +821,7 @@ export default function AnalyticsDashboard({
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
               </div>
-            ) : heiComparison
-                .filter((item) => item.count > 0)
+            ) : activeHeiComparison
                 .map((item, index) => (
                   <div key={item.institutionId} className="grid grid-cols-[28px,minmax(0,1fr),110px,34px] items-center gap-3">
                     <div className="flex h-7 w-7 items-center justify-center rounded-[8px] text-[10px] font-bold text-white" style={{ backgroundColor: heiColors[index % heiColors.length] }}>
@@ -875,10 +881,10 @@ export default function AnalyticsDashboard({
           <div className="mt-5 flex items-center justify-center py-10">
             <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
           </div>
-        ) : heiComparison.length > 0 && clusterColumns.length > 0 ? (
+        ) : activeHeiComparison.length > 0 && clusterColumns.length > 0 ? (
           <>
             <ThematicDensityHeatmap
-              institutions={heiComparison.slice(0, 6)}
+              institutions={activeHeiComparison.slice(0, 6)}
               clusters={clusterColumns}
               getCell={getClusterCell}
               maxCellCount={maxClusterCellCount}
@@ -926,7 +932,7 @@ export default function AnalyticsDashboard({
 
         <div className="mt-5">
           <div className="grid gap-4 xl:grid-cols-3">
-            {heiComparison.slice(0, 6).map((hei, index) => (
+            {activeHeiComparison.slice(0, 6).map((hei, index) => (
               <div key={hei.institutionId} className="rounded-[12px] border border-[#E5E7EB] bg-[#F9FAFB] p-4">
                 <div className="flex items-center gap-2">
                   <div className="flex h-7 w-7 items-center justify-center rounded-[8px] text-[10px] font-bold text-white" style={{ backgroundColor: heiColors[index % heiColors.length] }}>
