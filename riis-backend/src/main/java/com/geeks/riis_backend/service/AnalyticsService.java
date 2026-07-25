@@ -40,6 +40,36 @@ public class AnalyticsService {
                 .collect(Collectors.toList());
     }
 
+    // ---- DAS-039: metadata completeness -----------------------------
+    // "Required fields" for a fully-described research output, per the
+    // submission schema (see SubmissionRequest / ValidationService):
+    // title, authors, abstract, keywords, research type, completion year,
+    // publication venue. Note that not every one of these is enforced as
+    // mandatory at submission time for every intake path (e.g. researchType
+    // defaults when blank, and records created via
+    // ResearchOutputService#submitForUser skip completionYear/keywords/
+    // publicationVenue entirely) — this check intentionally treats all
+    // seven as "required" for the completeness metric itself, so those
+    // gaps are exactly what the metric is meant to surface.
+    //
+    // This is a distinct metric from QualityController's "completenessRate"
+    // (which is a per-institution validation-attempt pass rate derived from
+    // ValidationLog, not a per-output field check) — same name, different
+    // question. Do not merge the two without confirming that's intended.
+    private boolean hasAllRequiredMetadata(com.geeks.riis_backend.model.ResearchOutput ro) {
+        return !isBlank(ro.getTitle())
+                && ro.getAuthors() != null && !ro.getAuthors().isEmpty()
+                && !isBlank(ro.getAbstractText())
+                && !isBlank(ro.getKeywords())
+                && !isBlank(ro.getResearchType())
+                && ro.getCompletionYear() != null
+                && !isBlank(ro.getPublicationVenue());
+    }
+
+    private boolean isBlank(String value) {
+        return value == null || value.isBlank();
+    }
+
     // GET /api/v1/analytics/summary
     public Map<String, Object> getSummary(Integer yearFrom, Integer yearTo, String province, String institutionId, String type) {
         List<com.geeks.riis_backend.model.ResearchOutput> filtered =
@@ -55,12 +85,18 @@ public class AnalyticsService {
                 .distinct()
                 .count();
 
+        long completeCount = filtered.stream().filter(this::hasAllRequiredMetadata).count();
+        int completenessRate = totalApproved > 0
+                ? (int) Math.round((completeCount * 100.0) / totalApproved)
+                : 0;
+        int incompleteRate = totalApproved > 0 ? 100 - completenessRate : 0;
+
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("totalApprovedOutputs", totalApproved);
         result.put("totalRegisteredHeis", totalHeis);
         result.put("activeHeisThisYear", activeHeis);
-        result.put("completenessRate", 85);
-        result.put("incompleteRate", 8);
+        result.put("completenessRate", completenessRate);
+        result.put("incompleteRate", incompleteRate);
         return result;
     }
 
