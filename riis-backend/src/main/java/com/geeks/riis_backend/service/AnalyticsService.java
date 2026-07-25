@@ -22,13 +22,38 @@ public class AnalyticsService {
     private final ResearchOutputClusterRepository researchOutputClusterRepository;
     private final ClusterRepository clusterRepository;
 
+    // ---- DAS-036/037/038: shared filter helper --------------------------
+    // Applies the optional Year-From / Year-To / Province / HEI / Type
+    // filters in-memory over the APPROVED research outputs. Kept as a
+    // single shared helper (rather than new SQL per filter combination) so
+    // every analytics panel filters consistently off the same criteria.
+    private List<com.geeks.riis_backend.model.ResearchOutput> getFilteredApprovedOutputs(
+            Integer yearFrom, Integer yearTo, String province, String institutionId, String type) {
+        return researchOutputRepository.findByStatus("APPROVED").stream()
+                .filter(ro -> yearFrom == null || (ro.getCompletionYear() != null && ro.getCompletionYear() >= yearFrom))
+                .filter(ro -> yearTo == null || (ro.getCompletionYear() != null && ro.getCompletionYear() <= yearTo))
+                .filter(ro -> province == null || province.isBlank()
+                        || (ro.getInstitution() != null && province.equalsIgnoreCase(ro.getInstitution().getProvince())))
+                .filter(ro -> institutionId == null || institutionId.isBlank()
+                        || (ro.getInstitution() != null && institutionId.equals(ro.getInstitution().getId())))
+                .filter(ro -> type == null || type.isBlank() || type.equalsIgnoreCase(ro.getResearchType()))
+                .collect(Collectors.toList());
+    }
+
     // GET /api/v1/analytics/summary
-    public Map<String, Object> getSummary() {
-        long totalApproved = researchOutputRepository.countByStatus("APPROVED");
+    public Map<String, Object> getSummary(Integer yearFrom, Integer yearTo, String province, String institutionId, String type) {
+        List<com.geeks.riis_backend.model.ResearchOutput> filtered =
+                getFilteredApprovedOutputs(yearFrom, yearTo, province, institutionId, type);
+
+        long totalApproved = filtered.size();
         long totalHeis = institutionRepository.count();
         int currentYear = Year.now().getValue();
-        long activeHeis = researchOutputRepository
-                .countDistinctInstitutionByStatusAndCompletionYear("APPROVED", currentYear);
+        long activeHeis = filtered.stream()
+                .filter(ro -> Objects.equals(ro.getCompletionYear(), currentYear))
+                .map(ro -> ro.getInstitution() != null ? ro.getInstitution().getId() : null)
+                .filter(Objects::nonNull)
+                .distinct()
+                .count();
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("totalApprovedOutputs", totalApproved);
@@ -40,16 +65,16 @@ public class AnalyticsService {
     }
 
     // GET /api/v1/analytics/trend
-    public List<Map<String, Object>> getTrend() {
-        List<Object[]> rows = researchOutputRepository
-                .countByStatusGroupByYearAndType("APPROVED");
+    public List<Map<String, Object>> getTrend(Integer yearFrom, Integer yearTo, String province, String institutionId, String type) {
+        List<com.geeks.riis_backend.model.ResearchOutput> filtered =
+                getFilteredApprovedOutputs(yearFrom, yearTo, province, institutionId, type);
 
         Map<Integer, Map<String, Long>> grouped = new TreeMap<>();
-        for (Object[] row : rows) {
-            Integer year = (Integer) row[0];
-            String type = row[1] != null ? (String) row[1] : "Other";
-            Long count = (Long) row[2];
-            grouped.computeIfAbsent(year, k -> new LinkedHashMap<>()).put(type, count);
+        for (com.geeks.riis_backend.model.ResearchOutput ro : filtered) {
+            Integer year = ro.getCompletionYear();
+            String outputType = ro.getResearchType() != null ? ro.getResearchType() : "Other";
+            grouped.computeIfAbsent(year, k -> new LinkedHashMap<>())
+                    .merge(outputType, 1L, Long::sum);
         }
 
         return grouped.entrySet().stream().map(entry -> {
@@ -62,34 +87,48 @@ public class AnalyticsService {
     }
 
     // GET /api/v1/analytics/type-distribution
-    public List<Map<String, Object>> getTypeDistribution() {
-        List<Object[]> rows = researchOutputRepository
-                .countByStatusGroupByResearchType("APPROVED");
+    public List<Map<String, Object>> getTypeDistribution(Integer yearFrom, Integer yearTo, String province, String institutionId, String type) {
+        List<com.geeks.riis_backend.model.ResearchOutput> filtered =
+                getFilteredApprovedOutputs(yearFrom, yearTo, province, institutionId, type);
+
+        Map<String, Long> counts = new LinkedHashMap<>();
+        for (com.geeks.riis_backend.model.ResearchOutput ro : filtered) {
+            String outputType = ro.getResearchType() != null ? ro.getResearchType() : "Other";
+            counts.merge(outputType, 1L, Long::sum);
+        }
 
         List<String> colors = List.of(
                 "#153e75", "#2563eb", "#60a5fa", "#93c5fd", "#dbeafe"
         );
 
         List<Map<String, Object>> result = new ArrayList<>();
-        for (int i = 0; i < rows.size(); i++) {
-            Object[] row = rows.get(i);
+        int i = 0;
+        for (Map.Entry<String, Long> entry : counts.entrySet()) {
             Map<String, Object> item = new LinkedHashMap<>();
-            item.put("name", row[0] != null ? row[0] : "Other");
-            item.put("value", row[1]);
+            item.put("name", entry.getKey());
+            item.put("value", entry.getValue());
             item.put("color", colors.get(i % colors.size()));
             result.add(item);
+            i++;
         }
         return result;
     }
 
     // GET /api/v1/analytics/hei-comparison
-    public List<Map<String, Object>> getHeiComparison() {
-        long total = researchOutputRepository.countByStatus("APPROVED");
+    public List<Map<String, Object>> getHeiComparison(Integer yearFrom, Integer yearTo, String province, String institutionId, String type) {
+        List<com.geeks.riis_backend.model.ResearchOutput> filtered =
+                getFilteredApprovedOutputs(yearFrom, yearTo, province, institutionId, type);
+
+        Map<String, Long> countsByInstitution = new HashMap<>();
+        for (com.geeks.riis_backend.model.ResearchOutput ro : filtered) {
+            if (ro.getInstitution() == null) continue;
+            countsByInstitution.merge(ro.getInstitution().getId(), 1L, Long::sum);
+        }
+        long total = filtered.size();
 
         return institutionRepository.findAll().stream()
                 .map(institution -> {
-                    long count = researchOutputRepository
-                            .countByInstitutionIdAndStatus(institution.getId(), "APPROVED");
+                    long count = countsByInstitution.getOrDefault(institution.getId(), 0L);
                     int progress = total > 0 ? (int) ((count * 100) / total) : 0;
 
                     Map<String, Object> item = new LinkedHashMap<>();
@@ -107,11 +146,13 @@ public class AnalyticsService {
     }
 
     // GET /api/v1/analytics/province-summary
-    public List<Map<String, Object>> getProvinceSummary() {
+    public List<Map<String, Object>> getProvinceSummary(Integer yearFrom, Integer yearTo, String institutionId, String type) {
+        List<com.geeks.riis_backend.model.ResearchOutput> filtered =
+                getFilteredApprovedOutputs(yearFrom, yearTo, null, institutionId, type);
         List<String> provinces = List.of("Cebu", "Bohol", "Negros Oriental", "Siquijor");
 
         return provinces.stream().map(province -> {
-            long count = researchOutputRepository.findByStatus("APPROVED").stream()
+            long count = filtered.stream()
                     .filter(o -> o.getInstitution() != null &&
                             province.equalsIgnoreCase(o.getInstitution().getProvince()))
                     .count();
@@ -124,12 +165,17 @@ public class AnalyticsService {
     }
 
     // GET /api/v1/analytics/heatmap
-    // UNCHANGED — still returns raw {institutionId, theme, count} rows.
-    // Kept as-is because the Research Niche Landscape panel on the frontend
-    // already consumes this exact shape (theme tag-cloud, per-niche summary).
+    // Returns raw {institutionId, theme, count} rows. Kept as-is shape
+    // because the Research Niche Landscape panel on the frontend already
+    // consumes this exact shape (theme tag-cloud, per-niche summary).
     // Do not change this method's output shape without checking that panel too.
-    public List<Map<String, Object>> getHeatmap() {
-        List<Object[]> rows = themeKeywordRepository.findAggregatedThemesByInstitution();
+    //
+    // DAS-039-filters: province/institutionId are optional and narrow which
+    // institutions' pre-aggregated theme profiles are included. yearFrom/
+    // yearTo/type are NOT accepted — see the repository query's Javadoc for
+    // why (theme_profiles has no per-output year/type data to filter on).
+    public List<Map<String, Object>> getHeatmap(String province, String institutionId) {
+        List<Object[]> rows = themeKeywordRepository.findAggregatedThemesByInstitution(province, institutionId);
         List<Map<String, Object>> result = new ArrayList<>();
         for (Object[] row : rows) {
             Map<String, Object> item = new LinkedHashMap<>();
@@ -192,28 +238,28 @@ public class AnalyticsService {
     }
 
     // GET /api/v1/analytics/cluster-heatmap
-    // NEW — replaces heatmap-matrix as the data source for the
-    // ThematicDensityHeatmap frontend component. X-axis is now the 5 fixed
-    // S&T priority clusters (per the SDD §5.1 wireframe), not KeyBERT
-    // top-10 themes. Cell value is a real COUNT of distinct APPROVED
-    // research outputs assigned to that cluster for that institution —
-    // NOT a keyword-occurrence count — via a direct join on
-    // research_output_clusters, no text-matching approximation involved.
+    // Institution x 5-S&T-cluster matrix, real output counts (not keyword
+    // counts), backing the redesigned ThematicDensityHeatmap.
     //
     // "clusters" in the response always lists all 5 clusters from
     // ClusterRepository, even ones with zero assigned outputs right now —
     // the join-based count query alone would silently drop empty clusters
     // from the result, which would shrink the heatmap below 5 columns.
-    public Map<String, Object> getClusterHeatmap() {
+    //
+    // DAS-039-filters: yearFrom/yearTo/province/institutionId are optional.
+    // Type is NOT accepted here (scope decision) — the heatmap's x-axis is
+    // already the 5 S&T clusters, so it doesn't get a Type filter.
+    public Map<String, Object> getClusterHeatmap(Integer yearFrom, Integer yearTo, String province, String institutionId) {
         List<Cluster> allClusters = clusterRepository.findAll();
-        List<Object[]> countRows = researchOutputClusterRepository.countApprovedOutputsByInstitutionAndCluster();
+        List<Object[]> countRows = researchOutputClusterRepository
+                .countApprovedOutputsByInstitutionAndCluster(yearFrom, yearTo, province, institutionId);
 
         Map<String, Long> countsByInstitutionAndCluster = new HashMap<>();
         for (Object[] row : countRows) {
-            String institutionId = String.valueOf(row[0]);
+            String institutionId2 = String.valueOf(row[0]);
             String clusterId = String.valueOf(row[1]);
             long count = ((Number) row[3]).longValue();
-            countsByInstitutionAndCluster.put(institutionId + "||" + clusterId, count);
+            countsByInstitutionAndCluster.put(institutionId2 + "||" + clusterId, count);
         }
 
         List<Map<String, String>> clusters = allClusters.stream()

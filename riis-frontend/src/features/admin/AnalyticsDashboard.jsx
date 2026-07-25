@@ -30,24 +30,74 @@ const heiColors = [
   '#123B72', '#2563EB', '#7C3AED', '#F59E0B', '#EF4444', '#10B981',
 ]
 
-function FilterField({ label, value }) {
+function FilterField({ label, value, onChange, options, placeholder }) {
   return (
     <div className="min-w-[176px]">
       <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-[#9CA3AF]">
         {label}
       </p>
       <div className="relative">
-        <button
-          type="button"
-          className="flex h-10 w-full items-center justify-between rounded-[8px] border border-[#D1D5DB] bg-white px-3 py-2 text-sm text-[#6B7280]"
+        <select
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="h-10 w-full appearance-none rounded-[8px] border border-[#D1D5DB] bg-white px-3 py-2 pr-8 text-sm text-[#374151]"
         >
-          <span>{value}</span>
-          <ChevronDown className="h-4 w-4 text-[#9CA3AF]" />
-        </button>
+          <option value="">{placeholder}</option>
+          {options.map((opt) => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+        <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9CA3AF]" />
       </div>
     </div>
   )
 }
+
+// DAS-038: Year-From / Year-To range control, styled to match FilterField.
+function YearRangeField({ label, from, to, onFromChange, onToChange, options }) {
+  return (
+    <div className="min-w-[176px]">
+      <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-[#9CA3AF]">
+        {label}
+      </p>
+      <div className="flex items-center gap-1.5">
+        <div className="relative flex-1">
+          <select
+            value={from}
+            onChange={(e) => onFromChange(e.target.value)}
+            className="h-10 w-full appearance-none rounded-[8px] border border-[#D1D5DB] bg-white px-2 py-2 pr-6 text-sm text-[#374151]"
+          >
+            <option value="">From</option>
+            {options.map((y) => (<option key={y} value={y}>{y}</option>))}
+          </select>
+          <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#9CA3AF]" />
+        </div>
+        <span className="text-xs text-[#9CA3AF]">to</span>
+        <div className="relative flex-1">
+          <select
+            value={to}
+            onChange={(e) => onToChange(e.target.value)}
+            className="h-10 w-full appearance-none rounded-[8px] border border-[#D1D5DB] bg-white px-2 py-2 pr-6 text-sm text-[#374151]"
+          >
+            <option value="">To</option>
+            {options.map((y) => (<option key={y} value={y}>{y}</option>))}
+          </select>
+          <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#9CA3AF]" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Same list used on the HEI-side submission form (SubmissionPortal.jsx),
+// duplicated here so the Type filter's options match what admins actually see.
+const RESEARCH_TYPES = [
+  'Funded Project',
+  'Journal Article',
+  'Conference Paper',
+  'Innovation Output',
+  'Community Extension Research',
+]
 
 function LoadingCard() {
   return (
@@ -442,20 +492,82 @@ export default function AnalyticsDashboard({
   const [showExportMenu, setShowExportMenu] = useState(false)
   const exportRef = useRef(null)
 
+  // DAS-036/037/038: filter state. `pendingFilters` tracks what's currently
+  // selected in the dropdowns; `appliedFilters` only updates when "Apply
+  // Filters" is clicked, and it's what actually drives the data fetch below.
+  const emptyFilters = { yearFrom: '', yearTo: '', province: '', institutionId: '', type: '' }
+  const [pendingFilters, setPendingFilters] = useState(emptyFilters)
+  const [appliedFilters, setAppliedFilters] = useState(emptyFilters)
+
+  // Dropdown option sources: institutions (for HEI + Province options) and
+  // year range (for the Year-From/Year-To control) are each fetched once,
+  // independent of whatever filters are currently applied, so the dropdowns
+  // don't shrink to only the currently-filtered subset.
+  const [institutionOptions, setInstitutionOptions] = useState([])
+  const [provinceOptions, setProvinceOptions] = useState([])
+  const [yearOptions, setYearOptions] = useState([])
+
+  useEffect(() => {
+    const controller = new AbortController()
+    apiClient.get('/institutions', { signal: controller.signal })
+      .then((res) => {
+        const list = res.data || []
+        setInstitutionOptions(list.map((i) => ({ value: i.id, label: i.name })))
+        setProvinceOptions([...new Set(list.map((i) => i.province).filter(Boolean))].sort())
+      })
+      .catch((err) => { if (!controller.signal.aborted) console.error('Institutions fetch error:', err) })
+
+    apiClient.get('/analytics/trend', { signal: controller.signal })
+      .then((res) => {
+        const years = (res.data || []).map((d) => d.year).sort()
+        setYearOptions(years)
+      })
+      .catch((err) => { if (!controller.signal.aborted) console.error('Year options fetch error:', err) })
+
+    return () => controller.abort()
+  }, [])
+
   useEffect(() => {
     const controller = new AbortController()
 
     const fetchAll = async () => {
       setLoading(true)
       try {
+        const params = {
+          yearFrom: appliedFilters.yearFrom || undefined,
+          yearTo: appliedFilters.yearTo || undefined,
+          province: appliedFilters.province || undefined,
+          institutionId: appliedFilters.institutionId || undefined,
+          type: appliedFilters.type || undefined,
+        }
+        const provinceParams = {
+          yearFrom: params.yearFrom,
+          yearTo: params.yearTo,
+          institutionId: params.institutionId,
+          type: params.type,
+        }
+        // DAS-039-filters: Concentration Heatmap gets Year/Province/HEI, no Type.
+        const clusterHeatmapParams = {
+          yearFrom: params.yearFrom,
+          yearTo: params.yearTo,
+          province: params.province,
+          institutionId: params.institutionId,
+        }
+        // DAS-039-filters: Niche Landscape gets Province/HEI only — theme
+        // profiles are aggregated per-institution across all time, with no
+        // per-output year/type data to filter on.
+        const nicheParams = {
+          province: params.province,
+          institutionId: params.institutionId,
+        }
         const [summaryRes, trendRes, typeRes, heiRes, provinceRes, heatmapRes, clusterHeatmapRes] = await Promise.all([
-          apiClient.get('/analytics/summary', { signal: controller.signal }),
-          apiClient.get('/analytics/trend', { signal: controller.signal }),
-          apiClient.get('/analytics/type-distribution', { signal: controller.signal }),
-          apiClient.get('/analytics/hei-comparison', { signal: controller.signal }),
-          apiClient.get('/analytics/province-summary', { signal: controller.signal }),
-          apiClient.get('/analytics/heatmap', { signal: controller.signal }),
-          apiClient.get('/analytics/cluster-heatmap', { signal: controller.signal }),
+          apiClient.get('/analytics/summary', { params, signal: controller.signal }),
+          apiClient.get('/analytics/trend', { params, signal: controller.signal }),
+          apiClient.get('/analytics/type-distribution', { params, signal: controller.signal }),
+          apiClient.get('/analytics/hei-comparison', { params, signal: controller.signal }),
+          apiClient.get('/analytics/province-summary', { params: provinceParams, signal: controller.signal }),
+          apiClient.get('/analytics/heatmap', { params: nicheParams, signal: controller.signal }),
+          apiClient.get('/analytics/cluster-heatmap', { params: clusterHeatmapParams, signal: controller.signal }),
         ])
         setSummary(summaryRes.data)
         setTrendData(trendRes.data || [])
@@ -473,7 +585,7 @@ export default function AnalyticsDashboard({
 
     fetchAll()
     return () => controller.abort()
-  }, [])
+  }, [appliedFilters])
 
   // Close export dropdown when clicking outside
   useEffect(() => {
@@ -532,14 +644,40 @@ export default function AnalyticsDashboard({
       <section className={cardClass}>
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <FilterField label="All Years" value="All Years" />
-            <FilterField label="All Provinces" value="All Provinces" />
-            <FilterField label="All HEIs" value="All HEIs" />
-            <FilterField label="All Types" value="All Types" />
+            <YearRangeField
+              label="Year Range"
+              from={pendingFilters.yearFrom}
+              to={pendingFilters.yearTo}
+              onFromChange={(v) => setPendingFilters((f) => ({ ...f, yearFrom: v }))}
+              onToChange={(v) => setPendingFilters((f) => ({ ...f, yearTo: v }))}
+              options={yearOptions}
+            />
+            <FilterField
+              label="All Provinces"
+              placeholder="All Provinces"
+              value={pendingFilters.province}
+              onChange={(v) => setPendingFilters((f) => ({ ...f, province: v }))}
+              options={provinceOptions.map((p) => ({ value: p, label: p }))}
+            />
+            <FilterField
+              label="All HEIs"
+              placeholder="All HEIs"
+              value={pendingFilters.institutionId}
+              onChange={(v) => setPendingFilters((f) => ({ ...f, institutionId: v }))}
+              options={institutionOptions}
+            />
+            <FilterField
+              label="All Types"
+              placeholder="All Types"
+              value={pendingFilters.type}
+              onChange={(v) => setPendingFilters((f) => ({ ...f, type: v }))}
+              options={RESEARCH_TYPES.map((t) => ({ value: t, label: t }))}
+            />
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <button
               type="button"
+              onClick={() => setAppliedFilters(pendingFilters)}
               className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#1A1A2E] px-[20px] py-[10px] text-sm font-semibold text-white transition hover:bg-[#11111f]"
             >
               <SlidersHorizontal className="h-4 w-4" />
@@ -760,6 +898,7 @@ export default function AnalyticsDashboard({
           </div>
           <div>
             <h3 className="text-[17px] font-semibold text-[#1A1A2E]">Regional Research Niche Landscape</h3>
+            <p className="mt-1 text-xs text-[#6B7280]">Filtered by Province &amp; HEI · reflects all-time theme data (not limited by Year)</p>
           </div>
         </div>
 
