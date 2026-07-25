@@ -1,11 +1,13 @@
 import { useEffect, useState, useRef } from 'react'
 import * as d3 from 'd3'
 import {
+  AlertTriangle,
   ChevronDown,
   Download,
   Flame,
   Loader2,
   MapPinned,
+  RefreshCw,
   SlidersHorizontal,
 } from 'lucide-react'
 import {
@@ -502,6 +504,14 @@ export default function AnalyticsDashboard({
   const [heiComparison, setHeiComparison] = useState([])
   const [provinceSummary, setProvinceSummary] = useState([])
   const [loading, setLoading] = useState(true)
+  // DAS-042: tracks whether the last fetchAll() call actually failed (a
+  // network/API error), as opposed to succeeding with genuinely empty
+  // results (e.g. a brand-new region with zero approved outputs). Kept
+  // separate from `loading` and from each dataset's own length so the
+  // "no data yet" empty-states elsewhere in this file are never mistaken
+  // for a fetch failure, and vice versa.
+  const [fetchError, setFetchError] = useState(false)
+  const [retryToken, setRetryToken] = useState(0)
   const [heatmapData, setHeatmapData] = useState([])
   const [clusterHeatmap, setClusterHeatmap] = useState({ clusters: [], cells: [] })
   const [showExportMenu, setShowExportMenu] = useState(false)
@@ -591,8 +601,12 @@ export default function AnalyticsDashboard({
         setProvinceSummary(provinceRes.data || [])
         setHeatmapData(heatmapRes.data || [])
         setClusterHeatmap(clusterHeatmapRes.data || { clusters: [], cells: [] })
+        setFetchError(false)
       } catch (err) {
-        if (!controller.signal.aborted) console.error('Analytics fetch error:', err)
+        if (!controller.signal.aborted) {
+          console.error('Analytics fetch error:', err)
+          setFetchError(true)
+        }
       } finally {
         setLoading(false)
       }
@@ -600,7 +614,7 @@ export default function AnalyticsDashboard({
 
     fetchAll()
     return () => controller.abort()
-  }, [appliedFilters])
+  }, [appliedFilters, retryToken])
 
   // Close export dropdown when clicking outside
   useEffect(() => {
@@ -754,6 +768,29 @@ export default function AnalyticsDashboard({
           </div>
         </div>
       </section>
+
+      {/* DAS-042: shown only when a fetch actually failed — not for genuine
+          empty-data results, which each card/chart already handles on its
+          own with a "no data" message. */}
+      {fetchError && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-[10px] border border-[#FCA5A5] bg-[#FEF2F2] px-4 py-3">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="h-5 w-5 shrink-0 text-[#DC2626]" />
+            <div>
+              <p className="text-sm font-semibold text-[#991B1B]">Unable to load analytics data.</p>
+              <p className="text-xs text-[#B91C1C]">Please try again. If the problem continues, contact your system administrator.</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setRetryToken((t) => t + 1)}
+            className="inline-flex h-9 shrink-0 items-center gap-2 rounded-[8px] bg-[#DC2626] px-4 text-sm font-semibold text-white transition hover:bg-[#B91C1C]"
+          >
+            <RefreshCw className="h-3.5 w-3.5" />
+            Retry
+          </button>
+        </div>
+      )}
 
       {/* Trend + Donut */}
       <section style={{ display: 'grid', gridTemplateColumns: '1.55fr 0.85fr', gap: '16px' }}>
