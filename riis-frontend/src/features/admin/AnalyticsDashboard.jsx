@@ -126,6 +126,19 @@ function getInstitutionInitials(name, maxLength = 2) {
     .slice(0, maxLength)
 }
 
+// DAS-041: the heatmap draws institution names as raw SVG <text>, which
+// doesn't support CSS text-overflow/ellipsis the way the HTML "truncate"
+// class used elsewhere in this file does — so long names need to be
+// truncated manually to avoid overlapping the chart cells. maxChars is
+// tuned to the ~370px label column width (margin.left - 50) at the row
+// label's font size; virtually all institution names fit without
+// truncating, this is only a fallback for unusually long ones.
+function truncateInstitutionName(name, maxChars = 48) {
+  if (!name) return ''
+  if (name.length <= maxChars) return name
+  return `${name.slice(0, maxChars - 1).trimEnd()}…`
+}
+
 const CLUSTER_LABEL_OVERRIDES = {
   'Climate and Environment Research': 'Climate & Env',
   'Health and Medical Research': 'Health & Medical',
@@ -371,7 +384,7 @@ function exportPDF({ summary, trendData, typeDistribution, heiComparison, provin
 function ThematicDensityHeatmap({ institutions, clusters, getCell, maxCellCount }) {
   const [hoveredCell, setHoveredCell] = useState(null)
 
-  const margin = { top: 56, right: 16, bottom: 8, left: 200 }
+  const margin = { top: 56, right: 16, bottom: 8, left: 420 }
   const cellWidth = 150
   const cellHeight = 56
   const innerWidth = clusters.length * cellWidth
@@ -427,7 +440,10 @@ function ThematicDensityHeatmap({ institutions, clusters, getCell, maxCellCount 
               <g key={`label-${hei.institutionId}`}>
                 <rect x={-margin.left + 12} y={y - 11} width={30} height={22} rx={6} fill={heiColors[index % heiColors.length]} />
                 <text x={-margin.left + 12 + 15} y={y} textAnchor="middle" dominantBaseline="central" fontSize="8" fontWeight="700" fill="#FFFFFF">{abbrev}</text>
-                <text x={-margin.left + 50} y={y} textAnchor="start" dominantBaseline="central" fontSize="12" fontWeight="600" fill="#1A1A2E">{abbrev}</text>
+                <text x={-margin.left + 50} y={y} textAnchor="start" dominantBaseline="central" fontSize="12" fontWeight="600" fill="#1A1A2E">
+                  {truncateInstitutionName(hei.name)}
+                  <title>{hei.name}</title>
+                </text>
               </g>
             )
           })}
