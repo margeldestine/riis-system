@@ -4,6 +4,7 @@ import com.geeks.riis_backend.dto.SubmissionAuthorRequest;
 import com.geeks.riis_backend.dto.SubmissionDetailDTO;
 import com.geeks.riis_backend.dto.SubmissionSummaryDTO;
 import com.geeks.riis_backend.exception.ResourceNotFoundException;
+import com.geeks.riis_backend.model.Author;
 import com.geeks.riis_backend.model.ResearchOutput;
 import com.geeks.riis_backend.repository.ResearchOutputRepository;
 import lombok.RequiredArgsConstructor;
@@ -16,6 +17,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.LinkedHashMap;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -36,7 +38,14 @@ public class AdminReviewService {
                         o.getFundingSource(),
                         o.getCompletionYear(),
                         o.getCreatedAt(),
-                        o.getStatus()
+                        o.getStatus(),
+                        o.getInstitution() != null ? o.getInstitution().getId() : null,
+                        o.getInstitution() != null ? o.getInstitution().getName() : null,
+                        o.getAuthors() == null ? null
+                                : o.getAuthors().stream()
+                                  .map(Author::getFullName)
+                                  .filter(name -> name != null && !name.isBlank())
+                                  .collect(Collectors.joining(", "))
                 ));
     }
 
@@ -109,4 +118,3 @@ public class AdminReviewService {
     // / getSubmissionDetail / getStatusStats above) for DOST Admins to
     // audit what HEIs have submitted.
 }
-

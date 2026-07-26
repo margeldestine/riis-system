@@ -146,7 +146,14 @@ public class SubmissionService {
 					output.getCompletionYear(),
 					output.getCreatedAt(),
 					output.getUpdatedAt(),
-					output.getStatus()
+					output.getStatus(),
+					institutionId,
+					output.getInstitution() != null ? output.getInstitution().getName() : null,
+					output.getAuthors() == null ? null
+							: output.getAuthors().stream()
+							  .map(com.geeks.riis_backend.model.Author::getFullName)
+							  .filter(name -> name != null && !name.isBlank())
+							  .collect(java.util.stream.Collectors.joining(", "))
 			));
 		}
 
@@ -163,7 +170,14 @@ public class SubmissionService {
 						output.getCompletionYear(),
 						output.getCreatedAt(),
 						output.getUpdatedAt(),
-						output.getStatus()
+						output.getStatus(),
+						institutionId,
+						output.getInstitution() != null ? output.getInstitution().getName() : null,
+						output.getAuthors() == null ? null
+								: output.getAuthors().stream()
+								  .map(com.geeks.riis_backend.model.Author::getFullName)
+								  .filter(name -> name != null && !name.isBlank())
+								  .collect(java.util.stream.Collectors.joining(", "))
 				));
 	}
 

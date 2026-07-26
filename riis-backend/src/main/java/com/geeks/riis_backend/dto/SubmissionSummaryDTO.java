@@ -11,7 +11,15 @@ public record SubmissionSummaryDTO(
 		Integer completionYear,
 		LocalDateTime submittedAt,
 		LocalDateTime updatedAt,
-		String status
+		String status,
+		// DAS-045/046: institutionId/institutionName and authorNames were
+		// missing entirely — the admin list/table already referenced
+		// item.institutionName and item.principalInvestigator, but neither
+		// existed on this DTO, so they always rendered blank. Added here so
+		// the HEI filter dropdown and author search can actually work.
+		String institutionId,
+		String institutionName,
+		String authorNames
 ) {
 	public SubmissionSummaryDTO(
 			String id,
@@ -21,8 +29,12 @@ public record SubmissionSummaryDTO(
 			String fundingSource,
 			Integer completionYear,
 			LocalDateTime submittedAt,
-			String status
+			String status,
+			String institutionId,
+			String institutionName,
+			String authorNames
 	) {
-		this(id, referenceNumber, title, researchType, fundingSource, completionYear, submittedAt, submittedAt, status);
+		this(id, referenceNumber, title, researchType, fundingSource, completionYear, submittedAt, submittedAt, status,
+				institutionId, institutionName, authorNames);
 	}
 }

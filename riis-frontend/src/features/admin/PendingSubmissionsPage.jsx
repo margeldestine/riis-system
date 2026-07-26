@@ -227,6 +227,18 @@ export default function PendingSubmissionsPage() {
   const [detailLoading, setDetailLoading] = useState(false)
   const [filterType, setFilterType] = useState('')
   const [filterHei, setFilterHei] = useState('')
+  // DAS-045: real institutions for the HEI filter dropdown, reusing the
+  // same /institutions/active endpoint Register.jsx already uses for the
+  // same purpose (id + name dropdown options).
+  const [heiOptions, setHeiOptions] = useState([])
+
+  useEffect(() => {
+    const controller = new AbortController()
+    apiClient.get('/institutions/active', { signal: controller.signal })
+      .then((res) => setHeiOptions(Array.isArray(res.data) ? res.data : []))
+      .catch(() => {}) // non-critical — dropdown just stays empty on failure
+    return () => controller.abort()
+  }, [])
 
   // DAS-043: submissions now auto-publish straight to APPROVED, so this
   // monitoring list defaults to showing published submissions instead of
@@ -272,9 +284,11 @@ export default function PendingSubmissionsPage() {
   const filteredItems = items.filter(item => {
     const matchSearch = !search ||
       item.title?.toLowerCase().includes(search.toLowerCase()) ||
-      item.referenceNumber?.toLowerCase().includes(search.toLowerCase())
+      item.referenceNumber?.toLowerCase().includes(search.toLowerCase()) ||
+      item.authorNames?.toLowerCase().includes(search.toLowerCase())
     const matchType = !filterType || item.researchType === filterType
-    return matchSearch && matchType
+    const matchHei = !filterHei || item.institutionId === filterHei
+    return matchSearch && matchType && matchHei
   })
 
   const formatDate = (val) => {
@@ -366,12 +380,6 @@ export default function PendingSubmissionsPage() {
 
             {/* Table */}
             <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-              <div className="border-b border-slate-100 px-6 py-4">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                  Submissions Awaiting Review
-                </p>
-              </div>
-
               {/* Filters */}
               <div className="flex items-center gap-3 px-6 py-4 border-b border-slate-100">
                 <p className="text-xs font-semibold text-slate-500 shrink-0">Filter by</p>
@@ -395,6 +403,9 @@ export default function PendingSubmissionsPage() {
                     className="h-9 rounded-lg border border-slate-200 pl-3 pr-8 text-xs text-slate-600 appearance-none focus:outline-none focus:ring-1 focus:ring-[#C9A84C]"
                   >
                     <option value="">All HEIs</option>
+                    {heiOptions.map((hei) => (
+                      <option key={hei.id} value={hei.id}>{hei.name}</option>
+                    ))}
                   </select>
                   <ChevronDown className="absolute right-2 top-2.5 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
                 </div>
@@ -457,7 +468,7 @@ export default function PendingSubmissionsPage() {
                           {item.title}
                         </p>
                         <p className="text-xs text-slate-400 mt-0.5">
-                          {item.principalInvestigator || ''}
+                          {item.authorNames || ''}
                         </p>
                       </td>
                       <td className="px-6 py-4 text-sm text-slate-600">
