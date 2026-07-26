@@ -1,9 +1,9 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  Loader2, CheckCircle2, XCircle, AlertTriangle, X,
+  Loader2, CheckCircle2,
   Search, ChevronDown, BarChart3, ClipboardList,
-  ShieldCheck, Bell, FileText, Building2, Users
+  Bell, FileText, Building2, Users
 } from 'lucide-react'
 import DashboardLayout from './DashboardLayout'
 import apiClient from '../../services/apiClient'
@@ -58,67 +58,6 @@ function TypeBadge({ type }) {
     <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${colors[type] || 'bg-slate-100 text-slate-600'}`}>
       {type || '—'}
     </span>
-  )
-}
-
-function ActionModal({ open, onClose, onConfirm, action, loading }) {
-  const [comment, setComment] = useState('')
-
-  useEffect(() => {
-    if (open) setComment('')
-  }, [open])
-
-  if (!open) return null
-
-  const isReject = action === 'REJECTED'
-  const title = isReject ? 'Reject Submission' : 'Request Correction'
-  const btnClass = isReject
-    ? 'bg-red-600 hover:bg-red-700'
-    : 'bg-amber-500 hover:bg-amber-600'
-
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/40 px-4">
-      <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-bold text-[#1A1A2E]">{title}</h3>
-          <button type="button" onClick={onClose}>
-            <X className="h-4 w-4 text-slate-400" />
-          </button>
-        </div>
-        <p className="text-sm text-slate-500 mb-3">
-          A comment is required explaining your decision.
-        </p>
-        <textarea
-          value={comment}
-          onChange={(e) => setComment(e.target.value)}
-          rows={4}
-          placeholder={isReject
-            ? 'e.g., Abstract word count is below the required 100-word minimum...'
-            : 'e.g., Please update the abstract to meet the 100-word minimum...'}
-          className="w-full rounded-lg border border-slate-200 p-3 text-sm outline-none focus:ring-1 focus:ring-[#1A1A2E] resize-none"
-        />
-        <p className="mt-1 text-xs text-slate-400">
-          Required for Correction and Reject. Optional for Approve.
-        </p>
-        <div className="mt-4 flex justify-end gap-3">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-md border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={() => onConfirm(comment)}
-            disabled={!comment.trim() || loading}
-            className={`rounded-md px-4 py-2 text-sm font-semibold text-white transition disabled:opacity-50 disabled:cursor-not-allowed ${btnClass}`}
-          >
-            {loading ? 'Submitting...' : 'Confirm'}
-          </button>
-        </div>
-      </div>
-    </div>
   )
 }
 
@@ -218,185 +157,51 @@ function SubmissionMetadataPanel({ submission }) {
   )
 }
 
-function ActionPanel({ submission, onAction, actionLoading }) {
+// DAS-043: replaces the old ActionPanel (Approve / Requires Correction /
+// Reject). Only registered, verified HEI staff accounts can submit, so
+// submissions are trusted at the account level and auto-publish on
+// creation — there's no DOST Admin action to take here anymore. This is
+// read-only context for the audit/monitoring view.
+function PublicationStatusPanel({ submission }) {
+  const formatDate = (val) => {
+    if (!val) return '—'
+    return new Intl.DateTimeFormat('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(val))
+  }
+
   return (
     <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
-      {/* Dark header */}
       <div className="bg-[#1A1A2E] px-5 py-4">
-        <h3 className="mt-1 text-lg font-bold text-white">Take Action</h3>
+        <h3 className="text-lg font-bold text-white">Publication Status</h3>
       </div>
 
-      <div className="px-5 py-5 space-y-3">
-        {/* Approve */}
-        <button
-          type="button"
-          onClick={() => onAction('APPROVED', '')}
-          disabled={actionLoading}
-          className="w-full flex items-center justify-center gap-2 rounded-lg bg-emerald-600 py-3 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 transition"
-        >
-          <CheckCircle2 className="h-4 w-4" />
-          Approve
-        </button>
-
-        <p className="text-center text-xs text-slate-400">or</p>
-
-        {/* Requires Correction */}
-        <button
-          type="button"
-          onClick={() => onAction('REQUIRES_CORRECTION', null)}
-          disabled={actionLoading}
-          className="w-full flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition"
-        >
-          <AlertTriangle className="h-4 w-4 text-amber-500" />
-          Requires Correction
-        </button>
-
-        <p className="text-center text-xs text-slate-400">or</p>
-
-        {/* Reject */}
-        <button
-          type="button"
-          onClick={() => onAction('REJECTED', null)}
-          disabled={actionLoading}
-          className="w-full flex items-center justify-center gap-2 rounded-lg border border-red-200 bg-red-50 py-3 text-sm font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50 transition"
-        >
-          <XCircle className="h-4 w-4" />
-          Reject
-        </button>
-
-        {/* Comment box */}
-        <div className="mt-2">
-          <p className="text-[10px] uppercase tracking-wider text-slate-400 mb-1">Comment / Reason</p>
-          <textarea
-            rows={4}
-            placeholder="e.g., Abstract word count is below the required 100-word minimum..."
-            className="w-full rounded-lg border border-slate-200 p-3 text-xs text-slate-600 outline-none focus:ring-1 focus:ring-[#1A1A2E] resize-none"
-            readOnly
-          />
-          <p className="mt-1 text-[10px] text-slate-400">
-            Required for Correction and Reject. Optional for Approve.
-          </p>
-        </div>
-
-        {/* Explainer */}
-        <div className="mt-3 space-y-2 text-xs text-slate-500 border-t border-slate-100 pt-3">
-          <p className="font-semibold text-slate-600">What happens after each action?</p>
-          <p><span className="text-emerald-600 font-medium">Approve</span> — Record goes public. Visible in discovery portal and HEI profile.</p>
-          <p><span className="text-amber-600 font-medium">Requires Correction</span> — Returned to HEI staff with your comment. They can edit and resubmit.</p>
-          <p><span className="text-red-600 font-medium">Reject</span> — Record is permanently rejected. HEI staff is notified with the reason.</p>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function ResultPage({ result, submission, onBackToSubmissions, onReviewNext }) {
-  if (!result) return null
-
-  const isApproved = result === 'APPROVED'
-  const isCorrection = result === 'REQUIRES_CORRECTION'
-  const isRejected = result === 'REJECTED'
-
-  const breadcrumb = isApproved ? 'Approved' : isCorrection ? 'Correction Requested' : 'Rejected'
-  const title = isApproved ? 'Record Approved' : isCorrection ? 'Correction Requested' : 'Record Rejected'
-  const subtitle = isApproved ? 'Record is now publicly visible' : isCorrection ? 'Record returned to HEI staff for correction' : 'HEI staff has been notified'
-
-  return (
-    <div className="space-y-4">
-      {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-sm text-slate-500">
-        <button type="button" onClick={onBackToSubmissions} className="hover:text-[#C9A84C]">
-          Submissions
-        </button>
-        <span>›</span>
-        <span className="text-[#C9A84C]">{breadcrumb}</span>
-      </div>
-
-      {/* Page header */}
-      <div className="flex items-start justify-between border-b border-slate-200 pb-4">
-        <div>
-          <h1 className="text-3xl font-bold text-[#1A1A2E]">{title}</h1>
-          <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
-        </div>
-        <div className="text-right">
-          <p className="text-[10px] uppercase tracking-wider text-slate-400">ACADEMIC YEAR</p>
-          <p className="text-sm font-bold text-[#1A1A2E]">2025-2026</p>
-        </div>
-      </div>
-
-      {/* Result card */}
-      <div className="flex justify-center">
-        <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-10 text-center shadow-sm">
-          {/* Icon */}
-          <div className={`mx-auto flex h-16 w-16 items-center justify-center rounded-full ${isApproved ? 'bg-emerald-100' : isCorrection ? 'bg-amber-100' : 'bg-red-100'}`}>
-            {isApproved && <CheckCircle2 className="h-8 w-8 text-emerald-600" />}
-            {isCorrection && <AlertTriangle className="h-8 w-8 text-amber-500" />}
-            {isRejected && <XCircle className="h-8 w-8 text-red-600" />}
+      <div className="px-5 py-5 space-y-4">
+        <div className="flex items-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
+          <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600" />
+          <div>
+            <p className="text-sm font-semibold text-emerald-700">Published</p>
+            <p className="text-xs text-emerald-600">
+              Visible in the discovery portal and HEI profile
+            </p>
           </div>
+        </div>
 
-          <h2 className="mt-5 text-2xl font-bold text-[#1A1A2E]">
-            {isApproved && 'Record Approved Successfully'}
-            {isCorrection && 'Correction Request Sent'}
-            {isRejected && 'Record Rejected'}
-          </h2>
-          <p className="mt-2 text-sm text-slate-500 max-w-sm mx-auto">
-            {isApproved && 'The research output is now publicly visible in the DASIG discovery portal and the HEI\'s institutional profile page.'}
-            {isCorrection && 'The record has been returned to the HEI Research Office Staff with your comments. They can edit and resubmit from their Submission History.'}
-            {isRejected && 'The research output has been rejected. The HEI Research Office Staff has been notified via email with the reason provided.'}
-          </p>
-
-          {/* Summary table */}
-          {submission && (
-            <div className="mt-6 rounded-xl border border-slate-100 bg-slate-50 divide-y divide-slate-100 text-left text-sm">
-              <div className="flex justify-between px-5 py-3">
-                <span className="text-slate-500">Reference No.</span>
-                <span className="font-semibold text-[#1A1A2E]">{submission.referenceNumber}</span>
-              </div>
-              {submission.institution?.name || submission.institutionName ? (
-                <div className="flex justify-between px-5 py-3">
-                  <span className="text-slate-500">Submitting HEI</span>
-                  <span className="font-semibold text-[#1A1A2E]">{submission.institution?.name || submission.institutionName}</span>
-                </div>
-              ) : null}
-              <div className="flex justify-between px-5 py-3">
-                <span className="text-slate-500">Record Status</span>
-                <span className={`font-semibold flex items-center gap-1.5 ${isApproved ? 'text-emerald-600' : isCorrection ? 'text-amber-600' : 'text-red-600'}`}>
-                  <span className={`h-2 w-2 rounded-full inline-block ${isApproved ? 'bg-emerald-500' : isCorrection ? 'bg-amber-500' : 'bg-red-500'}`} />
-                  {isApproved ? 'Approved' : isCorrection ? 'Requires Correction' : 'Rejected'}
-                </span>
-              </div>
-              {isApproved && (
-                <div className="flex justify-between px-5 py-3">
-                  <span className="text-slate-500">Public Visibility</span>
-                  <span className="font-semibold text-emerald-600">Now publicly visible</span>
-                </div>
-              )}
-              <div className="flex justify-between px-5 py-3">
-                <span className="text-slate-500">HEI Notification</span>
-                <span className="font-semibold text-slate-600">
-                  {isApproved ? 'Email sent' : isCorrection ? 'Comment sent via email' : 'Rejection reason sent'}
-                </span>
-              </div>
-            </div>
-          )}
-
-          {/* Buttons */}
-          <div className="mt-6 flex gap-3">
-            <button
-              type="button"
-              onClick={onBackToSubmissions}
-              className="flex-1 rounded-lg border border-slate-200 bg-white py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition"
-            >
-              Back to Submissions
-            </button>
-            <button
-              type="button"
-              onClick={onReviewNext}
-              className="flex-1 rounded-lg bg-[#1A1A2E] py-2.5 text-sm font-semibold text-white hover:bg-[#11111f] transition"
-            >
-              Review Next
-            </button>
+        <div className="text-xs text-slate-500 space-y-1">
+          <div className="flex justify-between">
+            <span>Submitted</span>
+            <span className="font-medium text-slate-600">{formatDate(submission?.submittedAt || submission?.createdAt)}</span>
           </div>
+          <div className="flex justify-between">
+            <span>Status</span>
+            <StatusBadge status={submission?.status || 'APPROVED'} />
+          </div>
+        </div>
+
+        <div className="border-t border-slate-100 pt-3 text-xs text-slate-500">
+          <p>
+            Submissions from registered, verified HEI staff accounts publish
+            automatically — there's no separate DOST Admin approval step.
+            This panel is for monitoring only.
+          </p>
         </div>
       </div>
     </div>
@@ -412,23 +217,21 @@ export default function PendingSubmissionsPage() {
   const [page, setPage] = useState(0)
   const [totalPages, setTotalPages] = useState(1)
   const [search, setSearch] = useState('')
-  const [selectedId, setSelectedId] = useState(null)
   const [selectedDetail, setSelectedDetail] = useState(null)
   const [detailLoading, setDetailLoading] = useState(false)
-  const [modalAction, setModalAction] = useState(null)
-  const [actionLoading, setActionLoading] = useState(false)
-  const [result, setResult] = useState(null)
-  const [resultSubmission, setResultSubmission] = useState(null)
   const [filterType, setFilterType] = useState('')
   const [filterHei, setFilterHei] = useState('')
 
+  // DAS-043: submissions now auto-publish straight to APPROVED, so this
+  // monitoring list defaults to showing published submissions instead of
+  // a "pending review" queue that no new submission will ever sit in.
   const fetchSubmissions = useCallback(async () => {
     setStatus('loading')
     setError('')
     try {
       const [subRes, statsRes] = await Promise.all([
         apiClient.get('/admin/submissions', {
-          params: { status: 'PENDING_REVIEW', page, size: 20 },
+          params: { status: 'APPROVED', page, size: 20 },
         }),
         apiClient.get('/admin/submissions/stats').catch(() => ({ data: {} })),
       ])
@@ -449,7 +252,6 @@ export default function PendingSubmissionsPage() {
   }, [fetchSubmissions])
 
   const loadDetail = async (id) => {
-    setSelectedId(id)
     setDetailLoading(true)
     try {
       const res = await apiClient.get(`/admin/submissions/${id}`)
@@ -458,45 +260,6 @@ export default function PendingSubmissionsPage() {
       setError(extractApiErrorMessage(err, 'Unable to load submission details.'))
     } finally {
       setDetailLoading(false)
-    }
-  }
-
-  const handleAction = (action, comment) => {
-    if ((action === 'REJECTED' || action === 'REQUIRES_CORRECTION') && comment === null) {
-      setModalAction(action)
-      return
-    }
-    submitAction(action, comment || '')
-  }
-
-  const submitAction = async (action, comment) => {
-    if (!selectedId) return
-    setActionLoading(true)
-    try {
-      await apiClient.patch(`/admin/submissions/${selectedId}/status`, { action, comment })
-      setResult(action)
-      setResultSubmission(selectedDetail)
-      setSelectedId(null)
-      setSelectedDetail(null)
-      setModalAction(null)
-      fetchSubmissions()
-    } catch (err) {
-      setError(extractApiErrorMessage(err, 'Unable to process action.'))
-    } finally {
-      setActionLoading(false)
-    }
-  }
-
-  const handleBackToSubmissions = () => {
-    setResult(null)
-    setResultSubmission(null)
-  }
-
-  const handleReviewNext = () => {
-    setResult(null)
-    setResultSubmission(null)
-    if (items.length > 0) {
-      loadDetail(items[0].id)
     }
   }
 
@@ -514,34 +277,26 @@ export default function PendingSubmissionsPage() {
   }
 
   return (
-    <>
-      <DashboardLayout
-        activeLabel="Submission Portal"
-        userName="DOST Administrator"
-        organization="DOST Region VII"
-        navItems={dostNavItems}
-      >
-        {result ? (
-          <ResultPage
-            result={result}
-            submission={resultSubmission}
-            onBackToSubmissions={handleBackToSubmissions}
-            onReviewNext={handleReviewNext}
-          />
-        ) : selectedDetail ? (
-          /* Detail view */
+    <DashboardLayout
+      activeLabel="Submission Portal"
+      userName="DOST Administrator"
+      organization="DOST Region VII"
+      navItems={dostNavItems}
+    >
+      {selectedDetail ? (
+        /* Detail view */
           <div className="space-y-4">
             <div className="flex items-center gap-2 text-sm text-slate-500">
-              <button type="button" onClick={() => { setSelectedId(null); setSelectedDetail(null) }} className="hover:text-[#C9A84C]">
+              <button type="button" onClick={() => { setSelectedDetail(null) }} className="hover:text-[#C9A84C]">
                 Submissions
               </button>
               <span>›</span>
-              <span className="text-[#C9A84C]">Review</span>
+              <span className="text-[#C9A84C]">Details</span>
             </div>
             <div className="flex items-start justify-between">
               <div>
-                <h1 className="text-3xl font-bold text-[#1A1A2E]">Review Research Output</h1>
-                <p className="mt-1 text-sm text-slate-500">Inspect full record details then approve, request correction, or reject</p>
+                <h1 className="text-3xl font-bold text-[#1A1A2E]">Submission Details</h1>
+                <p className="mt-1 text-sm text-slate-500">Inspect the full record. No action needed — submissions publish automatically.</p>
               </div>
               <div className="text-right">
                 <p className="text-[10px] uppercase tracking-wider text-slate-400">ACADEMIC YEAR</p>
@@ -552,19 +307,15 @@ export default function PendingSubmissionsPage() {
             <div className="grid gap-6" style={{ gridTemplateColumns: '1fr 360px' }}>
               {/* Left — metadata */}
               <SubmissionMetadataPanel submission={selectedDetail} />
-              {/* Right — action panel */}
+              {/* Right — read-only publication status (DAS-043: no more Take Action panel) */}
               <div className="sticky top-6">
-                <ActionPanel
-                  submission={selectedDetail}
-                  onAction={handleAction}
-                  actionLoading={actionLoading}
-                />
+                <PublicationStatusPanel submission={selectedDetail} />
               </div>
             </div>
 
             <button
               type="button"
-              onClick={() => { setSelectedId(null); setSelectedDetail(null) }}
+              onClick={() => { setSelectedDetail(null) }}
               className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition"
             >
               Back to Submissions
@@ -579,9 +330,9 @@ export default function PendingSubmissionsPage() {
                 <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
                   DASHBOARD &gt; <span className="text-[#C9A84C]">SUBMISSION PORTAL</span>
                 </p>
-                <h1 className="mt-2 text-3xl font-bold text-[#1A1A2E]">Pending Submissions</h1>
+                <h1 className="mt-2 text-3xl font-bold text-[#1A1A2E]">Submission Records</h1>
                 <p className="mt-1 text-sm text-slate-500">
-                  Review and action submitted research output records from Region VII HEIs
+                  Monitor research output records submitted by Region VII HEIs
                 </p>
               </div>
               <div className="text-right">
@@ -594,10 +345,10 @@ export default function PendingSubmissionsPage() {
             {/* Stats strip */}
             <div className="grid grid-cols-4 gap-4">
               {[
-                { label: 'Pending Review', key: 'PENDING_REVIEW', color: 'border-b-amber-400', detail: 'Awaiting action' },
-                { label: 'Approved', key: 'APPROVED', color: 'border-b-emerald-400', detail: 'Already listed' },
-                { label: 'Requiring Correction', key: 'REQUIRES_CORRECTION', color: 'border-b-orange-400', detail: 'Returned to HEI' },
-                { label: 'Rejected', key: 'REJECTED', color: 'border-b-red-400', detail: 'Not accepted' },
+                { label: 'Approved', key: 'APPROVED', color: 'border-b-emerald-400', detail: 'Published' },
+                { label: 'Pending Review', key: 'PENDING_REVIEW', color: 'border-b-amber-400', detail: 'Legacy, pre-auto-publish' },
+                { label: 'Requiring Correction', key: 'REQUIRES_CORRECTION', color: 'border-b-orange-400', detail: 'Legacy, pre-auto-publish' },
+                { label: 'Rejected', key: 'REJECTED', color: 'border-b-red-400', detail: 'Legacy, pre-auto-publish' },
               ].map(({ label, key, color, detail }) => (
                 <div key={key} className={`rounded-xl border border-slate-200 bg-white p-5 shadow-sm border-b-2 ${color}`}>
                   <p className="text-3xl font-bold text-[#1A1A2E]">{stats[key] ?? 0}</p>
@@ -657,7 +408,7 @@ export default function PendingSubmissionsPage() {
               <div className="px-6 py-3 border-b border-slate-100">
                 <p className="text-sm font-semibold text-[#1A1A2E]">Research Output Submissions</p>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  {filteredItems.length} records pending review — Click 'Review' to inspect and take action
+                  {filteredItems.length} records — Click 'View' to inspect details
                 </p>
               </div>
 
@@ -687,7 +438,7 @@ export default function PendingSubmissionsPage() {
                   ) : filteredItems.length === 0 ? (
                     <tr>
                       <td colSpan={7} className="px-6 py-10 text-center text-sm text-slate-500">
-                        No pending submissions found.
+                        No submissions found.
                       </td>
                     </tr>
                   ) : filteredItems.map((item) => (
@@ -721,7 +472,7 @@ export default function PendingSubmissionsPage() {
                           onClick={() => loadDetail(item.id)}
                           className="inline-flex items-center gap-1 rounded-lg bg-[#1A1A2E] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#11111f] transition"
                         >
-                          Review →
+                          View →
                         </button>
                       </td>
                     </tr>
@@ -753,14 +504,5 @@ export default function PendingSubmissionsPage() {
           </div>
         )}
       </DashboardLayout>
-
-      <ActionModal
-        open={!!modalAction}
-        action={modalAction}
-        onClose={() => setModalAction(null)}
-        onConfirm={(comment) => submitAction(modalAction, comment)}
-        loading={actionLoading}
-      />
-    </>
   )
 }

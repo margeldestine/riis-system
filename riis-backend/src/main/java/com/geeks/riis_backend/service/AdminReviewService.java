@@ -5,20 +5,13 @@ import com.geeks.riis_backend.dto.SubmissionDetailDTO;
 import com.geeks.riis_backend.dto.SubmissionSummaryDTO;
 import com.geeks.riis_backend.exception.ResourceNotFoundException;
 import com.geeks.riis_backend.model.ResearchOutput;
-import com.geeks.riis_backend.model.User;
 import com.geeks.riis_backend.repository.ResearchOutputRepository;
-import com.geeks.riis_backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
-import com.geeks.riis_backend.event.RecordIngestedEvent;
-import org.springframework.context.ApplicationEventPublisher;
 
-import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -30,10 +23,6 @@ import java.util.LinkedHashMap;
 public class AdminReviewService {
 
     private final ResearchOutputRepository researchOutputRepository;
-    private final UserRepository userRepository;
-    private final EmailNotificationService emailNotificationService;
-    private final AuditLogService auditLogService;
-    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional(readOnly = true)
     public Page<SubmissionSummaryDTO> listSubmissions(String status, String institutionId,
@@ -59,13 +48,13 @@ public class AdminReviewService {
         List<SubmissionAuthorRequest> authors = output.getAuthors() == null
                 ? List.of()
                 : output.getAuthors().stream()
-                .map(a -> new SubmissionAuthorRequest(a.getFullName(), a.getOrcidId()))
-                .toList();
+                  .map(a -> new SubmissionAuthorRequest(a.getFullName(), a.getOrcidId()))
+                  .toList();
 
         List<String> keywords = output.getKeywords() == null || output.getKeywords().isBlank()
                 ? List.of()
                 : Arrays.stream(output.getKeywords().split(","))
-                .map(String::trim).filter(v -> !v.isBlank()).toList();
+                  .map(String::trim).filter(v -> !v.isBlank()).toList();
 
         int validationErrorCount = output.getValidationLogs() == null ? 0
                 : output.getValidationLogs().stream().mapToInt(vl -> vl == null ? 0 : vl.getErrorCount()).sum();
@@ -110,67 +99,14 @@ public class AdminReviewService {
         return stats;
     }
 
-    public void actionSubmission(String submissionId, String action, String comment, String adminUserId) {
-        if (action == null || action.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Action is required.");
-        }
-
-        String normalizedAction = action.trim().toUpperCase();
-        boolean requiresComment = normalizedAction.equals("REJECTED") || normalizedAction.equals("REQUIRES_CORRECTION");
-
-        if (requiresComment && (comment == null || comment.isBlank())) {
-            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
-                    "Comment is required for " + normalizedAction + " action.");
-        }
-
-        ResearchOutput output = researchOutputRepository.findById(submissionId)
-                .orElseThrow(() -> new ResourceNotFoundException("Submission not found: " + submissionId));
-
-        User admin = userRepository.findById(adminUserId).orElse(null);
-            
-        String trimmedComment = comment == null ? null : comment.trim();
-
-        output.setStatus(normalizedAction);
-        output.setCorrectionNotes(trimmedComment != null && !trimmedComment.isBlank() ? trimmedComment : null);
-        output.setReviewedBy(admin);
-        output.setReviewedAt(LocalDateTime.now());
-
-        researchOutputRepository.save(output);
-
-        auditLogService.logReviewAction(submissionId, adminUserId, normalizedAction, comment);
-
-        if (normalizedAction.equals("APPROVED")) {
-            eventPublisher.publishEvent(new RecordIngestedEvent(
-                    output.getId(),
-                    output.getReferenceNumber(),
-                    output.getInstitution().getId()
-            ));
-        }
-
-        String submitterEmail = output.getInstitution() != null
-                ? getUserEmailForInstitution(output)
-                : null;
-
-        if (submitterEmail != null) {
-            emailNotificationService.sendReviewStatusEmail(
-                    submitterEmail,
-                    output.getReferenceNumber(),
-                    normalizedAction,
-                    comment
-            );
-        }
-    }
-
-    private String getUserEmailForInstitution(ResearchOutput output) {
-        try {
-            return userRepository.findAll().stream()
-                    .filter(u -> u.getInstitution() != null &&
-                            u.getInstitution().getId().equals(output.getInstitution().getId()))
-                    .map(User::getEmail)
-                    .findFirst()
-                    .orElse(null);
-        } catch (Exception e) {
-            return null;
-        }
-    }
+    // DAS-043: the manual Approve / Requires Correction / Reject action (and
+    // its "PATCH /{id}/status" endpoint) was removed per Sir Ralph's
+    // feedback — only registered, verified HEI staff accounts can submit,
+    // so submissions are already trusted at the account level and now
+    // auto-publish straight to APPROVED in SubmissionService#submit(),
+    // which is also where the RecordIngestedEvent now fires. This service
+    // stays in place purely as the read-only monitoring API (listSubmissions
+    // / getSubmissionDetail / getStatusStats above) for DOST Admins to
+    // audit what HEIs have submitted.
 }
+

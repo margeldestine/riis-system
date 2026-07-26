@@ -39,6 +39,11 @@ public class SubmissionService {
 
 	private static final String STATUS_PENDING_REVIEW = "PENDING_REVIEW";
 	private static final String STATUS_REQUIRES_CORRECTION = "REQUIRES_CORRECTION";
+	// DAS-043: DOST Admin manual approval gate was removed — only registered,
+	// verified HEI staff accounts can submit, so submissions are trusted at
+	// the account level and publish immediately instead of sitting in
+	// PENDING_REVIEW. See RecordIngestedEvent publish below.
+	private static final String STATUS_APPROVED = "APPROVED";
 	private static final String DEFAULT_RESEARCH_TYPE = "JOURNAL_ARTICLE";
 
 	private final UserRepository userRepository;
@@ -73,11 +78,11 @@ public class SubmissionService {
 
 		String referenceNumber = generateReferenceNumber();
 		String keywords = dto.keywords() == null ? null : dto.keywords().stream()
-				.filter(value -> value != null && !value.isBlank())
-				.map(String::trim)
-				.distinct()
-				.reduce((a, b) -> a + ", " + b)
-				.orElse(null);
+														  .filter(value -> value != null && !value.isBlank())
+														  .map(String::trim)
+														  .distinct()
+														  .reduce((a, b) -> a + ", " + b)
+														  .orElse(null);
 
 		Set<Author> authors = mapAuthors(dto.authors());
 
@@ -96,7 +101,7 @@ public class SubmissionService {
 				.fundingSource(dto.fundingSource())
 				.publicationVenue(dto.publicationVenue())
 				.s3PdfKey(dto.attachmentKey())
-				.status(STATUS_PENDING_REVIEW)
+				.status(STATUS_APPROVED)
 				.authors(authors)
 				.build();
 
@@ -105,6 +110,17 @@ public class SubmissionService {
 		}
 
 		ResearchOutput saved = researchOutputRepository.save(output);
+
+		// DAS-043: this used to fire from AdminReviewService.actionSubmission()
+		// only when a DOST Admin manually clicked Approve. Since submissions
+		// now auto-publish, it fires here instead — otherwise theme profiles,
+		// overlap detection, and cluster assignment (all driven by this event)
+		// would never run for any new submission.
+		eventPublisher.publishEvent(new RecordIngestedEvent(
+				saved.getId(),
+				saved.getReferenceNumber(),
+				institution.getId()
+		));
 
 		emailNotificationService.sendSubmissionConfirmation(user.getEmail(), saved.getReferenceNumber());
 
@@ -164,8 +180,8 @@ public class SubmissionService {
 		List<SubmissionAuthorRequest> authors = output.getAuthors() == null
 				? List.of()
 				: output.getAuthors().stream()
-				.map(author -> new SubmissionAuthorRequest(author.getFullName(), author.getOrcidId()))
-				.toList();
+				  .map(author -> new SubmissionAuthorRequest(author.getFullName(), author.getOrcidId()))
+				  .toList();
 
 		List<String> keywords = parseKeywords(output.getKeywords());
 
@@ -247,11 +263,11 @@ public class SubmissionService {
 		output.setPublicationVenue(dto.publicationVenue());
 		output.setS3PdfKey(dto.attachmentKey());
 		output.setKeywords(dto.keywords() == null ? null : dto.keywords().stream()
-				.filter(value -> value != null && !value.isBlank())
-				.map(String::trim)
-				.distinct()
-				.reduce((a, b) -> a + ", " + b)
-				.orElse(null));
+														   .filter(value -> value != null && !value.isBlank())
+														   .map(String::trim)
+														   .distinct()
+														   .reduce((a, b) -> a + ", " + b)
+														   .orElse(null));
 
 		Set<Author> updatedAuthors = mapAuthors(dto.authors());
 		if (output.getAuthors() == null) {
@@ -321,11 +337,11 @@ public class SubmissionService {
 		output.setPublicationVenue(dto.publicationVenue());
 		output.setS3PdfKey(dto.attachmentKey());
 		output.setKeywords(dto.keywords() == null ? null : dto.keywords().stream()
-				.filter(value -> value != null && !value.isBlank())
-				.map(String::trim)
-				.distinct()
-				.reduce((a, b) -> a + ", " + b)
-				.orElse(null));
+														   .filter(value -> value != null && !value.isBlank())
+														   .map(String::trim)
+														   .distinct()
+														   .reduce((a, b) -> a + ", " + b)
+														   .orElse(null));
 
 		Set<Author> updatedAuthors = mapAuthors(dto.authors());
 		if (output.getAuthors() == null) {
@@ -404,9 +420,9 @@ public class SubmissionService {
 		return "DASIG-" + year + "-" + uuidShort;
 	}
 
-    private List<String> parseKeywords(String keywords) {
-        return null;
-    }
+	private List<String> parseKeywords(String keywords) {
+		return null;
+	}
 
 	private boolean isBlank(String value) {
 		return value == null || value.isBlank();
