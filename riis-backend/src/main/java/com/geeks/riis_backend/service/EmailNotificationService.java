@@ -238,7 +238,7 @@ public class EmailNotificationService {
 	}
 
 	@Async
-	public void sendOverlapDetectionAlert(
+	public java.util.concurrent.CompletableFuture<Boolean> sendOverlapDetectionAlert(
 			String toEmail,
 			String newRecordTitle,
 			String existingRecordTitle,
@@ -246,12 +246,12 @@ public class EmailNotificationService {
 			double similarityScore) {
 		if (toEmail == null || toEmail.isBlank()) {
 			log.warn("[sendOverlapDetectionAlert] Skipped — toEmail is blank/null. newRecordTitle={}", newRecordTitle);
-			return;
+			return java.util.concurrent.CompletableFuture.completedFuture(false);
 		}
 
 		try {
 			JavaMailSender mailSender = resolveMailSender("sendOverlapDetectionAlert");
-			if (mailSender == null) return;
+			if (mailSender == null) return java.util.concurrent.CompletableFuture.completedFuture(false);
 
 			SimpleMailMessage message = new SimpleMailMessage();
 			if (!fromEmail.isBlank()) message.setFrom(fromEmail);
@@ -267,8 +267,10 @@ public class EmailNotificationService {
 			);
 			mailSender.send(message);
 			log.info("[sendOverlapDetectionAlert] Email sent successfully to {}", toEmail);
+			return java.util.concurrent.CompletableFuture.completedFuture(true);
 		} catch (Exception e) {
 			log.error("[sendOverlapDetectionAlert] Failed to send email to {}: {}", toEmail, e.getMessage(), e);
+			return java.util.concurrent.CompletableFuture.completedFuture(false);
 		}
 	}
 

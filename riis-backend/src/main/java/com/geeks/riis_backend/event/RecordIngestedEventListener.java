@@ -6,9 +6,10 @@ import com.geeks.riis_backend.service.AIProxyService;
 import com.geeks.riis_backend.service.ClusterAssignmentService;
 import com.geeks.riis_backend.service.OverlapDetectionService;
 import com.geeks.riis_backend.service.ThemeProfileService;
+import org.springframework.transaction.event.TransactionalEventListener;
+import org.springframework.transaction.event.TransactionPhase;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 import java.util.List;
@@ -25,7 +26,7 @@ public class RecordIngestedEventListener {
     private final ClusterAssignmentService clusterAssignmentService;
 
     @Async
-    @EventListener
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onRecordIngested(RecordIngestedEvent event) {
         log.info("RecordIngestedEvent received for: {}", event.referenceNumber());
 
@@ -50,7 +51,7 @@ public class RecordIngestedEventListener {
 
         float[] sbertEmbedding = aiProxyService.computeSBERTEmbedding(text);
         if (sbertEmbedding.length > 0) {
-            overlapDetectionService.detectOverlaps(output, sbertEmbedding);
+            overlapDetectionService.detectOverlaps(output, sbertEmbedding, event.submitterEmail());
             log.info("Overlap detection completed for: {}", event.referenceNumber());
         } else {
             log.warn("Empty SBERT embedding for: {}", event.referenceNumber());

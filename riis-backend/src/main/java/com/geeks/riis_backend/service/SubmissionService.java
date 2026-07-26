@@ -119,7 +119,8 @@ public class SubmissionService {
 		eventPublisher.publishEvent(new RecordIngestedEvent(
 				saved.getId(),
 				saved.getReferenceNumber(),
-				institution.getId()
+				institution.getId(),
+				user.getEmail()
 		));
 
 		emailNotificationService.sendSubmissionConfirmation(user.getEmail(), saved.getReferenceNumber());

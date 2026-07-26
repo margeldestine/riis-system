@@ -26,7 +26,7 @@ public class OverlapDetectionService {
     private final UserRepository userRepository;
     private final EmailNotificationService emailNotificationService;
 
-    public void detectOverlaps(ResearchOutput newRecord, float[] newEmbedding) {
+    public void detectOverlaps(ResearchOutput newRecord, float[] newEmbedding, String submitterEmail) {
         if (newEmbedding == null || newEmbedding.length == 0) {
             log.warn("Empty embedding for record: {}", newRecord.getReferenceNumber());
             return;
@@ -58,7 +58,6 @@ public class OverlapDetectionService {
 
             overlapAlertRepository.save(alert);
 
-            String submitterEmail = getSubmitterEmail(newRecord);
             if (submitterEmail != null) {
                 emailNotificationService.sendOverlapDetectionAlert(
                         submitterEmail,
@@ -66,24 +65,11 @@ public class OverlapDetectionService {
                         existing.getTitle(),
                         existing.getInstitution() != null ? existing.getInstitution().getName() : "Unknown",
                         similarity
-                );
-                alert.setNotificationSent(true);
-                overlapAlertRepository.save(alert);
+                ).thenAccept(success -> {
+                    alert.setNotificationSent(success);
+                    overlapAlertRepository.save(alert);
+                });
             }
-        }
-    }
-
-    private String getSubmitterEmail(ResearchOutput output) {
-        try {
-            if (output.getInstitution() == null) return null;
-            return userRepository.findAll().stream()
-                    .filter(u -> u.getInstitution() != null &&
-                            u.getInstitution().getId().equals(output.getInstitution().getId()))
-                    .map(User::getEmail)
-                    .findFirst()
-                    .orElse(null);
-        } catch (Exception e) {
-            return null;
         }
     }
 
