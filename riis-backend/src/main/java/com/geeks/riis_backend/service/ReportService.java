@@ -25,6 +25,7 @@ import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
 import com.geeks.riis_backend.dto.ReportRequestDTO;
+import com.itextpdf.text.Rectangle;
 
 import java.io.ByteArrayOutputStream;
 import java.io.StringWriter;
@@ -191,19 +192,28 @@ public class ReportService {
         CSVPrinter printer = new CSVPrinter(sw, CSVFormat.DEFAULT.builder()
                 .setHeader(
                         "Reference No.", "Title", "Research Type", "Completion Year",
-                        "Funding Source", "Institution", "Province", "Authors", "DOI", "Status"
+                        "Funding Source", "Publication Venue/Status", "Institution", "Province",
+                        "Authors", "ORCID iDs", "Abstract", "Keywords",
+                        "Dublin Core Subject", "Dublin Core Coverage", "Dublin Core Rights",
+                        "DOI", "Status"
                 ).build()
         );
         for (ResearchOutput o : data) {
             String authors = o.getAuthors() == null ? "" :
                     o.getAuthors().stream().map(a -> a.getFullName() != null ? a.getFullName() : "")
                             .collect(Collectors.joining("; "));
+            String orcids = o.getAuthors() == null ? "" :
+                    o.getAuthors().stream().map(a -> a.getOrcidId() != null ? a.getOrcidId() : "")
+                            .filter(v -> !v.isBlank())
+                            .collect(Collectors.joining("; "));
             printer.printRecord(
                     o.getReferenceNumber(), o.getTitle(), o.getResearchType(),
-                    o.getCompletionYear(), o.getFundingSource(),
+                    o.getCompletionYear(), o.getFundingSource(), o.getPublicationVenue(),
                     o.getInstitution() != null ? o.getInstitution().getName() : "",
                     o.getInstitution() != null ? o.getInstitution().getProvince() : "",
-                    authors, o.getDoi(), o.getStatus()
+                    authors, orcids, o.getAbstractText(), o.getKeywords(),
+                    o.getSubjectDc(), o.getCoverageDc(), o.getRightsDc(),
+                    o.getDoi(), o.getStatus()
             );
         }
         printer.flush();
@@ -217,6 +227,7 @@ public class ReportService {
         doc.open();
 
         Font titleFont = new Font(Font.FontFamily.HELVETICA, 14, Font.BOLD);
+        Font sectionFont = new Font(Font.FontFamily.HELVETICA, 11, Font.BOLD);
         Font headerFont = new Font(Font.FontFamily.HELVETICA, 9, Font.BOLD, BaseColor.WHITE);
         Font cellFont = new Font(Font.FontFamily.HELVETICA, 8);
 
@@ -225,33 +236,100 @@ public class ReportService {
                 new Font(Font.FontFamily.HELVETICA, 9)));
         doc.add(Chunk.NEWLINE);
 
-        PdfPTable table = new PdfPTable(6);
-        table.setWidthPercentage(100);
-        table.setWidths(new float[]{2f, 5f, 2f, 1.5f, 2f, 2.5f});
+        // --- Section 1: Summary Table ---
+        doc.add(new Paragraph("Summary", sectionFont));
+        doc.add(Chunk.NEWLINE);
 
-        String[] headers = {"Ref No.", "Title", "Type", "Year", "Funding", "Institution"};
-        for (String h : headers) {
+        PdfPTable summaryTable = new PdfPTable(6);
+        summaryTable.setWidthPercentage(100);
+        summaryTable.setWidths(new float[]{2f, 5f, 2f, 1.5f, 2f, 2.5f});
+
+        String[] summaryHeaders = {"Ref No.", "Title", "Type", "Year", "Funding", "Institution"};
+        for (String h : summaryHeaders) {
             PdfPCell cell = new PdfPCell(new Phrase(h, headerFont));
             cell.setBackgroundColor(new BaseColor(26, 26, 46));
             cell.setPadding(5);
-            table.addCell(cell);
+            summaryTable.addCell(cell);
         }
 
         for (ResearchOutput o : data) {
-            table.addCell(new PdfPCell(new Phrase(o.getReferenceNumber() != null ? o.getReferenceNumber() : "", cellFont)));
-            table.addCell(new PdfPCell(new Phrase(o.getTitle() != null ? o.getTitle() : "", cellFont)));
-            table.addCell(new PdfPCell(new Phrase(o.getResearchType() != null ? o.getResearchType() : "", cellFont)));
-            table.addCell(new PdfPCell(new Phrase(o.getCompletionYear() != null ? String.valueOf(o.getCompletionYear()) : "", cellFont)));
-            table.addCell(new PdfPCell(new Phrase(o.getFundingSource() != null ? o.getFundingSource() : "", cellFont)));
-            table.addCell(new PdfPCell(new Phrase(o.getInstitution() != null && o.getInstitution().getName() != null ? o.getInstitution().getName() : "", cellFont)));
+            summaryTable.addCell(new PdfPCell(new Phrase(o.getReferenceNumber() != null ? o.getReferenceNumber() : "", cellFont)));
+            summaryTable.addCell(new PdfPCell(new Phrase(o.getTitle() != null ? o.getTitle() : "", cellFont)));
+            summaryTable.addCell(new PdfPCell(new Phrase(o.getResearchType() != null ? o.getResearchType() : "", cellFont)));
+            summaryTable.addCell(new PdfPCell(new Phrase(o.getCompletionYear() != null ? String.valueOf(o.getCompletionYear()) : "", cellFont)));
+            summaryTable.addCell(new PdfPCell(new Phrase(o.getFundingSource() != null ? o.getFundingSource() : "", cellFont)));
+            summaryTable.addCell(new PdfPCell(new Phrase(o.getInstitution() != null && o.getInstitution().getName() != null ? o.getInstitution().getName() : "", cellFont)));
         }
 
-        doc.add(table);
+        doc.add(summaryTable);
         doc.add(Chunk.NEWLINE);
         doc.add(new Paragraph("Total Records: " + data.size(),
                 new Font(Font.FontFamily.HELVETICA, 9, Font.ITALIC)));
-        doc.close();
 
+        // --- Section 2: Detailed Record Sheets ---
+        doc.newPage();
+        doc.add(new Paragraph("Detailed Records", sectionFont));
+        doc.add(Chunk.NEWLINE);
+
+        Font recordTitleFont = new Font(Font.FontFamily.HELVETICA, 11, Font.BOLD);
+        Font labelFont = new Font(Font.FontFamily.HELVETICA, 8, Font.BOLD, BaseColor.DARK_GRAY);
+        Font valueFont = new Font(Font.FontFamily.HELVETICA, 9);
+
+        int index = 1;
+        for (ResearchOutput o : data) {
+            doc.add(new Paragraph(index + ". " + (o.getTitle() != null ? o.getTitle() : "Untitled"), recordTitleFont));
+            doc.add(new Paragraph(" "));
+
+            String authors = o.getAuthors() == null ? "" :
+                    o.getAuthors().stream().map(a -> a.getFullName() != null ? a.getFullName() : "")
+                            .collect(Collectors.joining("; "));
+            String orcids = o.getAuthors() == null ? "" :
+                    o.getAuthors().stream().map(a -> a.getOrcidId() != null ? a.getOrcidId() : "")
+                            .filter(v -> !v.isBlank())
+                            .collect(Collectors.joining("; "));
+
+            PdfPTable fieldTable = new PdfPTable(2);
+            fieldTable.setWidthPercentage(100);
+            fieldTable.setWidths(new float[]{1.4f, 4f});
+            fieldTable.getDefaultCell().setBorder(Rectangle.NO_BORDER);
+
+            String[][] fields = {
+                    {"Reference No.", o.getReferenceNumber()},
+                    {"Research Type", o.getResearchType()},
+                    {"Completion Year", o.getCompletionYear() != null ? String.valueOf(o.getCompletionYear()) : ""},
+                    {"Funding Source", o.getFundingSource()},
+                    {"Publication Venue/Status", o.getPublicationVenue()},
+                    {"Institution", o.getInstitution() != null ? o.getInstitution().getName() : ""},
+                    {"Province", o.getInstitution() != null ? o.getInstitution().getProvince() : ""},
+                    {"Authors", authors},
+                    {"ORCID iD(s)", orcids},
+                    {"Abstract", o.getAbstractText()},
+                    {"Keywords", o.getKeywords()},
+                    {"Dublin Core Subject", o.getSubjectDc()},
+                    {"Dublin Core Coverage", o.getCoverageDc()},
+                    {"Dublin Core Rights", o.getRightsDc()},
+                    {"DOI", o.getDoi()},
+                    {"Status", o.getStatus()},
+            };
+
+            for (String[] field : fields) {
+                PdfPCell labelCell = new PdfPCell(new Phrase(field[0], labelFont));
+                labelCell.setBorder(Rectangle.NO_BORDER);
+                labelCell.setPaddingBottom(4);
+                fieldTable.addCell(labelCell);
+
+                PdfPCell valueCell = new PdfPCell(new Phrase(field[1] != null ? field[1] : "—", valueFont));
+                valueCell.setBorder(Rectangle.NO_BORDER);
+                valueCell.setPaddingBottom(4);
+                fieldTable.addCell(valueCell);
+            }
+
+            doc.add(fieldTable);
+            doc.add(Chunk.NEWLINE);
+            index++;
+        }
+
+        doc.close();
         return baos.toByteArray();
     }
 
