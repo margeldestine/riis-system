@@ -16,6 +16,7 @@ export default function HeiReportsPage() {
   const [status, setStatus] = useState('idle')
   const [result, setResult] = useState(null)
   const [error, setError] = useState('')
+  const [yearError, setYearError] = useState(false)
   const [preview, setPreview] = useState([])
   const [previewLoading, setPreviewLoading] = useState(true)
 
@@ -51,7 +52,15 @@ export default function HeiReportsPage() {
     )
   }
 
-  const handleGenerate = async () => {
+ const handleGenerate = async () => {
+    if (!yearFrom || !yearTo) {
+      setYearError(true)
+      setError('Year From and Year To are required. Please select a year range before generating a report.')
+      document.querySelector('main')?.scrollTo({ top: 0, behavior: 'smooth' })
+      return
+    }
+    setYearError(false)
+
     setStatus('generating')
     setError('')
     setResult(null)
@@ -105,6 +114,7 @@ export default function HeiReportsPage() {
     setSelectedTypes([])
     setFundingSource('')
     setOutputFormat('CSV')
+    setYearError(false)
     setStatus('idle')
     setResult(null)
     setError('')
@@ -196,8 +206,8 @@ export default function HeiReportsPage() {
                   <div className="relative">
                     <select
                       value={yearFrom}
-                      onChange={e => setYearFrom(e.target.value)}
-                      className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-3 pr-8 text-sm text-slate-600 appearance-none focus:outline-none focus:ring-1 focus:ring-[#C9A84C]"
+                      onChange={e => { setYearFrom(e.target.value); setYearError(false) }}
+                      className={`w-full rounded-lg border bg-white py-2.5 pl-3 pr-8 text-sm text-slate-600 appearance-none focus:outline-none focus:ring-1 focus:ring-[#C9A84C] ${yearError ? 'border-red-400 ring-1 ring-red-200' : 'border-slate-200'}`}
                     >
                       <option value="">Select year</option>
                       {YEARS.filter(y => !yearTo || y <= parseInt(yearTo)).map(y => <option key={y} value={y}>{y}</option>)}
@@ -212,8 +222,8 @@ export default function HeiReportsPage() {
                   <div className="relative">
                     <select
                       value={yearTo}
-                      onChange={e => setYearTo(e.target.value)}
-                      className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-3 pr-8 text-sm text-slate-600 appearance-none focus:outline-none focus:ring-1 focus:ring-[#C9A84C]"
+                      onChange={e => { setYearTo(e.target.value); setYearError(false) }}
+                      className={`w-full rounded-lg border bg-white py-2.5 pl-3 pr-8 text-sm text-slate-600 appearance-none focus:outline-none focus:ring-1 focus:ring-[#C9A84C] ${yearError ? 'border-red-400 ring-1 ring-red-200' : 'border-slate-200'}`}
                     >
                       <option value="">Select year</option>
                       {YEARS.filter(y => !yearFrom || y >= parseInt(yearFrom)).map(y => <option key={y} value={y}>{y}</option>)}
