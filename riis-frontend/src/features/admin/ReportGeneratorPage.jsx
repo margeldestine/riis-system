@@ -25,12 +25,15 @@ export default function ReportGeneratorPage() {
     const fetchPreview = async () => {
       setPreviewLoading(true)
       try {
-        const res = await apiClient.get('/admin/submissions', {
-          params: { status: 'APPROVED', page: 0, size: 5 }
+        const res = await apiClient.post('/reports/preview', {
+          yearFrom: yearFrom ? parseInt(yearFrom) : null,
+          yearTo: yearTo ? parseInt(yearTo) : null,
+          researchTypes: selectedTypes.length > 0 ? selectedTypes : null,
+          fundingSources: fundingSource ? [fundingSource] : null,
+          outputFormat,
         })
         const data = res.data
-        const content = Array.isArray(data) ? data : data?.content || []
-        setPreview(content)
+        setPreview(Array.isArray(data) ? data : [])
       } catch {
         setPreview([])
       } finally {
@@ -38,8 +41,8 @@ export default function ReportGeneratorPage() {
       }
     }
     fetchPreview()
-  }, [])
-
+  }, [yearFrom, yearTo, selectedTypes, fundingSource])
+  
   useEffect(() => {
     if (yearFrom) {
       setYearTo(yearFrom)

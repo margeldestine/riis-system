@@ -2,6 +2,7 @@ package com.geeks.riis_backend.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.geeks.riis_backend.dto.ReportResultDTO;
+import com.geeks.riis_backend.dto.SubmissionSummaryDTO;
 import com.geeks.riis_backend.model.ReportJob;
 import com.geeks.riis_backend.model.ResearchOutput;
 import com.geeks.riis_backend.repository.ReportJobRepository;
@@ -87,6 +88,29 @@ public class ReportService {
         return new ReportResultDTO(job.getId(), "COMPLETE", url,
                 "report-" + System.currentTimeMillis() + "." + extension,
                 data.size(), job.getCompletedAt());
+    }
+
+    public List<SubmissionSummaryDTO> previewFilteredDataset(ReportRequestDTO request) {
+        return buildFilteredDataset(request).stream()
+                .limit(5)
+                .map(o -> new SubmissionSummaryDTO(
+                        o.getId(),
+                        o.getReferenceNumber(),
+                        o.getTitle(),
+                        o.getResearchType(),
+                        o.getFundingSource(),
+                        o.getCompletionYear(),
+                        o.getCreatedAt(),
+                        o.getStatus(),
+                        o.getInstitution() != null ? o.getInstitution().getId() : null,
+                        o.getInstitution() != null ? o.getInstitution().getName() : null,
+                        o.getAuthors() == null ? null
+                                : o.getAuthors().stream()
+                                .map(com.geeks.riis_backend.model.Author::getFullName)
+                                .filter(name -> name != null && !name.isBlank())
+                                .collect(Collectors.joining(", "))
+                ))
+                .collect(Collectors.toList());
     }
 
     @Async
