@@ -20,6 +20,10 @@ export default function ReportGeneratorPage() {
   const [jobId, setJobId] = useState(null)
   const [preview, setPreview] = useState([])
   const [previewLoading, setPreviewLoading] = useState(true)
+  const [scopeType, setScopeType] = useState('REGION')
+  const [institutionId, setInstitutionId] = useState('')
+  const [province, setProvince] = useState('')
+  const [institutions, setInstitutions] = useState([])
 
   useEffect(() => {
     const fetchPreview = async () => {
@@ -31,6 +35,9 @@ export default function ReportGeneratorPage() {
           researchTypes: selectedTypes.length > 0 ? selectedTypes : null,
           fundingSources: fundingSource ? [fundingSource] : null,
           outputFormat,
+          scopeType,
+          institutionId: institutionId || null,
+          province: province || null,
         })
         const data = res.data
         setPreview(Array.isArray(data) ? data : [])
@@ -41,13 +48,26 @@ export default function ReportGeneratorPage() {
       }
     }
     fetchPreview()
-  }, [yearFrom, yearTo, selectedTypes, fundingSource])
-  
+  }, [yearFrom, yearTo, selectedTypes, fundingSource, scopeType, institutionId, province])
+
   useEffect(() => {
     if (yearFrom) {
       setYearTo(yearFrom)
     }
   }, [yearFrom])
+
+  useEffect(() => {
+    const fetchInstitutions = async () => {
+      try {
+        const res = await apiClient.get('/admin/institutions')
+        const data = res.data
+        setInstitutions(Array.isArray(data) ? data : (data?.content ?? []))
+      } catch {
+        setInstitutions([])
+      }
+    }
+    fetchInstitutions()
+  }, [])
 
   const toggleType = (type) => {
     setSelectedTypes(prev =>
@@ -75,6 +95,9 @@ const handleGenerate = async () => {
         researchTypes: selectedTypes.length > 0 ? selectedTypes : null,
         fundingSources: fundingSource ? [fundingSource] : null,
         outputFormat,
+        scopeType,
+        institutionId: institutionId || null,
+        province: province || null,
       })
 
       if (res.status === 200) {
@@ -118,6 +141,9 @@ const handleGenerate = async () => {
     setSelectedTypes([])
     setFundingSource('')
     setOutputFormat('CSV')
+    setScopeType('REGION')
+    setInstitutionId('')
+    setProvince('')
     setStatus('idle')
     setResult(null)
     setError('')
@@ -189,6 +215,61 @@ const handleGenerate = async () => {
                   <h3 className="text-base font-bold text-[#1A1A2E]">Configure Your Report</h3>
                   <p className="text-xs text-slate-400">Select filters and parameters</p>
                 </div>
+              </div>
+
+              {/* Report Scope */}
+              <div className="mb-5">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-2">
+                  Report Scope
+                </p>
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {[
+                    { key: 'REGION', label: 'All Region VII' },
+                    { key: 'PROVINCE', label: 'By Province' },
+                    { key: 'HEI', label: 'By HEI' },
+                  ].map(opt => (
+                    <button
+                      key={opt.key}
+                      type="button"
+                      onClick={() => {
+                        setScopeType(opt.key)
+                        setProvince('')
+                        setInstitutionId('')
+                      }}
+                      className={`rounded-full px-3 py-1.5 text-xs font-medium transition border ${
+                        scopeType === opt.key
+                          ? 'bg-[#1A1A2E] text-white border-[#1A1A2E]'
+                          : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+
+                {scopeType === 'PROVINCE' && (
+                  <select
+                    value={province}
+                    onChange={e => setProvince(e.target.value)}
+                    className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-3 pr-8 text-sm text-slate-600 appearance-none focus:outline-none focus:ring-1 focus:ring-[#C9A84C]"
+                  >
+                    <option value="">Select province</option>
+                    {['Cebu', 'Bohol'].map(p => <option key={p} value={p}>{p}</option>)}
+                  </select>
+                )}
+
+                {scopeType === 'HEI' && (
+                  <select
+                    value={institutionId}
+                    onChange={e => setInstitutionId(e.target.value)}
+                    className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-3 pr-8 text-sm text-slate-600 appearance-none focus:outline-none focus:ring-1 focus:ring-[#C9A84C]"
+                  >
+                    <option value="">Select institution</option>
+                    {institutions.map(inst => (
+                      <option key={inst.id} value={inst.id}>{inst.name}</option>
+                    ))}
+                  </select>
+                )}
               </div>
 
               {/* Year range */}
@@ -369,7 +450,13 @@ const handleGenerate = async () => {
                 <h3 className="text-sm font-bold text-[#1A1A2E]">Report Configuration Summary</h3>
               </div>
               <div className="space-y-2 text-xs">
-                <p><span className="text-amber-600 font-semibold">● Scope:</span> <span className="text-slate-600">DOST Region VII</span></p>
+                <p><span className="text-amber-600 font-semibold">● Scope:</span> <span className="text-slate-600">
+                  {scopeType === 'HEI'
+                    ? (institutions.find(i => i.id === institutionId)?.name || 'Select an HEI')
+                    : scopeType === 'PROVINCE'
+                    ? (province || 'Select a province')
+                    : 'DOST Region VII'}
+                </span></p>
                 <p><span className="text-amber-600 font-semibold">● Year Range:</span> <span className="text-slate-600">{yearFrom || '—'} – {yearTo || '—'}</span></p>
                 <p><span className="text-amber-600 font-semibold">● Types:</span> <span className="text-slate-600">{selectedTypes.length > 0 ? selectedTypes.join(', ') : 'All'}</span></p>
                 <p><span className="text-amber-600 font-semibold">● Format:</span> <span className="text-slate-600">{outputFormat}</span></p>
