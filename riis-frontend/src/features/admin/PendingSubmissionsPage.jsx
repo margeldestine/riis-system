@@ -129,7 +129,13 @@ function SubmissionMetadataPanel({ submission }) {
           </div>
           <div>
             <p className="text-[10px] uppercase tracking-wider text-slate-400 mb-0.5">Validation Status</p>
-            <p className="text-sm font-semibold text-emerald-600">Validation Passed</p>
+            {submission.validationErrorCount > 0 ? (
+              <p className="text-sm font-semibold text-red-600">
+                {submission.validationErrorCount} Validation {submission.validationErrorCount === 1 ? 'Error' : 'Errors'}
+              </p>
+            ) : (
+              <p className="text-sm font-semibold text-emerald-600">Validation Passed</p>
+            )}
           </div>
         </div>
       </div>
