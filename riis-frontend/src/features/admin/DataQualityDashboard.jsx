@@ -363,12 +363,12 @@ export default function DataQualityDashboard() {
                   {overlaps.map((group) => {
                     const topScore = Math.max(...group.matches.map((m) => m.similarityScore))
                     const score = (topScore * 100).toFixed(1)
-                    const isCritical = topScore >= 0.90
+                    const isCritical = topScore >= 0.80
                     return (
                       <div
                         key={group.newRecordId}
                         className="rounded-[12px] border-2 overflow-hidden bg-white"
-                        style={{ borderColor: isCritical ? '#EF4444' : '#F59E0B' }}
+                        style={{ borderColor: '#EF4444' }}
                       >
                         <div className="flex items-start justify-between px-5 pt-5 pb-3">
                           <div className="flex-1 pr-4">
@@ -394,10 +394,10 @@ export default function DataQualityDashboard() {
                             </div>
                           </div>
                           <div className="flex flex-col items-end gap-1 shrink-0">
-                            <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${isCritical ? 'bg-red-100 text-red-600' : 'bg-amber-100 text-amber-700'}`}>
-                              ● {isCritical ? 'Flagged' : 'Monitor'}
+                            <span className="rounded-full px-2.5 py-0.5 text-[10px] font-bold bg-red-100 text-red-600">
+                              ● Flagged
                             </span>
-                            <span className={`text-3xl font-bold ${isCritical ? 'text-red-500' : 'text-amber-500'}`}>
+                            <span className="text-3xl font-bold text-red-500">
                               {score}%
                             </span>
                           </div>
