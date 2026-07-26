@@ -46,6 +46,12 @@ export default function HeiReportsPage() {
   const academicYearLabel = `${new Date().getFullYear() - 1}-${new Date().getFullYear()}`
 
   useEffect(() => {
+    if (yearFrom) {
+      setYearTo(yearFrom)
+    }
+  }, [yearFrom])
+
+  useEffect(() => {
     const fetchPreview = async () => {
       setPreviewLoading(true)
       try {
