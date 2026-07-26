@@ -118,12 +118,14 @@ public class AuthService {
 		boolean rememberMe = Boolean.TRUE.equals(request.rememberMe());
 		long ttlSeconds = rememberMe ? jwtService.getRememberMeTtlSeconds() : -1;
 
+		Map<String, Object> claims = new java.util.HashMap<>();
+		claims.put("role", saved.getRole());
+		claims.put("email", saved.getEmail());
+		claims.put("institutionId", saved.getInstitution() != null ? saved.getInstitution().getId() : null);
+
 		String token = jwtService.generateAccessToken(
 				saved.getId(),
-				Map.of(
-						"role", saved.getRole(),
-						"email", saved.getEmail()
-				),
+				claims,
 				ttlSeconds
 		);
 

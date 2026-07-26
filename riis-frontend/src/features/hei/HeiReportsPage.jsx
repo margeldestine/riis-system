@@ -4,6 +4,20 @@ import DashboardLayout from '../admin/DashboardLayout'
 import { heiNavItems } from './HeiDashboard'
 import apiClient from '../../services/apiClient'
 
+function decodeJwtPayload(token) {
+  if (!token || typeof token !== 'string') return null
+  const parts = token.split('.')
+  if (parts.length < 2) return null
+  try {
+    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/')
+    const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=')
+    const json = atob(padded)
+    return JSON.parse(json)
+  } catch {
+    return null
+  }
+}
+
 const RESEARCH_TYPES = ['Journal Article', 'Conference Paper', 'Funded Project', 'Innovation Output', 'IP Registration']
 const YEARS = Array.from({ length: 10 }, (_, i) => 2026 - i)
 
@@ -25,18 +39,26 @@ export default function HeiReportsPage() {
     localStorage.getItem('userInstitution') ||
     'Higher Education Institution'
 
+  const token = localStorage.getItem('token') || ''
+  const tokenPayload = decodeJwtPayload(token)
+  const institutionId = tokenPayload?.institutionId || null
+
   const academicYearLabel = `${new Date().getFullYear() - 1}-${new Date().getFullYear()}`
 
   useEffect(() => {
     const fetchPreview = async () => {
       setPreviewLoading(true)
       try {
-        const res = await apiClient.get('/submissions', {
-        params: { page: 0, size: 20 }
-      })
-      const data = res.data
-      const content = Array.isArray(data) ? data : data?.content || []
-      setPreview(content.filter(item => item.status === 'APPROVED').slice(0, 5))
+        const res = await apiClient.post('/reports/preview', {
+          yearFrom: yearFrom ? parseInt(yearFrom) : null,
+          yearTo: yearTo ? parseInt(yearTo) : null,
+          researchTypes: selectedTypes.length > 0 ? selectedTypes : null,
+          fundingSources: fundingSource ? [fundingSource] : null,
+          outputFormat,
+          institutionId,
+        })
+        const data = res.data
+        setPreview(Array.isArray(data) ? data : [])
       } catch {
         setPreview([])
       } finally {
@@ -44,7 +66,7 @@ export default function HeiReportsPage() {
       }
     }
     fetchPreview()
-  }, [])
+  }, [yearFrom, yearTo, selectedTypes, fundingSource, institutionId])
 
   const toggleType = (type) => {
     setSelectedTypes(prev =>
@@ -72,6 +94,7 @@ export default function HeiReportsPage() {
         researchTypes: selectedTypes.length > 0 ? selectedTypes : null,
         fundingSources: fundingSource ? [fundingSource] : null,
         outputFormat,
+        institutionId,
       })
 
       if (res.status === 200) {
@@ -437,7 +460,7 @@ export default function HeiReportsPage() {
                 onClick={handleReset}
                 className="w-full flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white py-3 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition"
               >
-                <RefreshCw className="h-4 w-" />
+                <RefreshCw className="h-4 w-4" />
                 Reset
               </button>
             </div>
