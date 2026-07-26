@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   Loader2, CheckCircle2,
   Search, ChevronDown, BarChart3, ClipboardList,
-  Bell, FileText, Building2, Users
+  Bell, FileText, Building2, Users, Download, FileWarning
 } from 'lucide-react'
 import DashboardLayout from './DashboardLayout'
 import apiClient from '../../services/apiClient'
@@ -58,6 +58,53 @@ function TypeBadge({ type }) {
     <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${colors[type] || 'bg-slate-100 text-slate-600'}`}>
       {type || '—'}
     </span>
+  )
+}
+
+// DAS-047: the Review screen had no way to view/download the HEI's
+// uploaded PDF even though every submission stores one. Fetches a
+// short-lived signed URL on demand (rather than eagerly, since presigned
+// URLs expire after 15 minutes) and opens it in a new tab. Handles the
+// "no file on record" case explicitly instead of a silently broken link.
+function SubmissionFileAction({ submissionId }) {
+  const [state, setState] = useState('idle') // idle | loading | none | error
+
+  const handleClick = async () => {
+    setState('loading')
+    try {
+      const res = await apiClient.get(`/admin/submissions/${submissionId}/file-url`)
+      if (res.status === 204 || !res.data?.url) {
+        setState('none')
+        return
+      }
+      window.open(res.data.url, '_blank', 'noopener,noreferrer')
+      setState('idle')
+    } catch (err) {
+      console.error('File download error:', err)
+      setState('error')
+    }
+  }
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={handleClick}
+        disabled={state === 'loading'}
+        className="inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-[#1A1A2E] transition hover:bg-slate-50 disabled:opacity-60"
+      >
+        {state === 'loading' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+        View / Download Uploaded File
+      </button>
+      {state === 'none' && (
+        <p className="mt-1.5 flex items-center gap-1 text-xs text-slate-400">
+          <FileWarning className="h-3.5 w-3.5" /> No file uploaded for this submission.
+        </p>
+      )}
+      {state === 'error' && (
+        <p className="mt-1.5 text-xs text-red-500">Couldn't retrieve the file. Please try again.</p>
+      )}
+    </div>
   )
 }
 
@@ -137,6 +184,10 @@ function SubmissionMetadataPanel({ submission }) {
               <p className="text-sm font-semibold text-emerald-600">Validation Passed</p>
             )}
           </div>
+        </div>
+        <div className="mt-5 pt-5 border-t border-slate-100">
+          <p className="text-[10px] uppercase tracking-wider text-slate-400 mb-2">Uploaded File</p>
+          <SubmissionFileAction submissionId={submission.id} />
         </div>
       </div>
 

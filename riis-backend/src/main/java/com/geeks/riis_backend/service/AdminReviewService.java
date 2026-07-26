@@ -4,6 +4,7 @@ import com.geeks.riis_backend.dto.SubmissionAuthorRequest;
 import com.geeks.riis_backend.dto.SubmissionDetailDTO;
 import com.geeks.riis_backend.dto.SubmissionSummaryDTO;
 import com.geeks.riis_backend.exception.ResourceNotFoundException;
+import com.geeks.riis_backend.exception.BadRequestException;
 import com.geeks.riis_backend.model.Author;
 import com.geeks.riis_backend.model.ResearchOutput;
 import com.geeks.riis_backend.repository.ResearchOutputRepository;
@@ -25,6 +26,7 @@ import java.util.stream.Collectors;
 public class AdminReviewService {
 
     private final ResearchOutputRepository researchOutputRepository;
+    private final S3UploadService s3UploadService;
 
     @Transactional(readOnly = true)
     public Page<SubmissionSummaryDTO> listSubmissions(String status, String institutionId,
@@ -96,6 +98,33 @@ public class AdminReviewService {
                 output.getS3PdfKey(),
                 validationErrorCount
         );
+    }
+
+    // DAS-047: Review screen previously had no way to view/download the
+    // HEI's uploaded PDF, even though every submission stores an s3PdfKey.
+    // Reuses the same S3UploadService presigning logic already used for
+    // HEI-side uploads (S3UploadService#generateDownloadUrl), just from the
+    // admin side. Returns null when there's genuinely no file on record
+    // (e.g., legacy/malformed submissions) so the controller can respond
+    // with a clear "no file uploaded" message instead of a broken link.
+    @Transactional(readOnly = true)
+    public String getFileDownloadUrl(String submissionId) {
+        ResearchOutput output = researchOutputRepository.findById(submissionId)
+                .orElseThrow(() -> new ResourceNotFoundException("Submission not found: " + submissionId));
+
+        String s3PdfKey = output.getS3PdfKey();
+        if (s3PdfKey == null || s3PdfKey.isBlank()) {
+            return null;
+        }
+
+        try {
+            return s3UploadService.generateDownloadUrl(s3PdfKey);
+        } catch (BadRequestException e) {
+            // S3 not configured / bad key — surface as "no file available"
+            // rather than a 500, since this is a data/config issue, not
+            // something the admin caused.
+            return null;
+        }
     }
 
     @Transactional(readOnly = true)

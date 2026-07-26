@@ -45,6 +45,20 @@ public class AdminReviewController {
         return ResponseEntity.ok(adminReviewService.getStatusStats());
     }
 
+    // DAS-047: returns a temporary signed download URL for the submission's
+    // uploaded PDF (via s3PdfKey), or a 204 No Content when no file is on
+    // record, so the frontend can show "No file uploaded" instead of a
+    // broken link.
+    @GetMapping("/{id}/file-url")
+    @PreAuthorize("hasRole('DOST_ADMIN')")
+    public ResponseEntity<Map<String, String>> getFileDownloadUrl(@PathVariable String id) {
+        String url = adminReviewService.getFileDownloadUrl(id);
+        if (url == null) {
+            return ResponseEntity.noContent().build();
+        }
+        return ResponseEntity.ok(Map.of("url", url));
+    }
+
     // DAS-043: PATCH /{id}/status (Approve / Requires Correction / Reject)
     // was removed per Sir Ralph's feedback — only registered, verified HEI
     // staff accounts can submit, so submissions are already trusted at the
