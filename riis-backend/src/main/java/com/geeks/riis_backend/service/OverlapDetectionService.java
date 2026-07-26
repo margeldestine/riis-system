@@ -38,8 +38,10 @@ public class OverlapDetectionService {
                 .findSimilarBySbertEmbedding(newEmbedding, newRecord.getId(), OVERLAP_THRESHOLD);
 
         for (ResearchOutput existing : similar) {
-            if (overlapAlertRepository.existsByNewRecordIdAndExistingRecordId(
-                    newRecord.getId(), existing.getId())) continue;
+            boolean alreadyFlagged =
+                    overlapAlertRepository.existsByNewRecordIdAndExistingRecordId(newRecord.getId(), existing.getId())
+                            || overlapAlertRepository.existsByNewRecordIdAndExistingRecordId(existing.getId(), newRecord.getId());
+            if (alreadyFlagged) continue;
 
             double similarity = computeCosineSimilarity(newEmbedding, existing.getSbertEmbedding());
 

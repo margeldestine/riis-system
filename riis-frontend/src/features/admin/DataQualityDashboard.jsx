@@ -74,17 +74,6 @@ export default function DataQualityDashboard() {
   const sortedErrors = Object.entries(aggregatedErrors)
     .sort((a, b) => b[1] - a[1])
 
-  // Deduplicate overlaps — keep only the newer record of each pair
-  const deduplicatedOverlaps = (() => {
-    const seen = new Set()
-    return overlaps.filter((alert) => {
-      const key = [alert.newRecordTitle, alert.existingRecordTitle].sort().join('||')
-      if (seen.has(key)) return false
-      seen.add(key)
-      return true
-    })
-  })()
-
   return (
     <DashboardLayout
       activeLabel="Overlap Alerts"
@@ -132,9 +121,9 @@ export default function DataQualityDashboard() {
           >
             <AlertTriangle className="h-4 w-4" />
             Overlap Alerts
-            {deduplicatedOverlaps.length > 0 && (
+            {overlaps.length > 0 && (
               <span className="rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] text-white">
-                {deduplicatedOverlaps.length}
+                {overlaps.length}
               </span>
             )}
           </button>
@@ -351,7 +340,7 @@ export default function DataQualityDashboard() {
                   </div>
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
-                  <span className="text-sm font-semibold text-slate-600">{deduplicatedOverlaps.length} flagged</span>
+                  <span className="text-sm font-semibold text-slate-600">{overlaps.length} flagged</span>
                   <span className="flex items-center gap-1.5 rounded-md bg-red-500 px-3 py-1 text-xs font-bold text-white">
                     <span className="h-1.5 w-1.5 rounded-full bg-white" />
                     Active
@@ -363,7 +352,7 @@ export default function DataQualityDashboard() {
                 <div className="flex items-center justify-center py-10">
                   <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
                 </div>
-              ) : deduplicatedOverlaps.length === 0 ? (
+              ) : overlaps.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-10 text-center">
                   <CheckCircle2 className="h-8 w-8 text-emerald-500 mb-2" />
                   <p className="text-sm font-semibold text-slate-600">No overlaps detected</p>
@@ -371,34 +360,35 @@ export default function DataQualityDashboard() {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {deduplicatedOverlaps.map((alert) => {
-                    const score = (alert.similarityScore * 100).toFixed(1)
-                    const isCritical = alert.similarityScore >= 0.90
+                  {overlaps.map((group) => {
+                    const topScore = Math.max(...group.matches.map((m) => m.similarityScore))
+                    const score = (topScore * 100).toFixed(1)
+                    const isCritical = topScore >= 0.90
                     return (
                       <div
-                        key={alert.id}
+                        key={group.newRecordId}
                         className="rounded-[12px] border-2 overflow-hidden bg-white"
                         style={{ borderColor: isCritical ? '#EF4444' : '#F59E0B' }}
                       >
                         <div className="flex items-start justify-between px-5 pt-5 pb-3">
                           <div className="flex-1 pr-4">
                             <h3 className="text-[15px] font-bold text-[#1A1A2E] leading-snug mb-1">
-                              {alert.newRecordTitle}
+                              {group.newRecordTitle}
                             </h3>
                             <div className="flex items-center gap-2 mb-2">
-                              <span className="text-[11px] text-slate-400">{alert.newRecordHei}</span>
-                              {alert.detectedAt && (
+                              <span className="text-[11px] text-slate-400">{group.newRecordHei}</span>
+                              {group.detectedAt && (
                                 <>
                                   <span className="text-slate-300">•</span>
                                   <span className="text-[11px] text-slate-400">
-                                    Detected {new Intl.DateTimeFormat('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(alert.detectedAt))}
+                                    Detected {new Intl.DateTimeFormat('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(group.detectedAt))}
                                   </span>
                                 </>
                               )}
                             </div>
                             <div className="flex items-center gap-4 text-[11px] text-slate-400">
-                              <span>Submitting HEI: {alert.newRecordHei}</span>
-                              {alert.notificationSent && (
+                              <span>Submitting HEI: {group.newRecordHei}</span>
+                              {group.matches.some((m) => m.notificationSent) && (
                                 <span className="text-emerald-600">✓ Notification sent</span>
                               )}
                             </div>
@@ -415,19 +405,28 @@ export default function DataQualityDashboard() {
 
                         <div className="px-5 py-3 bg-slate-50 border-t border-slate-100">
                           <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">
-                            Similar Record Found
+                            Similar Record{group.matches.length > 1 ? 's' : ''} Found
                           </p>
-                          <div className="rounded-lg bg-white border border-slate-200 px-4 py-3 flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#1A1A2E] text-[10px] font-bold text-white shrink-0">
-                                {(alert.existingRecordHei || '').split(' ').filter(w => w.length > 2).map(w => w[0]).join('').slice(0, 3) || (alert.existingRecordHei || '').split(' ').map(w => w[0]).join('').slice(0, 2)}
+                          <div className="space-y-2">
+                            {group.matches.map((match) => (
+                              <div
+                                key={match.alertId}
+                                className="rounded-lg bg-white border border-slate-200 px-4 py-3 flex items-center justify-between"
+                              >
+                                <div className="flex items-center gap-3">
+                                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#1A1A2E] text-[10px] font-bold text-white shrink-0">
+                                    {(match.existingRecordHei || '').split(' ').filter(w => w.length > 2).map(w => w[0]).join('').slice(0, 3) || (match.existingRecordHei || '').split(' ').map(w => w[0]).join('').slice(0, 2)}
+                                  </div>
+                                  <div>
+                                    <p className="text-xs font-semibold text-[#1A1A2E]">{match.existingRecordTitle}</p>
+                                    <p className="text-[10px] text-slate-400 mt-0.5">{match.existingRecordHei}</p>
+                                  </div>
+                                </div>
+                                <span className="text-sm font-bold text-slate-600 shrink-0">
+                                  {(match.similarityScore * 100).toFixed(1)}%
+                                </span>
                               </div>
-                              <div>
-                                <p className="text-xs font-semibold text-[#1A1A2E]">{alert.existingRecordTitle}</p>
-                                <p className="text-[10px] text-slate-400 mt-0.5">{alert.existingRecordHei}</p>
-                              </div>
-                            </div>
-                            
+                            ))}
                           </div>
                         </div>
                       </div>
