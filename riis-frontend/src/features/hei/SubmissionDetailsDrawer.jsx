@@ -354,7 +354,10 @@ export default function SubmissionDetailsDrawer({
             {canResubmit ? (
               <button
                 type="button"
-                onClick={() => onEditResubmit?.(details)}
+                onClick={() => {
+                  console.log("DETAILS:", details);
+                  onEditResubmit?.(details);
+                }}
                 className="rounded-[8px] bg-[#0d1f3c] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#0b1a33]"
               >
                 Edit & Resubmit

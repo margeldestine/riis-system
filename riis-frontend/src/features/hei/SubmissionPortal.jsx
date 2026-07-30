@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import {
   Check,
@@ -22,15 +22,27 @@ const doiPattern = /^10\.\d{4,9}\/[-._;()/:A-Z0-9]+$/i
 const orcidPattern = /^(\d{4}-){3}\d{3}[\dX]$/i
 const conferenceUrlPattern = /^https?:\/\/.+/i
 const alphabeticContentPattern = /[a-zA-Z]/
-const keywordPattern = /^[a-zA-Z0-9]+(-[a-zA-Z0-9]+)?(\s[a-zA-Z0-9]+(-[a-zA-Z0-9]+)?)?$/
+const keywordPattern = /^[A-Za-z0-9./'()-]+(?:\s[A-Za-z0-9./'()-]+){0,5}$/
+
+
+function isValidRightsOrCoverage(value) {
+  const trimmed = (value ?? '').trim()
+  if (alphabeticContentPattern.test(trimmed)) return true
+  if (/^\d+$/.test(trimmed)) return trimmed.length <= 5
+  return false
+}
 
 function isValidKeyword(word) {
   return keywordPattern.test(word) && alphabeticContentPattern.test(word)
 }
 
 function formatOrcidInput(value) {
-  const digits = (value ?? '').toString().replace(/\D/g, '').slice(0, 16)
-  const chunks = digits.match(/.{1,4}/g) || []
+  const cleaned = (value ?? '')
+    .toString()
+    .toUpperCase()
+    .replace(/[^0-9X]/g, '')
+    .slice(0, 16)
+  const chunks = cleaned.match(/.{1,4}/g) || []
   return chunks.join('-')
 }
 
@@ -58,6 +70,24 @@ function formatConferenceUrlInput(value) {
   if (!/[./]/.test(trimmed)) return trimmed
 
   return `https://${trimmed.replace(/^\/+/, '')}`
+}
+
+const namePattern = /^[A-Za-z]+(?:[ '-][A-Za-z]+)*$/
+
+function sanitizeFullNameInput(value) {
+  return (value ?? '').replace(/[^A-Za-z\s'-]/g, '')
+}
+
+function sanitizeKeywordInput(value) {
+  return (value ?? '').replace(/[^A-Za-z0-9\s./'()-]/g, '')
+}
+
+function sanitizeRightsInput(value) {
+  return (value ?? '').replace(/[^A-Za-z0-9\s\-',.()/&]/g, '')
+}
+
+function sanitizeCoverageInput(value) {
+  return (value ?? '').replace(/[^A-Za-z0-9\s\-',.()/&]/g, '')
 }
 
 function decodeBase64Url(value) {
@@ -192,7 +222,13 @@ function countWords(value) {
 }
 
 const authorSchema = z.object({
-  fullName: z.string().trim().min(1, 'Author full name is required.'),
+  fullName: z
+    .string()
+    .trim()
+    .min(1, 'Author full name is required.')
+    .regex(namePattern, {
+      message: 'Full name can only contain letters, spaces, hyphens, and apostrophes.',
+    }),
   orcidId: z
     .string()
     .trim()
@@ -265,12 +301,12 @@ const submissionSchema = z
     keywords: z
       .array(
         z
-          .string()
-          .trim()
-          .min(1)
-          .refine((value) => isValidKeyword(value), {
-            message: 'Keywords must be words, not justsymbols or numbers only.',
-          }),
+        .string()
+        .trim()
+        .min(1)
+        .refine((value) => isValidKeyword(value), {
+          message: 'A keyword cannot consist only of numbers or symbols.',
+        }),
       )
       .min(3, 'Add at least 3 keywords.')
       .max(10, 'You can add up to 10 keywords only.'),
@@ -279,15 +315,15 @@ const submissionSchema = z
       .string()
       .trim()
       .min(1, 'Coverage is required.')
-      .refine((value) => alphabeticContentPattern.test(value), {
-        message: 'Coverage must contain words, not just numbers or symbols.',
+      .refine((value) => isValidRightsOrCoverage(value), {
+        message: 'Coverage must contain words',
       }),
     rightsDc: z
       .string()
       .trim()
       .min(1, 'Rights is required.')
-      .refine((value) => alphabeticContentPattern.test(value), {
-        message: 'Rights must contain words, not just numbers or symbols.',
+      .refine((value) => isValidRightsOrCoverage(value), {
+        message: 'Rights must contain words',
       }),
     doi: z
       .string()
@@ -498,6 +534,7 @@ function StepHeader({ stepId, title }) {
   )
 }
 
+
 const fieldLabelClass =
   'mb-2 block text-[11px] font-semibold uppercase tracking-[0.22em] text-[#374151]'
 
@@ -512,7 +549,7 @@ const fieldOkClass =
 const fieldErrorClass =
   'border-[#f87171] focus:border-[#f87171] focus:ring-2 focus:ring-[#f87171]/15'
 
-function BasicInfoStep({ register, errors }) {
+function BasicInfoStep({ register, errors, watchedTitle }) {
   return (
     <div>
       <StepHeader stepId={1} title="Research Identification" />
@@ -527,7 +564,7 @@ function BasicInfoStep({ register, errors }) {
             placeholder="e.g., Flood Risk Assessment in Bohol Using SAR imagery and GIS"
             className={`${fieldBaseClass} ${errors.title ? fieldErrorClass : fieldOkClass}`}
           />
-          <p className="text-[11px] text-[#94a3b8]">0 / 500</p>
+          <p className="text-[11px] text-[#94a3b8]">{(watchedTitle || '').length} / 500</p>
           <FieldMessage message={errors.title?.message} />
         </div>
 
@@ -584,7 +621,7 @@ function BasicInfoStep({ register, errors }) {
           </label>
           <input
             {...register('publicationVenue')}
-            placeholder="e.g., DOST-PCIEERD"
+            placeholder="e.g., Published in Philippine Journal of Science, 2024"
             className={`${fieldBaseClass} ${errors.publicationVenue ? fieldErrorClass : fieldOkClass}`}
           />
           <FieldMessage message={errors.publicationVenue?.message} />
@@ -603,6 +640,8 @@ function TeamAffiliationStep({
   appendAuthor,
   removeAuthor,
   authorOptions,
+  authorNameWarnings,
+  onBlockedNameChar,
 }) {
   const hasAuthorGroupError = Boolean(errors?.authors?.message)
 
@@ -638,21 +677,35 @@ function TeamAffiliationStep({
                     <label className={fieldLabelClass}>
                       Full Name <span className="text-[#C9A84C]">*</span>
                     </label>
-                    <input
-                      {...register(`authors.${index}.fullName`)}
-                      placeholder="Type author name and press Enter..."
-                      className={`${fieldBaseClass} ${
-                        (index === 0 && hasAuthorGroupError) || errors.authors?.[index]?.fullName
-                          ? fieldErrorClass
-                          : fieldOkClass
-                      }`}
+                    <Controller
+                      control={control}
+                      name={`authors.${index}.fullName`}
+                      render={({ field: controllerField }) => (
+                        <input
+                          {...controllerField}
+                          value={controllerField.value ?? ''}
+                          onChange={(event) => {
+                            const raw = event.target.value
+                            const sanitized = sanitizeFullNameInput(raw)
+                            if (sanitized !== raw) {
+                              onBlockedNameChar(index)
+                            }
+                            controllerField.onChange(sanitized)
+                          }}
+                          placeholder="Type author name and press Enter..."
+                          className={`${fieldBaseClass} ${
+                            (index === 0 && hasAuthorGroupError) || errors.authors?.[index]?.fullName
+                              ? fieldErrorClass
+                              : fieldOkClass
+                          }`}
+                        />
+                      )}
                     />
                     <FieldMessage
                       message={
-                        index === 0 &&
-                        (hasAuthorGroupError || Boolean(errors.authors?.[index]?.fullName))
-                          ? 'Author(s) is required'
-                          : errors.authors?.[index]?.fullName?.message
+                        authorNameWarnings?.[index] ||
+                        errors.authors?.[index]?.fullName?.message ||
+                        (index === 0 && hasAuthorGroupError ? 'Author(s) is required' : undefined)
                       }
                     />
                   </div>
@@ -665,12 +718,12 @@ function TeamAffiliationStep({
                       </span>
                     </label>
                     <Controller
-                control={control}
-                name={`authors.${index}.orcidId`}
-                render={({ field: controllerField }) => {
-                  const isTouched = Boolean(touchedFields.authors?.[index]?.orcidId)
-                  const showError = isTouched && Boolean(errors.authors?.[index]?.orcidId)
-                  return (
+                        control={control}
+                        name={`authors.${index}.orcidId`}
+                        render={({ field: controllerField }) => {
+                          const isTouched = Boolean(touchedFields.authors?.[index]?.orcidId)
+                          const showError = isTouched && Boolean(errors.authors?.[index]?.orcidId)
+                          return (
                     <input
                       {...controllerField}
                       value={controllerField.value ?? ''}
@@ -767,14 +820,17 @@ function TeamAffiliationStep({
 }
 
 
-function KeywordsInput({
-  keywords,
-  onAddKeyword,
-  onRemoveKeyword,
-  keywordInput,
-  setKeywordInput,
-  error,
-}) {
+    function KeywordsInput({
+      keywords,
+      onAddKeyword,
+      onRemoveKeyword,
+      keywordInput,
+      setKeywordInput,
+      error,
+      warning,
+      onBlockedChar,
+      onNumberChar,
+    }) {
   const keywordErrorMessage = error ? `Minimum 3 keywords required (${keywords.length} added)` : ''
 
   const handleKeyDown = (event) => {
@@ -818,7 +874,16 @@ function KeywordsInput({
           {keywords.length < 10 ? (
             <input
               value={keywordInput}
-              onChange={(event) => setKeywordInput(event.target.value)}
+              onChange={(event) => {
+                const raw = event.target.value
+                const sanitized = sanitizeKeywordInput(raw)
+                if (sanitized !== raw) {
+                  onBlockedChar()
+                } else if (/\d/.test(raw) && /^\d+$/.test(raw.trim())) {
+                  onNumberChar()
+                }
+                setKeywordInput(sanitized)
+              }}
               onKeyDown={handleKeyDown}
               onBlur={onAddKeyword}
               placeholder="Type Keyword and press Enter or comma...."
@@ -830,26 +895,34 @@ function KeywordsInput({
       <div className="mt-1 flex justify-end">
         <p className="text-[12px] text-[#9ca3af]">{keywords.length} / 10 keywords</p>
       </div>
-      {error ? (
+      {warning ? (
+        <p className="mt-1 text-[12px] font-medium text-[#dc2626]">{warning}</p>
+      ) : error ? (
         <p className="mt-1 text-[12px] font-mono text-[#dc2626]">{keywordErrorMessage}</p>
       ) : null}
     </div>
   )
 }
 
-function ResearchDetailsStep({
-  register,
-  errors,
-  touchedFields,
-  abstractText,
-  keywords,
-  onAddKeyword,
-  onRemoveKeyword,
-  keywordInput,
-  setKeywordInput,
-}) {
+  function ResearchDetailsStep({
+    register,
+    errors,
+    submitAttempted,
+    onAbstractEdit,
+    abstractText,
+    keywords,
+    onAddKeyword,
+    onRemoveKeyword,
+    keywordInput,
+    setKeywordInput,
+    keywordWarning,
+    onBlockedKeywordChar,
+    onNumberInKeyword,
+  }) {
+
   const words = countWords(abstractText)
-  const showAbstractError = Boolean(touchedFields?.abstractText) && Boolean(errors.abstractText)
+  const showAbstractError = Boolean(submitAttempted) && Boolean(errors.abstractText)
+  const abstractRegister = register('abstractText')
 
   return (
     <div>
@@ -860,7 +933,11 @@ function ResearchDetailsStep({
             Abstract <span className="text-[#C9A84C]">*</span>
           </label>
           <textarea
-            {...register('abstractText')}
+            {...abstractRegister}
+            onChange={(event) => {
+              abstractRegister.onChange(event)
+              onAbstractEdit()
+            }}
             id="field-abstractText"
             rows={9}
             placeholder="Provide a structured abstract covering background, methodology, findings, and conclusions..."
@@ -889,6 +966,9 @@ function ResearchDetailsStep({
           keywordInput={keywordInput}
           setKeywordInput={setKeywordInput}
           error={errors.keywords?.message}
+          warning={keywordWarning}
+          onBlockedChar={onBlockedKeywordChar}
+          onNumberChar={onNumberInKeyword}
         />
       </div>
     </div>
@@ -985,6 +1065,10 @@ function DublinCoreMetadataStep({
   control,
   register,
   errors,
+  coverageWarning,
+  onBlockedCoverageChar,
+  rightsWarning,
+  onBlockedRightsChar,
   attachment,
   existingAttachmentKey,
   onFileSelect,
@@ -1017,24 +1101,54 @@ function DublinCoreMetadataStep({
             <label className={fieldLabelClass}>
               Coverage (SCOPE) <span className="text-[#C9A84C]">*</span>
             </label>
-            <input
-              {...register('coverageDc')}
-              placeholder="Region VII, institution, or relevant locale"
-              className={`${fieldBaseClass} ${errors.coverageDc ? fieldErrorClass : fieldOkClass}`}
-          />
-          <FieldMessage message={errors.coverageDc?.message} />
+            <Controller
+              control={control}
+              name="coverageDc"
+              render={({ field: controllerField }) => (
+                <input
+                  {...controllerField}
+                  value={controllerField.value ?? ''}
+                  onChange={(event) => {
+                    const raw = event.target.value
+                    const sanitized = sanitizeCoverageInput(raw)
+                    if (sanitized !== raw) {
+                      onBlockedCoverageChar()
+                    }
+                    controllerField.onChange(sanitized)
+                  }}
+                  placeholder="Region VII, institution, or relevant locale"
+                  className={`${fieldBaseClass} ${errors.coverageDc ? fieldErrorClass : fieldOkClass}`}
+                />
+              )}
+            />
+            <FieldMessage message={coverageWarning || errors.coverageDc?.message} />
           </div>
 
           <div className="space-y-2">
             <label className={fieldLabelClass}>
               Rights (LICENSE/ACCESS) <span className="text-[#C9A84C]">*</span>
             </label>
-            <input
-              {...register('rightsDc')}
-              placeholder="Copyright, usage notes, or permissions"
-              className={`${fieldBaseClass} ${errors.rightsDc ? fieldErrorClass : fieldOkClass}`}
-          />
-          <FieldMessage message={errors.rightsDc?.message} />
+            <Controller
+              control={control}
+              name="rightsDc"
+              render={({ field: controllerField }) => (
+                <input
+                  {...controllerField}
+                  value={controllerField.value ?? ''}
+                  onChange={(event) => {
+                    const raw = event.target.value
+                    const sanitized = sanitizeRightsInput(raw)
+                    if (sanitized !== raw) {
+                      onBlockedRightsChar()
+                    }
+                    controllerField.onChange(sanitized)
+                  }}
+                  placeholder="Copyright, usage notes, or permissions"
+                  className={`${fieldBaseClass} ${errors.rightsDc ? fieldErrorClass : fieldOkClass}`}
+                />
+              )}
+            />
+            <FieldMessage message={rightsWarning || errors.rightsDc?.message} />
           </div>
 
           <div className="space-y-2">
@@ -1104,7 +1218,11 @@ function DublinCoreMetadataStep({
   )
 }
 
-function ReviewSubmitStep({ values }) {
+function ReviewSubmitStep({ values, existingAttachmentKey }) {
+  const attachmentLabel = values.attachment?.name
+    || (existingAttachmentKey
+      ? existingAttachmentKey.split('/').pop().replace(/^[a-f0-9]{8}-/, '')
+      : 'No file attached')
   const summaryRows = [
     ['Research Title', values.title],
     ['Research Type', values.researchType],
@@ -1120,7 +1238,7 @@ function ReviewSubmitStep({ values }) {
     ['Rights', values.rightsDc],
     ['DOI', values.doi || 'Not provided'],
     ['Conference URL', values.conferenceUrl || 'Not provided'],
-    ['Attachment', values.attachment?.name || 'No file attached'],
+    ['Attachment', attachmentLabel],
   ]
 
   return (
@@ -1189,6 +1307,7 @@ export default function SubmissionPortal({ onSubmitted }) {
   const location = useLocation()
   const navigate = useNavigate()
   const [currentStep, setCurrentStep] = useState(1)
+  const [submitSuccess, setSubmitSuccess] = useState(false)
   const [keywordInput, setKeywordInput] = useState('')
   const [submitError, setSubmitError] = useState('')
   const [fieldBanner, setFieldBanner] = useState('')
@@ -1196,6 +1315,68 @@ export default function SubmissionPortal({ onSubmitted }) {
   const [isFinalSubmitting, setIsFinalSubmitting] = useState(false)
   const [editSubmissionId, setEditSubmissionId] = useState(null)
   const [existingAttachmentKey, setExistingAttachmentKey] = useState(null)
+  const [authorNameWarnings, setAuthorNameWarnings] = useState({})
+  const nameWarningTimers = useRef({})
+
+  const flagBlockedNameChar = (index) => {
+    setAuthorNameWarnings((prev) => ({
+      ...prev,
+      [index]: 'Numbers and special characters are not allowed in names.',
+    }))
+    clearTimeout(nameWarningTimers.current[index])
+    nameWarningTimers.current[index] = setTimeout(() => {
+      setAuthorNameWarnings((prev) => {
+        const next = { ...prev }
+        delete next[index]
+        return next
+      })
+    }, 2000)
+  }
+
+  const [keywordWarning, setKeywordWarning] = useState('')
+  const keywordWarningTimer = useRef(null)
+  const [formSubmitAttempted, setFormSubmitAttempted] = useState(false)
+
+  const [rightsWarning, setRightsWarning] = useState('')
+  const rightsWarningTimer = useRef(null)
+
+  const flagBlockedRightsChar = () => {
+    setRightsWarning('That character is not allowed in Rights.')
+    clearTimeout(rightsWarningTimer.current)
+    rightsWarningTimer.current = setTimeout(() => setRightsWarning(''), 2500)
+  }
+
+  const [coverageWarning, setCoverageWarning] = useState('')
+  const coverageWarningTimer = useRef(null)
+
+  const flagBlockedCoverageChar = () => {
+    setCoverageWarning('That character is not allowed in Coverage.')
+    clearTimeout(coverageWarningTimer.current)
+    coverageWarningTimer.current = setTimeout(() => setCoverageWarning(''), 2500)
+  }
+  const flagBlockedKeywordChar = () => {
+    setKeywordWarning('This character is not allowed in keywords.')
+    clearTimeout(keywordWarningTimer.current)
+    keywordWarningTimer.current = setTimeout(() => setKeywordWarning(''), 2500)
+  }
+
+  const flagNumberInKeyword = () => {
+    setKeywordWarning('A keyword cannot consist only of numbers.')
+    clearTimeout(keywordWarningTimer.current)
+    keywordWarningTimer.current = setTimeout(() => setKeywordWarning(''), 2500)
+  }
+
+  const flagDuplicateKeyword = () => {
+    setKeywordWarning('This keyword has already been added.')
+    clearTimeout(keywordWarningTimer.current)
+    keywordWarningTimer.current = setTimeout(() => setKeywordWarning(''), 2500)
+  }
+
+  const flagTooShortKeyword = () => {
+    setKeywordWarning('A keyword must be at least 2 letters long.')
+    clearTimeout(keywordWarningTimer.current)
+    keywordWarningTimer.current = setTimeout(() => setKeywordWarning(''), 2500)
+  }
 
   const institutionName =
     localStorage.getItem('institutionName') ||
@@ -1243,6 +1424,7 @@ export default function SubmissionPortal({ onSubmitted }) {
     name: 'authors',
   })
 
+  const watchedTitle = useWatch({ control, name: 'title' }) || ''
   const watchedAbstract = useWatch({ control, name: 'abstractText' }) || ''
   const watchedKeywords = useWatch({ control, name: 'keywords' }) || []
   const watchedAuthors = useWatch({ control, name: 'authors' }) || []
@@ -1259,7 +1441,13 @@ export default function SubmissionPortal({ onSubmitted }) {
   )
 
   useEffect(() => {
-    if (watchedPi && !authorOptions.includes(watchedPi)) {
+    if (!watchedPi) return
+    if (authorOptions.length === 0) return
+    const normalizedPi = watchedPi.trim().toLowerCase()
+    const matches = authorOptions.some(
+      (name) => name.trim().toLowerCase() === normalizedPi,
+    )
+    if (!matches) {
       setValue('principalInvestigator', '')
     }
   }, [authorOptions, setValue, watchedPi])
@@ -1271,6 +1459,7 @@ export default function SubmissionPortal({ onSubmitted }) {
     setCurrentStep(1)
     setKeywordInput('')
     setExistingAttachmentKey(null)
+    setFormSubmitAttempted(false)
     reset({
       title: '',
       researchType: '',
@@ -1356,21 +1545,23 @@ export default function SubmissionPortal({ onSubmitted }) {
 
     if (maybeSubmission) {
       hydrateFrom(maybeSubmission)
-      return
     }
 
     if (!maybeId) return
 
     const controller = new AbortController()
     const fetchDetails = async () => {
-      try {
-        const response = await apiClient.get(`/submissions/${maybeId}`, {
-          signal: controller.signal,
-        })
-        hydrateFrom(response.data)
-      } catch {
-      }
-    }
+    try {
+    const response = await apiClient.get(`/submissions/${maybeId}`, {
+      signal: controller.signal,
+    })
+    hydrateFrom(response.data)
+  } catch (err) {
+    if (controller.signal.aborted) return
+    console.error('Failed to load submission details for edit:', err)
+    setSubmitError('Unable to load submission details for editing. Please try again.')
+  }
+}
 
     fetchDetails()
     return () => controller.abort()
@@ -1392,24 +1583,37 @@ const addKeyword = () => {
 
     const words = raw.split(/\s+/).filter(Boolean)
 
-    const candidates = words.length <= 2 ? [words.join(' ')] : words
+    const candidates = words.length <= 6 ? [words.join(' ')] : words
 
     const existing = getValues('keywords')
     const next = [...existing]
+    let hasDuplicate = false
+    let hasTooShort = false
 
     candidates.forEach((candidate) => {
-      if (candidate.length < MIN_KEYWORD_LENGTH) return
+      if (candidate.length < MIN_KEYWORD_LENGTH) {
+        hasTooShort = true
+        return
+      }
       if (!isValidKeyword(candidate)) return
       const alreadyAdded = next.some(
         (item) => item.toLowerCase() === candidate.toLowerCase(),
       )
-      if (alreadyAdded || next.length >= 10) return
+      if (alreadyAdded) {
+        hasDuplicate = true
+        return
+      }
+      if (next.length >= 10) return
       next.push(candidate)
     })
 
     if (next.length !== existing.length) {
       setValue('keywords', next, { shouldDirty: true, shouldValidate: true })
       clearErrors('keywords')
+    } else if (hasDuplicate) {
+      flagDuplicateKeyword()
+    } else if (hasTooShort) {
+      flagTooShortKeyword()
     }
 
     setKeywordInput('')
@@ -1431,6 +1635,7 @@ const addKeyword = () => {
   }
 
   const handleContinue = async () => {
+    setFormSubmitAttempted(true)
     const step = stepDefinitions.find((item) => item.id === currentStep)
     const isValid = await trigger(step?.fields, { shouldFocus: true })
     if (!isValid) {
@@ -1517,8 +1722,8 @@ const addKeyword = () => {
   }
 
   const maybeUploadAttachment = async (file) => {
-    if (!file) return null
-    const token = localStorage.getItem('token') || ''
+  if (!file) return null
+  const token = (await ensureFreshToken()) || ''
 
     try {
       const formData = new FormData()
@@ -1582,7 +1787,10 @@ const addKeyword = () => {
       publicationVenue: values.publicationVenue,
       principalInvestigator: values.principalInvestigator,
       institutionalAffiliation: values.institutionalAffiliation,
-      authors: values.authors,
+      authors: values.authors.map((author) => ({
+        fullName: author.fullName,
+        orcid: author.orcidId || null,
+      })),
       abstractText: values.abstractText,
       keywords: values.keywords,
       sAndTTheme: values.subjectDc,
@@ -1592,7 +1800,7 @@ const addKeyword = () => {
       conferenceUrl: values.conferenceUrl || null,
       attachmentKey: attachmentMeta?.fileKey || null,
     };
- 
+    
     // Explicitly get token and add to headers
     const token = localStorage.getItem('token');
     
@@ -1612,7 +1820,7 @@ const addKeyword = () => {
     setIsFinalSubmitting(true)
 
     try {
-      const token = localStorage.getItem('token')
+      const token = await ensureFreshToken()
       let attachmentMeta = null
 
       try {
@@ -1630,7 +1838,10 @@ const addKeyword = () => {
         publicationVenue: values.publicationVenue,
         principalInvestigator: values.principalInvestigator,
         institutionalAffiliation: values.institutionalAffiliation,
-        authors: values.authors,
+        authors: values.authors.map((author) => ({
+          fullName: author.fullName,
+          orcid: author.orcidId || null,
+        })),
         abstractText: values.abstractText,
         keywords: values.keywords,
         sAndTTheme: values.subjectDc,
@@ -1663,6 +1874,8 @@ const addKeyword = () => {
       }
 
       resetWizard()
+      setSubmitSuccess(true)
+      setTimeout(() => setSubmitSuccess(false), 5000)
       onSubmitted?.()
     } catch (error) {
       console.error('Submission error:', error)
@@ -1697,40 +1910,48 @@ const addKeyword = () => {
   const renderStep = () => {
     switch (currentStep) {
       case 1:
-        return <BasicInfoStep register={register} errors={errors} />
+        return <BasicInfoStep register={register} errors={errors} watchedTitle={watchedTitle} />
       case 2:
-      return (
-        <TeamAffiliationStep
-          control={control}
-          register={register}
-          errors={errors}
-          touchedFields={touchedFields}
-          authorFields={authorFields}
-          appendAuthor={addAuthor}
-          removeAuthor={removeAuthor}
-          authorOptions={authorOptions}
-        />
-      )
+        return (
+          <TeamAffiliationStep
+            control={control}
+            register={register}
+            errors={errors}
+            touchedFields={touchedFields}
+            authorFields={authorFields}
+            appendAuthor={addAuthor}
+            removeAuthor={removeAuthor}
+            authorOptions={authorOptions}
+            authorNameWarnings={authorNameWarnings}
+            onBlockedNameChar={flagBlockedNameChar}
+          />
+        )
       case 3:
-      return (
-        <ResearchDetailsStep
-          register={register}
-          errors={errors}
-          touchedFields={touchedFields}
-          abstractText={watchedAbstract}
-          keywords={watchedKeywords}
-          onAddKeyword={addKeyword}
-          onRemoveKeyword={removeKeyword}
-          keywordInput={keywordInput}
-          setKeywordInput={setKeywordInput}
-        />
-      )
+        return (
+          <ResearchDetailsStep
+            register={register}
+            errors={errors}
+            submitAttempted={formSubmitAttempted}
+            onAbstractEdit={() => setFormSubmitAttempted(false)}
+            abstractText={watchedAbstract}
+            keywords={watchedKeywords}
+            onAddKeyword={addKeyword}
+            onRemoveKeyword={removeKeyword}
+            keywordInput={keywordInput}
+            setKeywordInput={setKeywordInput}
+            keywordWarning={keywordWarning}
+            onBlockedKeywordChar={flagBlockedKeywordChar}
+            onNumberInKeyword={flagNumberInKeyword}
+          />
+        )
       case 4:
         return (
           <DublinCoreMetadataStep
             control={control}
             register={register}
             errors={errors}
+            rightsWarning={rightsWarning}
+            onBlockedRightsChar={flagBlockedRightsChar}
             attachment={watchedAttachment}
             existingAttachmentKey={existingAttachmentKey}
             onFileSelect={handleFileSelect}
@@ -1738,7 +1959,7 @@ const addKeyword = () => {
           />
         )
       case 5:
-        return <ReviewSubmitStep values={allValues} />
+        return <ReviewSubmitStep values={allValues} existingAttachmentKey={existingAttachmentKey} />
       default:
         return null
     }
@@ -1807,6 +2028,12 @@ const addKeyword = () => {
               </div>
             ) : null}
 
+            {submitSuccess ? (
+            <div className="mb-6 rounded-[10px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-[13px] text-emerald-700">
+              ✓ Submission successful! Your research output has been recorded.
+            </div>
+          ) : null}
+
             {renderStep()}
 
             {currentStep === 1 ? (
@@ -1862,7 +2089,10 @@ const addKeyword = () => {
             ) : (
               <button
                 type="button"
-                onClick={handleSubmit(onFinalSubmit, onFinalSubmitError)}
+                onClick={() => {
+                  setFormSubmitAttempted(true)
+                  handleSubmit(onFinalSubmit, onFinalSubmitError)()
+                }}
                 disabled={isFinalSubmitting}
                 className="flex h-10 items-center gap-2 rounded-[6px] bg-[#0d1f3c] px-6 text-sm font-semibold text-white transition hover:bg-[#0b1a33] disabled:cursor-not-allowed disabled:opacity-70"
               >

@@ -15,6 +15,29 @@ function extractApiErrorMessage(error, fallbackMessage) {
   return fallbackMessage
 }
 
+function decodeJwtPayload(token) {
+  if (!token) return null
+  try {
+    const payload = token.split('.')[1]
+    const normalized = payload.replace(/-/g, '+').replace(/_/g, '/')
+    return JSON.parse(atob(normalized))
+  } catch {
+    return null
+  }
+}
+
+function getCurrentUserEmail() {
+  const stored =
+    localStorage.getItem('email') ||
+    localStorage.getItem('userEmail') ||
+    localStorage.getItem('institutionEmail')
+  if (stored) return stored
+
+  const token = localStorage.getItem('token')
+  const payload = decodeJwtPayload(token)
+  return payload?.email || ''
+}
+
 function normalizeStatus(value) {
   return (value || '').toString().trim().toUpperCase()
 }
@@ -151,6 +174,8 @@ export default function SubmissionHistory() {
       setError('')
 
       try {
+
+        const currentUserEmail = getCurrentUserEmail()
         const response = await apiClient.get('/submissions', {
           params: {
             page,
@@ -159,6 +184,7 @@ export default function SubmissionHistory() {
             status: mapStatusForApi(filterStatus),
             researchType: mapResearchTypeForApi(filterType),
             year: filterYear || undefined,
+            mine: filterSubmittedBy === 'me' ? true : undefined,
             sort: 'updatedAt,desc',
           },
           signal,
@@ -193,7 +219,7 @@ export default function SubmissionHistory() {
         )
       }
     },
-    [page, search, filterStatus, filterType, filterYear],
+    [page, search, filterStatus, filterType, filterYear, filterSubmittedBy],
   )
 
   useEffect(() => {
@@ -267,33 +293,14 @@ export default function SubmissionHistory() {
     const normalizeType = (value) =>
       (value || '').toString().trim().toUpperCase().replace(/\s+/g, '_')
 
-    const currentUserEmail =
-      localStorage.getItem('email') ||
-      localStorage.getItem('userEmail') ||
-      localStorage.getItem('institutionEmail') ||
-      ''
     const normalizedSearch = search.trim().toLowerCase()
 
-    return items.filter((item) => {
+      return items.filter((item) => {
       if (normalizedSearch) {
         const title = (item?.title || '').toString().toLowerCase()
         if (!title.includes(normalizedSearch)) return false
       }
 
-      if (filterSubmittedBy === 'me' && currentUserEmail) {
-        const submittedBy =
-          item?.submittedByEmail ||
-          item?.submittedBy ||
-          item?.createdByEmail ||
-          item?.createdBy ||
-          ''
-        if (
-          submittedBy &&
-          submittedBy.toString().trim().toLowerCase() !== currentUserEmail.toString().trim().toLowerCase()
-        ) {
-          return false
-        }
-      }
 
       if (filterStatus) {
         const statusValue = normalizeStatus(item?.status)

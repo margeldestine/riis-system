@@ -53,6 +53,10 @@ public class ResearchOutput {
 	@JoinColumn(name = "institution_id", nullable = false)
 	private Institution institution;
 
+	@ManyToOne(fetch = FetchType.LAZY)
+	@JoinColumn(name = "submitted_by")
+	private User submittedBy;
+
 	@Column(name = "title", nullable = false, columnDefinition = "text")
 	private String title;
 
@@ -67,6 +71,12 @@ public class ResearchOutput {
 
 	@Column(name = "completion_year")
 	private Integer completionYear;
+
+	@Column(name = "principal_investigator", length = 255)
+	private String principalInvestigator;
+
+	@Column(name = "institutional_affiliation", length = 255)
+	private String institutionalAffiliation;
 
 	@Column(name = "abstract_text", columnDefinition = "text")
 	private String abstractText;
@@ -106,6 +116,9 @@ public class ResearchOutput {
 
 	@Column(name = "doi", length = 255)
 	private String doi;
+
+	@Column(name = "conference_url", length = 1024)
+	private String conferenceUrl;
 
 	@Column(name = "s3_pdf_key", length = 1024)
 	private String s3PdfKey;

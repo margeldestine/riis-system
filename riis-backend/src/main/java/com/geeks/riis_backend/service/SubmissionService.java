@@ -89,17 +89,21 @@ public class SubmissionService {
 		ResearchOutput output = ResearchOutput.builder()
 				.referenceNumber(referenceNumber)
 				.institution(institution)
+				.submittedBy(user)
 				.title(dto.title().trim())
 				.abstractText(dto.abstractText().trim())
 				.completionYear(dto.completionYear())
 				.keywords(keywords)
 				.doi(dto.doi() == null ? null : dto.doi().trim())
+				.conferenceUrl(dto.conferenceUrl() == null ? null : dto.conferenceUrl().trim())
 				.subjectDc(dto.sAndTTheme())
 				.coverageDc(dto.coverageDc())
 				.rightsDc(dto.rightsDc())
 				.researchType(isBlank(dto.researchType()) ? DEFAULT_RESEARCH_TYPE : dto.researchType().trim())
 				.fundingSource(dto.fundingSource())
 				.publicationVenue(dto.publicationVenue())
+				.principalInvestigator(isBlank(dto.principalInvestigator()) ? null : dto.principalInvestigator().trim())
+				.institutionalAffiliation(isBlank(dto.institutionalAffiliation()) ? null : dto.institutionalAffiliation().trim())
 				.s3PdfKey(dto.attachmentKey())
 				.status(STATUS_APPROVED)
 				.authors(authors)
@@ -111,11 +115,6 @@ public class SubmissionService {
 
 		ResearchOutput saved = researchOutputRepository.save(output);
 
-		// DAS-043: this used to fire from AdminReviewService.actionSubmission()
-		// only when a DOST Admin manually clicked Approve. Since submissions
-		// now auto-publish, it fires here instead — otherwise theme profiles,
-		// overlap detection, and cluster assignment (all driven by this event)
-		// would never run for any new submission.
 		eventPublisher.publishEvent(new RecordIngestedEvent(
 				saved.getId(),
 				saved.getReferenceNumber(),
@@ -131,6 +130,10 @@ public class SubmissionService {
 	@Transactional(readOnly = true)
 	public Page<SubmissionSummaryDTO> listSubmissions(String userId, SubmissionFilterDTO filter, Pageable pageable, String keyword) {
 		String institutionId = getInstitutionIdForUser(userId);
+
+		if (Boolean.TRUE.equals(filter.getMine())) {
+			filter.setSubmittedByUserId(userId);
+		}
 
 		if (!isBlank(keyword)) {
 			return researchOutputRepository.findByInstitutionIdAndTitleContainingIgnoreCaseOrAuthorsContainingIgnoreCase(
@@ -152,9 +155,9 @@ public class SubmissionService {
 					output.getInstitution() != null ? output.getInstitution().getName() : null,
 					output.getAuthors() == null ? null
 							: output.getAuthors().stream()
-							  .map(com.geeks.riis_backend.model.Author::getFullName)
-							  .filter(name -> name != null && !name.isBlank())
-							  .collect(java.util.stream.Collectors.joining(", "))
+							.map(com.geeks.riis_backend.model.Author::getFullName)
+							.filter(name -> name != null && !name.isBlank())
+							.collect(java.util.stream.Collectors.joining(", "))
 			));
 		}
 
@@ -217,7 +220,10 @@ public class SubmissionService {
 				output.getAbstractText(),
 				authors,
 				keywords,
+				output.getPrincipalInvestigator(),
+				output.getInstitutionalAffiliation(),
 				output.getDoi(),
+				output.getConferenceUrl(),
 				output.getSubjectDc(),
 				output.getCoverageDc(),
 				output.getRightsDc(),
@@ -270,19 +276,26 @@ public class SubmissionService {
 		output.setCompletionYear(dto.completionYear());
 		output.setAbstractText(dto.abstractText().trim());
 		output.setDoi(dto.doi() == null ? null : dto.doi().trim());
+		output.setConferenceUrl(dto.conferenceUrl() == null ? null : dto.conferenceUrl().trim());
 		output.setSubjectDc(dto.sAndTTheme());
 		output.setCoverageDc(dto.coverageDc());
 		output.setRightsDc(dto.rightsDc());
 		output.setResearchType(isBlank(dto.researchType()) ? DEFAULT_RESEARCH_TYPE : dto.researchType().trim());
 		output.setFundingSource(dto.fundingSource());
 		output.setPublicationVenue(dto.publicationVenue());
+
+		output.setPrincipalInvestigator(
+				isBlank(dto.principalInvestigator()) ? null : dto.principalInvestigator().trim());
+		output.setInstitutionalAffiliation(
+				isBlank(dto.institutionalAffiliation()) ? null : dto.institutionalAffiliation().trim());
+
 		output.setS3PdfKey(dto.attachmentKey());
 		output.setKeywords(dto.keywords() == null ? null : dto.keywords().stream()
-														   .filter(value -> value != null && !value.isBlank())
-														   .map(String::trim)
-														   .distinct()
-														   .reduce((a, b) -> a + ", " + b)
-														   .orElse(null));
+				.filter(value -> value != null && !value.isBlank())
+				.map(String::trim)
+				.distinct()
+				.reduce((a, b) -> a + ", " + b)
+				.orElse(null));
 
 		Set<Author> updatedAuthors = mapAuthors(dto.authors());
 		if (output.getAuthors() == null) {
@@ -344,19 +357,27 @@ public class SubmissionService {
 		output.setCompletionYear(dto.completionYear());
 		output.setAbstractText(dto.abstractText().trim());
 		output.setDoi(dto.doi() == null ? null : dto.doi().trim());
+		output.setConferenceUrl(dto.conferenceUrl() == null ? null : dto.conferenceUrl().trim());
 		output.setSubjectDc(dto.sAndTTheme());
 		output.setCoverageDc(dto.coverageDc());
 		output.setRightsDc(dto.rightsDc());
 		output.setResearchType(isBlank(dto.researchType()) ? DEFAULT_RESEARCH_TYPE : dto.researchType().trim());
 		output.setFundingSource(dto.fundingSource());
 		output.setPublicationVenue(dto.publicationVenue());
+
+		output.setPrincipalInvestigator(
+				isBlank(dto.principalInvestigator()) ? null : dto.principalInvestigator().trim());
+
+		output.setInstitutionalAffiliation(
+				isBlank(dto.institutionalAffiliation()) ? null : dto.institutionalAffiliation().trim());
+
 		output.setS3PdfKey(dto.attachmentKey());
 		output.setKeywords(dto.keywords() == null ? null : dto.keywords().stream()
-														   .filter(value -> value != null && !value.isBlank())
-														   .map(String::trim)
-														   .distinct()
-														   .reduce((a, b) -> a + ", " + b)
-														   .orElse(null));
+				.filter(value -> value != null && !value.isBlank())
+				.map(String::trim)
+				.distinct()
+				.reduce((a, b) -> a + ", " + b)
+				.orElse(null));
 
 		Set<Author> updatedAuthors = mapAuthors(dto.authors());
 		if (output.getAuthors() == null) {
@@ -436,7 +457,11 @@ public class SubmissionService {
 	}
 
 	private List<String> parseKeywords(String keywords) {
-		return null;
+		if (isBlank(keywords)) return List.of();
+		return Arrays.stream(keywords.split(","))
+				.map(String::trim)
+				.filter(value -> !value.isBlank())
+				.toList();
 	}
 
 	private boolean isBlank(String value) {

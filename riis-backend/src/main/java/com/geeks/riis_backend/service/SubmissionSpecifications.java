@@ -38,6 +38,10 @@ public class SubmissionSpecifications {
 				predicate = cb.and(predicate, cb.lessThanOrEqualTo(root.get("completionYear"), filter.getCompletionYearTo()));
 			}
 
+			if (filter.getSubmittedByUserId() != null && !filter.getSubmittedByUserId().isBlank()) {
+				predicate = cb.and(predicate, cb.equal(root.get("submittedBy").get("id"), filter.getSubmittedByUserId()));
+			}
+
 			return predicate;
 		};
 	}

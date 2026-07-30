@@ -90,6 +90,7 @@ public class SubmissionController {
 			@RequestParam(required = false) String keyword,
 			@RequestParam(required = false) String status,
 			@RequestParam(required = false) String researchType,
+			@RequestParam(required = false) Boolean mine,
 			Pageable pageable,
 			SubmissionFilterDTO filter
 	) {
@@ -97,7 +98,7 @@ public class SubmissionController {
 		Pageable safePageable = PageRequest.of(
 				Math.max(pageable == null ? 0 : pageable.getPageNumber(), 0),
 				Math.min(Math.max(pageable == null ? 20 : pageable.getPageSize(), 1), 200),
-				(pageable == null || pageable.getSort() == null || pageable.getSort().isUnsorted())
+				(pageable == null || pageable.getSort().isUnsorted())
 						? Sort.by(Sort.Direction.DESC, "createdAt")
 						: pageable.getSort()
 		);
@@ -106,6 +107,9 @@ public class SubmissionController {
 		}
 		if (researchType != null && !researchType.isBlank()) {
 			filter.setResearchTypes(List.of(researchType));
+		}
+		if (mine != null) {
+			filter.setMine(mine);
 		}
 		return ResponseEntity.ok(submissionService.listSubmissions(userId, filter, safePageable, keyword));
 	}
