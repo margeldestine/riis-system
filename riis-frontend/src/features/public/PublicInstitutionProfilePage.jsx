@@ -207,7 +207,7 @@ function OtherHEIsPanel({ currentId }) {
               <div className="mt-2 flex items-center gap-1.5 text-xs">
                 <FileText className="h-3.5 w-3.5 text-slate-400" />
                 <span className="font-semibold text-emerald-600">
-                  {hei.approvedOutputCount ?? 0} research outputs
+                  {hei.approvedOutputCount ?? 0} research output{(hei.approvedOutputCount ?? 0) === 1 ? '' : 's'}
                 </span>
               </div>
             </div>

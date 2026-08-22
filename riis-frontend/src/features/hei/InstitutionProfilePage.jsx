@@ -59,7 +59,6 @@ function getTypeBadgeClass(type) {
 function OutputCard({ output, isOwnInstitution, onViewDetails }) {
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-3">
-      {/* Title + status badge */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           {output.doi ? (
@@ -77,7 +76,6 @@ function OutputCard({ output, isOwnInstitution, onViewDetails }) {
         </div>
       </div>
 
-      {/* Authors */}
       {output.authors?.length > 0 ? (
         <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
           {output.authors.map((author, i) => (
@@ -100,7 +98,6 @@ function OutputCard({ output, isOwnInstitution, onViewDetails }) {
         </div>
       ) : null}
 
-      {/* Meta */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
         {output.researchType ? (
           <span className="flex items-center gap-1">
@@ -128,12 +125,10 @@ function OutputCard({ output, isOwnInstitution, onViewDetails }) {
         ) : null}
       </div>
 
-      {/* Abstract excerpt */}
       {output.abstractExcerpt ? (
         <p className="text-xs text-slate-500 leading-relaxed">{output.abstractExcerpt}</p>
       ) : null}
 
-      {/* DOI */}
       {output.doi ? (
         <p className="text-xs text-slate-400">
           DOI:{' '}
@@ -148,7 +143,6 @@ function OutputCard({ output, isOwnInstitution, onViewDetails }) {
         </p>
       ) : null}
 
-      {/* View Details */}
       <div className="pt-1">
         <button
           type="button"
@@ -211,7 +205,7 @@ function OtherHEIsPanel({ currentId }) {
               <div className="mt-2 flex items-center gap-1.5 text-xs">
                 <FileText className="h-3.5 w-3.5 text-slate-400" />
                 <span className="font-semibold text-emerald-600">
-                  {hei.approvedOutputCount ?? 0} research outputs
+                  {hei.approvedOutputCount ?? 0} research output{(hei.approvedOutputCount ?? 0) === 1 ? '' : 's'}
                 </span>
               </div>
             </div>
@@ -221,12 +215,6 @@ function OtherHEIsPanel({ currentId }) {
     </div>
   )
 }
-
-/* ---------------------------------------------------------------------- */
-/* Full-page output detail — mirrors the public Research Explorer detail  */
-/* page's layout, but rendered inline (no route change, no drawer) so     */
-/* DashboardLayout's sidebar/topbar never unmount.                        */
-/* ---------------------------------------------------------------------- */
 
 function TypeBadge({ type }) {
   const colors = {
@@ -309,7 +297,6 @@ function OutputFullDetailView({ output, onBack }) {
 
   return (
     <div className="space-y-0">
-      {/* Header banner */}
       <div className="relative overflow-hidden rounded-[12px]" style={{ background: '#1a3a6b' }}>
         <div
           className="absolute inset-0"
@@ -367,9 +354,7 @@ function OutputFullDetailView({ output, onBack }) {
         </div>
       ) : record ? (
         <div className="mt-6 flex gap-6 items-start">
-          {/* Left — metadata */}
           <div className="flex-1 min-w-0 space-y-6">
-            {/* Record Metadata */}
             <div className="rounded-xl border border-slate-200 bg-white p-6">
               <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-5">
                 Record Metadata
@@ -428,7 +413,6 @@ function OutputFullDetailView({ output, onBack }) {
               </div>
             </div>
 
-            {/* Abstract */}
             {(record.abstractText || record.abstractExcerpt) && (
               <div className="rounded-xl border border-slate-200 bg-white p-6">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-3">
@@ -440,7 +424,6 @@ function OutputFullDetailView({ output, onBack }) {
               </div>
             )}
 
-            {/* Keywords */}
             {keywords.length > 0 && (
               <div className="rounded-xl border border-slate-200 bg-white p-6">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-3">
@@ -460,9 +443,7 @@ function OutputFullDetailView({ output, onBack }) {
             )}
           </div>
 
-          {/* Right sidebar */}
           <div className="w-72 shrink-0 space-y-4">
-            {/* Access panel */}
             <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-3">
               <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                 Access
@@ -495,7 +476,6 @@ function OutputFullDetailView({ output, onBack }) {
               </button>
             </div>
 
-            {/* Related */}
             {related.length > 0 && (
               <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-3">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
@@ -603,7 +583,6 @@ export default function InstitutionProfilePage() {
     >
       <div className="space-y-6">
         {selectedOutput ? (
-          /* Full-page output detail — stays inside DashboardLayout, sidebar untouched */
           <OutputFullDetailView
             output={selectedOutput}
             onBack={() => setSelectedOutput(null)}
