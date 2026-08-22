@@ -54,9 +54,15 @@ public class AuthService {
 		}
 
 		String email = normalizeEmail(request.email());
-		if (userRepository.existsByEmail(email)) {
+
+		userRepository.findByEmail(email).ifPresent(existing -> {
+			if ("REJECTED".equalsIgnoreCase(existing.getStatus())) {
+				throw new BadRequestException(
+						"Your previous registration with this email was rejected. "
+								+ "Please contact your DOST Region VII administrator for more information.");
+			}
 			throw new BadRequestException("Email is already registered.");
-		}
+		});
 
 		Institution institution = institutionRepository
 				.findById(request.institutionId())
@@ -100,13 +106,9 @@ public class AuthService {
 
 		String whitelistStatus = user.getInstitution() == null ? null : user.getInstitution().getWhitelistStatus();
 
-        if ("PENDING".equalsIgnoreCase(user.getStatus()) || "PENDING".equalsIgnoreCase(whitelistStatus)) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Account pending DOST approval.");
-        }
-
-        if ("REJECTED".equalsIgnoreCase(user.getStatus())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This account has been rejected and cannot sign in.");
-        }
+		if ("PENDING".equalsIgnoreCase(user.getStatus()) || "PENDING".equalsIgnoreCase(whitelistStatus)) {
+			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Account pending DOST approval.");
+		}
 
 		if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
 			throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials.");
@@ -118,14 +120,12 @@ public class AuthService {
 		boolean rememberMe = Boolean.TRUE.equals(request.rememberMe());
 		long ttlSeconds = rememberMe ? jwtService.getRememberMeTtlSeconds() : -1;
 
-		Map<String, Object> claims = new java.util.HashMap<>();
-		claims.put("role", saved.getRole());
-		claims.put("email", saved.getEmail());
-		claims.put("institutionId", saved.getInstitution() != null ? saved.getInstitution().getId() : null);
-
 		String token = jwtService.generateAccessToken(
 				saved.getId(),
-				claims,
+				Map.of(
+						"role", saved.getRole(),
+						"email", saved.getEmail()
+				),
 				ttlSeconds
 		);
 
