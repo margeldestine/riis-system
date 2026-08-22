@@ -1,16 +1,19 @@
 package com.geeks.riis_backend.service;
 
 import com.geeks.riis_backend.dto.InstitutionDropdownItem;
+import com.geeks.riis_backend.dto.InstitutionExportDataDTO;
 import com.geeks.riis_backend.dto.InstitutionProfileDTO;
 import com.geeks.riis_backend.dto.InstitutionStatsDTO;
 import com.geeks.riis_backend.dto.InstitutionSummaryDTO;
 import com.geeks.riis_backend.dto.PublicAuthorDTO;
 import com.geeks.riis_backend.dto.PublicOutputCardDTO;
 import com.geeks.riis_backend.dto.RegisterHEIDTO;
+import com.geeks.riis_backend.dto.ResearchOutputExportRowDTO;
 import com.geeks.riis_backend.dto.ThemeKeywordDTO;
 import com.geeks.riis_backend.exception.BadRequestException;
 import com.geeks.riis_backend.exception.ResourceNotFoundException;
 import com.geeks.riis_backend.model.AuditLogEntry;
+import com.geeks.riis_backend.model.Author;
 import com.geeks.riis_backend.model.Institution;
 import com.geeks.riis_backend.model.ResearchOutput;
 import com.geeks.riis_backend.model.ThemeProfile;
@@ -30,6 +33,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -196,6 +200,67 @@ public class InstitutionService {
                 stats,
                 outputDTOs,
                 keywords
+        );
+    }
+
+
+    /**
+     * Builds the full filtered dataset for a "Export Report" download.
+     * Uses the exact same specification chain as buildProfileDTO (same
+     * status/keyword/type/year filters) so the export always matches what
+     * the user sees on screen — just unpaginated, sorted newest-first.
+     *
+     * Everything is materialized into plain DTOs (including author names)
+     * before this method returns, so the result is safe to hand to
+     * ReportExportService outside of this transaction — no lazy-loaded
+     * entity fields leak past the Hibernate session.
+     */
+    @Transactional(readOnly = true)
+    public InstitutionExportDataDTO buildExportData(String institutionId, String keyword, String researchTypes, Integer yearTo) {
+        Institution inst = institutionRepository.findById(institutionId)
+                .orElseThrow(() -> new ResourceNotFoundException("Institution not found: " + institutionId));
+
+        List<String> typeList = (researchTypes != null && !researchTypes.isBlank())
+                ? java.util.Arrays.asList(researchTypes.split(","))
+                : null;
+
+        List<ResearchOutput> outputs = researchOutputRepository.findAll(
+                com.geeks.riis_backend.service.SubmissionSpecifications.forInstitution(institutionId)
+                        .and((root, query, cb) -> cb.equal(root.get("status"), STATUS_APPROVED))
+                        .and((root, query, cb) -> keyword != null && !keyword.isBlank()
+                                ? cb.like(cb.lower(root.get("title")), "%" + keyword.toLowerCase().trim() + "%")
+                                : cb.conjunction())
+                        .and((root, query, cb) -> typeList != null
+                                ? root.get("researchType").in(typeList)
+                                : cb.conjunction())
+                        .and((root, query, cb) -> yearTo != null && yearTo > 0
+                                ? cb.lessThanOrEqualTo(root.get("completionYear"), yearTo)
+                                : cb.conjunction()),
+                Sort.by(Sort.Direction.DESC, "completionYear")
+        );
+
+        List<ResearchOutputExportRowDTO> rows = outputs.stream()
+                .map(ro -> new ResearchOutputExportRowDTO(
+                        ro.getTitle(),
+                        ro.getResearchType(),
+                        ro.getCompletionYear(),
+                        ro.getFundingSource(),
+                        ro.getPublicationVenue(),
+                        ro.getPrincipalInvestigator(),
+                        ro.getDoi(),
+                        ro.getAuthors() == null ? List.of() :
+                                ro.getAuthors().stream()
+                                        .map(Author::getFullName)
+                                        .filter(name -> name != null && !name.isBlank())
+                                        .collect(Collectors.toList())
+                ))
+                .collect(Collectors.toList());
+
+        return new InstitutionExportDataDTO(
+                inst.getName(),
+                inst.getType(),
+                inst.getProvince(),
+                rows
         );
     }
 
