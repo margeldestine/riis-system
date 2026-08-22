@@ -225,6 +225,7 @@ export default function PublicInstitutionProfilePage() {
   const [status, setStatus] = useState('loading')
   const [page, setPage] = useState(0)
   const [searchKeyword, setSearchKeyword] = useState('')
+  const [debouncedSearchKeyword, setDebouncedSearchKeyword] = useState('')
   const [selectedTypes, setSelectedTypes] = useState([])
   const [selectedClusters, setSelectedClusters] = useState([])
   const [yearRange, setYearRange] = useState(0)
@@ -235,6 +236,23 @@ export default function PublicInstitutionProfilePage() {
   useEffect(() => {
     setYearRange(0)
   }, [id])
+
+  // Debounce the keyword the same way the HEI Staff view does — wait
+  // 350ms after the user stops typing before it feeds into the actual
+  // fetch. Firing a request on every keystroke (no debounce) caused
+  // rapid overlapping requests that could resolve out of order and
+  // make filtering look broken.
+  useEffect(() => {
+    setIsFiltering(true)
+    const handle = setTimeout(() => {
+      setDebouncedSearchKeyword(searchKeyword)
+    }, 350)
+    return () => clearTimeout(handle)
+  }, [searchKeyword])
+
+  useEffect(() => {
+    setIsFiltering(true)
+  }, [selectedTypes, selectedClusters, yearRange])
 
   useEffect(() => {
     if (!id) return
@@ -248,7 +266,7 @@ export default function PublicInstitutionProfilePage() {
       params: {
         page,
         size: 5,
-        keyword: searchKeyword || undefined,
+        keyword: debouncedSearchKeyword || undefined,
         researchTypes: selectedTypes.length > 0 ? selectedTypes.join(',') : undefined,
         subjects: selectedClusters.length > 0 ? selectedClusters.join(',') : undefined,
         yearTo: yearRange || undefined,
@@ -257,9 +275,15 @@ export default function PublicInstitutionProfilePage() {
     })
       .then(res => { setProfile(res.data); setStatus('success') })
       .catch(err => { if (!controller.signal.aborted) setStatus('error') })
-      .finally(() => { setIsFiltering(false) })
+      .finally(() => {
+        // Guard against a stale, aborted request's finally() firing after
+        // it's been superseded by a newer request — otherwise the spinner
+        // turns off early (from the aborted request) while old results
+        // still show, before the real final response has arrived.
+        if (!controller.signal.aborted) setIsFiltering(false)
+      })
     return () => controller.abort()
-  }, [id, page, searchKeyword, selectedTypes, selectedClusters, yearRange])
+  }, [id, page, debouncedSearchKeyword, selectedTypes, selectedClusters, yearRange])
 
   const outputs = profile?.outputs?.content || []
   const totalPages = profile?.outputs?.totalPages || 1
@@ -279,7 +303,7 @@ export default function PublicInstitutionProfilePage() {
       const response = await apiClient.get(`/institutions/${id}/export`, {
         params: {
           format,
-          keyword: searchKeyword || undefined,
+          keyword: debouncedSearchKeyword || undefined,
           researchTypes: selectedTypes.length > 0 ? selectedTypes.join(',') : undefined,
           yearTo: yearRange || undefined,
         },
