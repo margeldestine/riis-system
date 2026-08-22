@@ -510,6 +510,8 @@ export default function InstitutionProfilePage() {
   const [yearRange, setYearRange] = useState(0)
   const [isFiltering, setIsFiltering] = useState(false)
   const [selectedOutput, setSelectedOutput] = useState(null)
+  const [isExporting, setIsExporting] = useState(null) // 'pdf' | 'csv' | null
+  const [exportError, setExportError] = useState('')
 
   const academicYearLabel = `${new Date().getFullYear() - 1}-${new Date().getFullYear()}`
   const clusterOptions = [
@@ -577,6 +579,39 @@ export default function InstitutionProfilePage() {
   const totalPages = profile?.outputs?.totalPages || 1
   const outputs = profile?.outputs?.content || []
   const isOwnInstitution = String(profile?.name || '') === String(localStorage.getItem('institutionName') || localStorage.getItem('userInstitution') || '')
+
+  const handleExport = async (format) => {
+    setIsExporting(format)
+    setExportError('')
+    try {
+      const response = await apiClient.get(`/institutions/${id}/export`, {
+        params: {
+          format,
+          keyword: debouncedSearchKeyword || undefined,
+          researchTypes: selectedTypes.length > 0 ? selectedTypes.join(',') : undefined,
+          yearTo: yearRange || undefined,
+        },
+        responseType: 'blob',
+      })
+
+      const disposition = response.headers['content-disposition']
+      const match = disposition && disposition.match(/filename="?([^"]+)"?/)
+      const filename = match ? match[1] : `institution-report.${format}`
+
+      const url = window.URL.createObjectURL(new Blob([response.data]))
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', filename)
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+    } catch (err) {
+      setExportError('Unable to generate report. Please try again.')
+    } finally {
+      setIsExporting(null)
+    }
+  }
 
   return (
     <DashboardLayout
@@ -887,13 +922,31 @@ export default function InstitutionProfilePage() {
                       </p>
                     ) : null}
                   </div>
-                  <button
-                    type="button"
-                    className="mt-4 flex w-full items-center justify-center gap-1 rounded-md border border-slate-200 bg-white py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
-                  >
-                    <FileText className="h-4 w-4 text-slate-500" />
-                    Export Report
-                  </button>
+                  <div className="mt-4 space-y-2">
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleExport('pdf')}
+                        disabled={isExporting !== null}
+                        className="flex items-center justify-center gap-1.5 rounded-md border border-slate-200 bg-white py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <FileText className="h-4 w-4 text-slate-500" />
+                        {isExporting === 'pdf' ? 'Exporting…' : 'Export PDF'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleExport('csv')}
+                        disabled={isExporting !== null}
+                        className="flex items-center justify-center gap-1.5 rounded-md border border-slate-200 bg-white py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <FileText className="h-4 w-4 text-slate-500" />
+                        {isExporting === 'csv' ? 'Exporting…' : 'Export CSV'}
+                      </button>
+                    </div>
+                    {exportError ? (
+                      <p className="text-xs text-red-600">{exportError}</p>
+                    ) : null}
+                  </div>
                 </div>
 
                 <OtherHEIsPanel currentId={id} />
