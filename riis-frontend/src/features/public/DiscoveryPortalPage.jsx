@@ -310,6 +310,12 @@ export default function DiscoveryPortalPage({ embedded = false }) {
     }).catch(() => {})
   }, [])
 
+  // Cascading filter: HEI dropdown only shows institutions within the
+  // selected province. When no province is selected, all institutions show.
+  const filteredInstitutions = filters.province
+    ? institutions.filter(i => i.province === filters.province)
+    : institutions
+
   const handleSearch = useCallback(async (overrideQuery) => {
     const q = overrideQuery !== undefined ? overrideQuery : query
     setLoading(true)
@@ -364,7 +370,20 @@ export default function DiscoveryPortalPage({ embedded = false }) {
   }
 
   const handleFilterChange = (key, value) => {
-    setFilters(prev => ({ ...prev, [key]: value }))
+    setFilters(prev => {
+      const next = { ...prev, [key]: value }
+
+      // If Province changes, drop the HEI selection unless it still
+      // belongs to the newly selected province.
+      if (key === 'province' && prev.institutionId) {
+        const stillValid = value
+          ? institutions.some(i => i.id === prev.institutionId && i.province === value)
+          : true
+        if (!stillValid) next.institutionId = ''
+      }
+
+      return next
+    })
   }
 
   const activeFilterCount = Object.values(filters).filter(Boolean).length
@@ -485,6 +504,23 @@ export default function DiscoveryPortalPage({ embedded = false }) {
 
               <div className="space-y-4 text-xs">
                 <div>
+                  <p className="font-semibold uppercase tracking-wider text-slate-400 text-[10px] mb-1">Province</p>
+                  <div className="relative">
+                    <select
+                      value={filters.province}
+                      onChange={(e) => handleFilterChange('province', e.target.value)}
+                      className="w-full rounded-lg border border-slate-200 bg-white py-1.5 pl-2 pr-6 text-xs text-slate-600 appearance-none focus:outline-none focus:ring-1 focus:ring-[#C9A84C]"
+                    >
+                      <option value="">Select province</option>
+                      {['Cebu', 'Bohol'].map(p => (
+                        <option key={p} value={p}>{p}</option>
+                      ))}
+                    </select>
+                    <ChevronDown className="absolute right-2 top-2 h-3 w-3 text-slate-400 pointer-events-none" />
+                  </div>
+                </div>
+
+                <div>
                   <p className="font-semibold uppercase tracking-wider text-slate-400 text-[10px] mb-1">HEI / Institution</p>
                   <div className="relative">
                     <select
@@ -492,13 +528,18 @@ export default function DiscoveryPortalPage({ embedded = false }) {
                       onChange={(e) => handleFilterChange('institutionId', e.target.value)}
                       className="w-full rounded-lg border border-slate-200 bg-white py-1.5 pl-2 pr-6 text-xs text-slate-600 appearance-none focus:outline-none focus:ring-1 focus:ring-[#C9A84C]"
                     >
-                      <option value="">Select institution</option>
-                      {institutions.map(i => (
+                      <option value="">
+                        {filters.province ? `All in ${filters.province}` : 'Select institution'}
+                      </option>
+                      {filteredInstitutions.map(i => (
                         <option key={i.id} value={i.id}>{i.name}</option>
                       ))}
                     </select>
                     <ChevronDown className="absolute right-2 top-2 h-3 w-3 text-slate-400 pointer-events-none" />
                   </div>
+                  {filters.province && filteredInstitutions.length === 0 && (
+                    <p className="mt-1 text-[10px] text-slate-400">No institutions registered in {filters.province} yet.</p>
+                  )}
                 </div>
 
                 <div>
@@ -512,23 +553,6 @@ export default function DiscoveryPortalPage({ embedded = false }) {
                       <option value="">Select type</option>
                       {['Funded Project', 'Journal Article', 'Conference Paper', 'Innovation Output', 'IP Registration', 'Community Extension Research'].map(t => (
                         <option key={t} value={t}>{t}</option>
-                      ))}
-                    </select>
-                    <ChevronDown className="absolute right-2 top-2 h-3 w-3 text-slate-400 pointer-events-none" />
-                  </div>
-                </div>
-
-                <div>
-                  <p className="font-semibold uppercase tracking-wider text-slate-400 text-[10px] mb-1">Province</p>
-                  <div className="relative">
-                    <select
-                      value={filters.province}
-                      onChange={(e) => handleFilterChange('province', e.target.value)}
-                      className="w-full rounded-lg border border-slate-200 bg-white py-1.5 pl-2 pr-6 text-xs text-slate-600 appearance-none focus:outline-none focus:ring-1 focus:ring-[#C9A84C]"
-                    >
-                      <option value="">Select province</option>
-                      {['Cebu', 'Bohol'].map(p => (
-                        <option key={p} value={p}>{p}</option>
                       ))}
                     </select>
                     <ChevronDown className="absolute right-2 top-2 h-3 w-3 text-slate-400 pointer-events-none" />
