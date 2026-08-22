@@ -1,17 +1,48 @@
 package com.geeks.riis_backend.exception;
 
-import com.geeks.riis_backend.dto.FieldError;
-import java.util.List;
+import java.time.Instant;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
-	@ExceptionHandler(SubmissionValidationException.class)
-	public ResponseEntity<List<FieldError>> handleSubmissionValidationException(SubmissionValidationException ex) {
-		return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY).body(ex.getErrors());
+	@ExceptionHandler(BadRequestException.class)
+	public ResponseEntity<Map<String, Object>> handleBadRequest(BadRequestException ex) {
+		return buildResponse(HttpStatus.BAD_REQUEST, ex.getMessage());
+	}
+
+	@ExceptionHandler(ResourceNotFoundException.class)
+	public ResponseEntity<Map<String, Object>> handleNotFound(ResourceNotFoundException ex) {
+		return buildResponse(HttpStatus.NOT_FOUND, ex.getMessage());
+	}
+
+	@ExceptionHandler(ResponseStatusException.class)
+	public ResponseEntity<Map<String, Object>> handleResponseStatus(ResponseStatusException ex) {
+		HttpStatus status = HttpStatus.resolve(ex.getStatusCode().value());
+		if (status == null) {
+			status = HttpStatus.INTERNAL_SERVER_ERROR;
+		}
+		String message = ex.getReason() != null ? ex.getReason() : status.getReasonPhrase();
+		return buildResponse(status, message);
+	}
+
+	@ExceptionHandler(Exception.class)
+	public ResponseEntity<Map<String, Object>> handleUnexpected(Exception ex) {
+		return buildResponse(HttpStatus.INTERNAL_SERVER_ERROR, "An unexpected error occurred. Please try again.");
+	}
+
+	private ResponseEntity<Map<String, Object>> buildResponse(HttpStatus status, String message) {
+		Map<String, Object> body = new LinkedHashMap<>();
+		body.put("timestamp", Instant.now().toString());
+		body.put("status", status.value());
+		body.put("error", status.getReasonPhrase());
+		body.put("message", message != null ? message : status.getReasonPhrase());
+		return ResponseEntity.status(status).body(body);
 	}
 }
