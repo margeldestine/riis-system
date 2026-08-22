@@ -69,17 +69,18 @@ public class InstitutionController {
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) String researchTypes,
+            @RequestParam(required = false) String subjects,
             @RequestParam(required = false) Integer yearTo) {
         Pageable pageable = PageRequest.of(
                 page, size, Sort.by(Sort.Direction.DESC, "completionYear"));
-        return ResponseEntity.ok(institutionService.buildProfileDTO(institutionId, pageable, keyword, researchTypes, yearTo));
+        return ResponseEntity.ok(institutionService.buildProfileDTO(institutionId, pageable, keyword, researchTypes, subjects, yearTo));
     }
 
     /**
      * Downloads a report (PDF or CSV) of the institution's research output
-     * data. Applies the same keyword/researchTypes/yearTo filters as the
-     * profile view, unpaginated, so the export matches whatever the user
-     * currently has filtered on screen.
+     * data. Applies the same keyword/researchTypes/subjects/yearTo filters
+     * as the profile view, unpaginated, so the export matches whatever the
+     * user currently has filtered on screen.
      */
     @GetMapping("/{id}/export")
     public ResponseEntity<byte[]> exportInstitutionReport(
@@ -87,9 +88,10 @@ public class InstitutionController {
             @RequestParam(defaultValue = "pdf") String format,
             @RequestParam(required = false) String keyword,
             @RequestParam(required = false) String researchTypes,
+            @RequestParam(required = false) String subjects,
             @RequestParam(required = false) Integer yearTo) {
 
-        InstitutionExportDataDTO data = institutionService.buildExportData(institutionId, keyword, researchTypes, yearTo);
+        InstitutionExportDataDTO data = institutionService.buildExportData(institutionId, keyword, researchTypes, subjects, yearTo);
 
         byte[] content;
         MediaType mediaType;

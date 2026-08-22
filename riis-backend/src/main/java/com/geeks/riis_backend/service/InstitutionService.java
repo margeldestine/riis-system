@@ -103,13 +103,17 @@ public class InstitutionService {
 
 
     @Transactional(readOnly = true)
-    public InstitutionProfileDTO buildProfileDTO(String institutionId, Pageable pageable, String keyword, String researchTypes, Integer yearTo) {
+    public InstitutionProfileDTO buildProfileDTO(String institutionId, Pageable pageable, String keyword, String researchTypes, String subjects, Integer yearTo) {
         Institution inst = institutionRepository.findById(institutionId)
                 .orElseThrow(() -> new ResourceNotFoundException("Institution not found: " + institutionId));
 
 
         List<String> typeList = (researchTypes != null && !researchTypes.isBlank())
                 ? java.util.Arrays.asList(researchTypes.split(","))
+                : null;
+
+        List<String> subjectList = (subjects != null && !subjects.isBlank())
+                ? java.util.Arrays.asList(subjects.split(","))
                 : null;
 
         Page<ResearchOutput> outputPage = researchOutputRepository.findAll(
@@ -120,6 +124,9 @@ public class InstitutionService {
                                 : cb.conjunction())
                         .and((root, query, cb) -> typeList != null
                                 ? root.get("researchType").in(typeList)
+                                : cb.conjunction())
+                        .and((root, query, cb) -> subjectList != null
+                                ? root.get("subjectDc").in(subjectList)
                                 : cb.conjunction())
                         .and((root, query, cb) -> yearTo != null && yearTo > 0
                                 ? cb.lessThanOrEqualTo(root.get("completionYear"), yearTo)
@@ -207,8 +214,9 @@ public class InstitutionService {
     /**
      * Builds the full filtered dataset for a "Export Report" download.
      * Uses the exact same specification chain as buildProfileDTO (same
-     * status/keyword/type/year filters) so the export always matches what
-     * the user sees on screen — just unpaginated, sorted newest-first.
+     * status/keyword/type/subject/year filters) so the export always
+     * matches what the user sees on screen — just unpaginated, sorted
+     * newest-first.
      *
      * Everything is materialized into plain DTOs (including author names)
      * before this method returns, so the result is safe to hand to
@@ -216,12 +224,16 @@ public class InstitutionService {
      * entity fields leak past the Hibernate session.
      */
     @Transactional(readOnly = true)
-    public InstitutionExportDataDTO buildExportData(String institutionId, String keyword, String researchTypes, Integer yearTo) {
+    public InstitutionExportDataDTO buildExportData(String institutionId, String keyword, String researchTypes, String subjects, Integer yearTo) {
         Institution inst = institutionRepository.findById(institutionId)
                 .orElseThrow(() -> new ResourceNotFoundException("Institution not found: " + institutionId));
 
         List<String> typeList = (researchTypes != null && !researchTypes.isBlank())
                 ? java.util.Arrays.asList(researchTypes.split(","))
+                : null;
+
+        List<String> subjectList = (subjects != null && !subjects.isBlank())
+                ? java.util.Arrays.asList(subjects.split(","))
                 : null;
 
         List<ResearchOutput> outputs = researchOutputRepository.findAll(
@@ -232,6 +244,9 @@ public class InstitutionService {
                                 : cb.conjunction())
                         .and((root, query, cb) -> typeList != null
                                 ? root.get("researchType").in(typeList)
+                                : cb.conjunction())
+                        .and((root, query, cb) -> subjectList != null
+                                ? root.get("subjectDc").in(subjectList)
                                 : cb.conjunction())
                         .and((root, query, cb) -> yearTo != null && yearTo > 0
                                 ? cb.lessThanOrEqualTo(root.get("completionYear"), yearTo)
