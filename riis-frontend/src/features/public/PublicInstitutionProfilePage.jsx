@@ -305,6 +305,7 @@ export default function PublicInstitutionProfilePage() {
           format,
           keyword: debouncedSearchKeyword || undefined,
           researchTypes: selectedTypes.length > 0 ? selectedTypes.join(',') : undefined,
+          subjects: selectedClusters.length > 0 ? selectedClusters.join(',') : undefined,
           yearTo: yearRange || undefined,
         },
         responseType: 'blob',

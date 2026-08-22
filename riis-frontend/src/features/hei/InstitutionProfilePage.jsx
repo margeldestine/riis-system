@@ -11,6 +11,7 @@ import {
   FileText,
   Globe,
   MapPin,
+  Search,
   User,
 } from 'lucide-react'
 import DashboardLayout from '../admin/DashboardLayout'
@@ -532,7 +533,7 @@ export default function InstitutionProfilePage() {
 
   useEffect(() => {
     setIsFiltering(true)
-  }, [selectedTypes, yearRange])
+  }, [selectedTypes, selectedClusters, yearRange])
 
   useEffect(() => {
     setYearRange(0)
@@ -567,7 +568,7 @@ export default function InstitutionProfilePage() {
         setStatus('error')
         setError(extractApiErrorMessage(err, 'Unable to load institution profile.'))
       } finally {
-        setIsFiltering(false)
+        if (!controller.signal.aborted) setIsFiltering(false)
       }
     }
     fetchProfile()
@@ -589,6 +590,7 @@ export default function InstitutionProfilePage() {
           format,
           keyword: debouncedSearchKeyword || undefined,
           researchTypes: selectedTypes.length > 0 ? selectedTypes.join(',') : undefined,
+          subjects: selectedClusters.length > 0 ? selectedClusters.join(',') : undefined,
           yearTo: yearRange || undefined,
         },
         responseType: 'blob',
@@ -763,7 +765,7 @@ export default function InstitutionProfilePage() {
                         Publications from this institution on record
                       </p>
                     </div>
-                    <input
+                      <input
                       type="text"
                       placeholder="Filter research..."
                       value={searchKeyword}
@@ -782,8 +784,8 @@ export default function InstitutionProfilePage() {
                 {isFiltering ? (
                   <div className="flex items-center justify-center py-16 text-sm text-slate-400">
                     <svg className="mr-2 h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
                     </svg>
                     Searching...
                   </div>
