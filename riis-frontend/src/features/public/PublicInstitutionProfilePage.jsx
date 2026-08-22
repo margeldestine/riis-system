@@ -231,6 +231,10 @@ export default function PublicInstitutionProfilePage() {
   const [isFiltering, setIsFiltering] = useState(false)
 
   useEffect(() => {
+    setYearRange(0)
+  }, [id])
+
+  useEffect(() => {
     if (!id) return
     const controller = new AbortController()
     if (profile) {

@@ -533,6 +533,10 @@ export default function InstitutionProfilePage() {
   }, [selectedTypes, yearRange])
 
   useEffect(() => {
+    setYearRange(0)
+  }, [id])
+
+  useEffect(() => {
     if (!id) return
     const controller = new AbortController()
     const fetchProfile = async () => {
