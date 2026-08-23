@@ -27,7 +27,7 @@ const getInitials = (name = '') =>
 
 function StatCard({ value, label, sublabel, borderColor, textColor }) {
   return (
-    <div style={{ border: `1.5px solid ${borderColor}`, borderRadius: 10, padding: '20px 24px', flex: 1 }}>
+    <div style={{ borderLeft: `4px solid ${borderColor}`, background: '#fff', borderRadius: 10, padding: '20px 24px', flex: 1, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
       <div style={{ fontSize: 36, fontWeight: 700, color: textColor, lineHeight: 1 }}>{value}</div>
       <div style={{ fontWeight: 600, marginTop: 6, color: '#111827' }}>{label}</div>
       <div style={{ fontSize: 13, color: '#6b7280', marginTop: 2 }}>{sublabel}</div>
