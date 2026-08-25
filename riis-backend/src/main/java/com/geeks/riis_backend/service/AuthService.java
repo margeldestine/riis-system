@@ -33,6 +33,10 @@ import org.springframework.web.server.ResponseStatusException;
 @Transactional
 public class AuthService {
 
+	private static final String STATUS_ACTIVE = "ACTIVE";
+	private static final String STATUS_PENDING = "PENDING";
+	private static final String STATUS_REJECTED = "REJECTED";
+
 	private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
 	private final UserRepository userRepository;
@@ -55,14 +59,23 @@ public class AuthService {
 
 		String email = normalizeEmail(request.email());
 
-		userRepository.findByEmail(email).ifPresent(existing -> {
-			if ("REJECTED".equalsIgnoreCase(existing.getStatus())) {
+		User existingUser = userRepository.findByEmail(email).orElse(null);
+		if (existingUser != null) {
+			if (STATUS_REJECTED.equalsIgnoreCase(existingUser.getStatus())) {
 				throw new BadRequestException(
-						"Your previous registration with this email was rejected. "
-								+ "Please contact your DOST Region VII administrator for more information.");
+						"This email's registration was previously rejected and cannot register again. Please contact your DOST Region VII administrator.");
 			}
+			if (STATUS_PENDING.equalsIgnoreCase(existingUser.getStatus())) {
+				throw new BadRequestException(
+						"This email already has a pending registration awaiting DOST approval. Please wait for approval before registering again.");
+			}
+			if (STATUS_ACTIVE.equalsIgnoreCase(existingUser.getStatus())) {
+				throw new BadRequestException(
+						"This email is already registered and active. Please sign in instead, or use \"Forgot password\" if you've lost access.");
+			}
+			// Catch-all for any other/future status values.
 			throw new BadRequestException("Email is already registered.");
-		});
+		}
 
 		Institution institution = institutionRepository
 				.findById(request.institutionId())
@@ -104,9 +117,25 @@ public class AuthService {
 		User user = userRepository.findByEmail(email)
 				.orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
-		String whitelistStatus = user.getInstitution() == null ? null : user.getInstitution().getWhitelistStatus();
+		// Whitelist check: only ACTIVE accounts may log in. Previously this
+		// only blocked PENDING, which meant a REJECTED account (status is
+		// updated, not deleted, by UserApprovalService) could still log in
+		// as long as the password matched. Any status other than ACTIVE —
+		// present or future — is now blocked by default.
+		if (!STATUS_ACTIVE.equalsIgnoreCase(user.getStatus())) {
+			if (STATUS_PENDING.equalsIgnoreCase(user.getStatus())) {
+				throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Account pending DOST approval.");
+			}
+			if (STATUS_REJECTED.equalsIgnoreCase(user.getStatus())) {
+				throw new ResponseStatusException(
+						HttpStatus.FORBIDDEN,
+						"Your account registration was not approved. Please contact your DOST Region VII administrator.");
+			}
+			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Account is not active. Please contact your administrator.");
+		}
 
-		if ("PENDING".equalsIgnoreCase(user.getStatus()) || "PENDING".equalsIgnoreCase(whitelistStatus)) {
+		String whitelistStatus = user.getInstitution() == null ? null : user.getInstitution().getWhitelistStatus();
+		if (STATUS_PENDING.equalsIgnoreCase(whitelistStatus)) {
 			throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Account pending DOST approval.");
 		}
 
@@ -117,17 +146,10 @@ public class AuthService {
 		user.setLastLoginAt(LocalDateTime.now());
 		User saved = userRepository.save(user);
 
-		boolean rememberMe = Boolean.TRUE.equals(request.rememberMe());
-		long ttlSeconds = rememberMe ? jwtService.getRememberMeTtlSeconds() : -1;
-
-		String token = jwtService.generateAccessToken(
-				saved.getId(),
-				Map.of(
-						"role", saved.getRole(),
-						"email", saved.getEmail()
-				),
-				ttlSeconds
-		);
+		String token = jwtService.generateAccessToken(saved.getId(), Map.of(
+				"role", saved.getRole(),
+				"email", saved.getEmail()
+		));
 
 		String institutionName = saved.getInstitution() == null ? null : saved.getInstitution().getName();
 		String position = saved.getPosition();
