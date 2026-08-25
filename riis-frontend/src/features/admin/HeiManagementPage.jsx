@@ -353,9 +353,8 @@ function EditHEIModal({ institution, onClose, onSuccess }) {
           <h3 style={{ margin: 0, fontSize: 20, fontWeight: 800, color: '#fff' }}>Institution Details</h3>
         </div>
 
-        <div style={{ background: '#eff6ff', borderBottom: '1px solid #bfdbfe', padding: '12px 28px', fontSize: 13, color: '#1d4ed8' }}>
-          <strong>Only institutions sourced from the CHED PhilGovt Database</strong> should be added to the whitelist.
-          Verify the institution's official email domain before saving.
+                <div style={{ background: '#eff6ff', borderBottom: '1px solid #bfdbfe', padding: '12px 28px', fontSize: 13, color: '#1d4ed8' }}>
+          This institution is already on the whitelist. Please keep its details accurate and up to date.
         </div>
 
         <div style={{ padding: '24px 28px 28px' }}>
@@ -484,19 +483,18 @@ export default function HeiManagementPage() {
   }
 
 
-  const total   = institutions.length
-  const sucCount  = institutions.filter(i => i.type?.toUpperCase() === 'SUC').length
-  const privCount = institutions.filter(i => i.type?.toUpperCase() === 'PRIVATE').length
-  const lucCount  = institutions.filter(i => i.type?.toUpperCase() === 'LUC').length
-
-  
-  const filtered = institutions.filter(i => {
+    const filtered = institutions.filter(i => {
     const matchType     = !filterType     || i.type?.toUpperCase() === filterType.toUpperCase()
     const matchProvince = !filterProvince || i.province?.toLowerCase() === filterProvince.toLowerCase()
     const matchStatus   = !filterStatus   || i.whitelistStatus?.toUpperCase() === filterStatus.toUpperCase()
     const matchSearch   = !search         || i.name?.toLowerCase().includes(search.toLowerCase())
     return matchType && matchProvince && matchStatus && matchSearch
   })
+
+  const total   = filtered.length
+  const sucCount  = filtered.filter(i => i.type?.toUpperCase() === 'SUC').length
+  const privCount = filtered.filter(i => i.type?.toUpperCase() === 'PRIVATE').length
+  const lucCount  = filtered.filter(i => i.type?.toUpperCase() === 'LUC').length
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
   const paginated  = filtered.slice(page * pageSize, page * pageSize + pageSize)
@@ -587,7 +585,7 @@ export default function HeiManagementPage() {
             <input
               value={search}
               onChange={e => { setSearch(e.target.value); setPage(0) }}
-              placeholder="Type of institution name"
+              placeholder="Search institution name"
               style={{ padding: '7px 14px', border: '1.5px solid #e5e7eb', borderRadius: 8, fontSize: 13, width: 220, outline: 'none' }}
             />
           </div>
