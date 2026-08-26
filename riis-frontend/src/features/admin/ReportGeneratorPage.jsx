@@ -58,6 +58,12 @@ export default function ReportGeneratorPage() {
   }, [yearFrom])
 
   useEffect(() => {
+  if (status === 'complete') {
+    handleGenerate()
+  }
+}, [outputFormat])
+
+  useEffect(() => {
     const fetchInstitutions = async () => {
       try {
         const res = await apiClient.get('/admin/institutions')

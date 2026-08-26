@@ -53,6 +53,12 @@ export default function HeiReportsPage() {
   }, [yearFrom])
 
   useEffect(() => {
+  if (status === 'complete') {
+    handleGenerate()
+  }
+}, [outputFormat])
+
+  useEffect(() => {
     const fetchPreview = async () => {
       setPreviewLoading(true)
       try {
