@@ -33,7 +33,145 @@ function isValidRightsOrCoverage(value) {
 }
 
 function isValidKeyword(word) {
-  return keywordPattern.test(word) && alphabeticContentPattern.test(word)
+  if (!keywordPattern.test(word) || !alphabeticContentPattern.test(word)) return false
+  return !tokenizeForGibberishCheck(word).some((w) => isGibberishWord(w))
+}
+
+const vowelPattern = /[aeiouAEIOU]/
+
+const QWERTY_ADJACENCY = {
+  q: 'wa', w: 'qeas', e: 'wrsd', r: 'etdf', t: 'ryfg', y: 'tugh', u: 'yihj',
+  i: 'uojk', o: 'ipkl', p: 'ol',
+  a: 'qwsz', s: 'awedxz', d: 'serfcx', f: 'drtgvc', g: 'ftyhbv', h: 'gyujnb',
+  j: 'huikmn', k: 'jiolm', l: 'kop',
+  z: 'asx', x: 'zsdc', c: 'xdfv', v: 'cfgb', b: 'vghn', n: 'bhjm', m: 'njk',
+}
+
+function isKeyboardAdjacent(a, b) {
+  const neighbors = QWERTY_ADJACENCY[a]
+  return Boolean(neighbors && neighbors.includes(b))
+}
+
+function keyboardAdjacencyRatio(word) {
+  const letters = word.toLowerCase().replace(/[^a-z]/g, '')
+  if (letters.length < 4) return 0
+  let adjacentPairs = 0
+  for (let i = 1; i < letters.length; i++) {
+    if (isKeyboardAdjacent(letters[i - 1], letters[i])) adjacentPairs++
+  }
+  return adjacentPairs / (letters.length - 1)
+}
+
+function hasExcessiveConsonantRun(word, maxRun = 5) {
+  let run = 0
+  for (const ch of word) {
+    if (/[a-zA-Z]/.test(ch) && !vowelPattern.test(ch)) {
+      run += 1
+      if (run > maxRun) return true
+    } else {
+      run = 0
+    }
+  }
+  return false
+}
+
+function hasExcessiveRepeatedChar(word, maxRun = 3) {
+  let run = 1
+  for (let i = 1; i < word.length; i++) {
+    if (word[i].toLowerCase() === word[i - 1].toLowerCase()) {
+      run += 1
+      if (run > maxRun) return true
+    } else {
+      run = 1
+    }
+  }
+  return false
+}
+
+function isRepeatedSubstring(word) {
+  return /^(.+)\1+$/.test(word.toLowerCase())
+}
+
+const COMMON_ENGLISH_BIGRAMS = new Set([
+  'th','he','in','er','an','re','on','at','en','nd','ti','es','or','te',
+  'of','ed','is','it','al','ar','st','to','nt','ng','se','ha','as','ou',
+  'io','le','ve','co','me','de','hi','ri','ro','ic','ne','ea','ra','ce',
+  'li','ch','ll','be','ma','si','om','ur','ca','el','ta','la','ns','di',
+  'fo','ho','pe','ec','pr','no','ct','us','ac','ot','il','tr','ly','nc',
+  'ex','so','ss','wi','wa','sh','ee','id','oo','oc','fi','ai','ea','ow',
+  'ne','ge','ki','sa','av','pa','au','ni','gh','ir','ph','sc','wo','fr',
+])
+
+function bigramPlausibilityRatio(word) {
+  const letters = word.toLowerCase().replace(/[^a-z]/g, '')
+  if (letters.length < 5) return 1 // too short to judge reliably; don't penalize
+  let commonCount = 0
+  const total = letters.length - 1
+  for (let i = 0; i < total; i++) {
+    if (COMMON_ENGLISH_BIGRAMS.has(letters.slice(i, i + 2))) commonCount++
+  }
+  return commonCount / total
+}
+
+function isGibberishWord(rawWord) {
+  const clean = (rawWord ?? '').replace(/[^A-Za-z]/g, '')
+  if (clean.length < 3) return false
+  if (isRepeatedSubstring(clean)) return true
+  if (!vowelPattern.test(clean)) return true
+  if (hasExcessiveConsonantRun(clean, 5) && bigramPlausibilityRatio(clean) < 0.3) return true
+  if (hasExcessiveRepeatedChar(clean)) return true
+  if (keyboardAdjacencyRatio(clean) > 0.5) return true
+  if (bigramPlausibilityRatio(clean) < 0.15) return true
+  return false
+}
+
+const ENGLISH_STOPWORDS = new Set([
+  'the','and','of','to','in','is','was','for','with','this','that','are',
+  'on','as','by','an','be','from','at','it','we','our','which','these',
+  'their','has','have','were','can','also','may','been','not','its',
+  'such','other','than','into','more','used','based','study','research',
+  'data','analysis','method','methods','results','findings','a','or',
+  'between','among','using','showed','found','significant','both',
+])
+
+function commonWordRatio(text) {
+  const words = (text ?? '')
+    .toLowerCase()
+    .replace(/[^a-z\s]/g, ' ')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+  if (words.length === 0) return 0
+  return words.filter((w) => ENGLISH_STOPWORDS.has(w)).length / words.length
+}
+
+function isGibberishText(value, { maxGibberishRatio = 0.34, minWordsToCheck = 3, minCommonWordRatio = 0.08 } = {}) {
+  const words = (value ?? '').trim().split(/\s+/).filter(Boolean)
+  if (words.length < minWordsToCheck) return false
+
+  const tokens = tokenizeForGibberishCheck(value)
+  const gibberishCount = tokens.filter(isGibberishWord).length
+  const tooManyGibberishWords = tokens.length > 0 && gibberishCount / tokens.length > maxGibberishRatio
+
+  const tooFewCommonWords = words.length >= 15 && commonWordRatio(value) < minCommonWordRatio
+
+  return tooManyGibberishWords || tooFewCommonWords
+}
+
+function tokenizeForGibberishCheck(value) {
+  return (value ?? '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .flatMap((word) => word.split(/[/-]+/).filter(Boolean))
+}
+
+function findFirstGibberishWord(value) {
+  return tokenizeForGibberishCheck(value).find((w) => isGibberishWord(w)) || null
+}
+
+function containsGibberishWord(text) {
+  return tokenizeForGibberishCheck(text).some((word) => isGibberishWord(word))
 }
 
 function formatOrcidInput(value) {
@@ -228,6 +366,9 @@ const authorSchema = z.object({
     .min(1, 'Author full name is required.')
     .regex(namePattern, {
       message: 'Full name can only contain letters, spaces, hyphens, and apostrophes.',
+    })
+    .refine((value) => !tokenizeForGibberishCheck(value).some((w) => isGibberishWord(w)), {
+      message: 'Please Enter a name.',
     }),
   orcidId: z
     .string()
@@ -240,14 +381,17 @@ const authorSchema = z.object({
 
 const submissionSchema = z
   .object({
-   title: z
-      .string()
-      .trim()
-      .min(1, 'Research title is required.')
-      .max(500, 'Research title must be 500 characters or fewer.')
-      .refine((value) => alphabeticContentPattern.test(value), {
-        message: 'Research title must contain words, not just numbers or symbols.',
-      }),
+      title: z
+  .string()
+  .trim()
+  .min(1, 'Research title is required.')
+  .max(500, 'Research title must be 500 characters or fewer.')
+  .refine((value) => alphabeticContentPattern.test(value), {
+    message: 'Research title must contain words, not just numbers or symbols.',
+  })
+  .refine((value) => !containsGibberishWord(value), {
+    message: 'Please enter a valid research title.',
+  }),
     researchType: z.string().trim().min(1, 'Research type is required.'),
     completionYear: z.coerce
       .number({
@@ -256,20 +400,26 @@ const submissionSchema = z
       .int('Completion year must be a whole number.')
       .min(1900, 'Completion year must be valid.')
       .max(currentYear, `Completion year cannot exceed ${currentYear}.`),
-    fundingSource: z
+      fundingSource: z
       .string()
       .trim()
       .min(1, 'Funding source is required.')
       .refine((value) => alphabeticContentPattern.test(value), {
         message: 'Funding source must contain words, not just numbers or symbols.',
+      })
+      .refine((value) => !containsGibberishWord(value), {
+        message: 'Please enter a valid Funding Source',
       }),
-    publicationVenue: z
+      publicationVenue: z
       .string()
       .trim()
       .min(1, 'Publication venue or status is required.')
       .refine((value) => alphabeticContentPattern.test(value), {
         message: 'Publication venue must contain words, not just numbers or symbols.',
-      }),  
+      })
+      .refine((value) => !containsGibberishWord(value), {
+        message: 'Please enter a valid Publication Venue',
+      }),
     authors: z.array(authorSchema).min(1, 'Add at least one author.'),
     principalInvestigator: z
       .string()
@@ -291,39 +441,54 @@ const submissionSchema = z
           message: 'Abstract must be between 100 and 500 words.',
         })
       }
-      if (!alphabeticContentPattern.test(value)) {
+            if (!alphabeticContentPattern.test(value)) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message: 'Abstract must contain words, not just numbers or symbols.',
         })
       }
+        if (isGibberishText(value)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Please enter a valid abstract.',
+        })
+      }
     }),
-    keywords: z
+        keywords: z
       .array(
         z
         .string()
         .trim()
         .min(1)
-        .refine((value) => isValidKeyword(value), {
+        .refine((value) => keywordPattern.test(value) && alphabeticContentPattern.test(value), {
           message: 'A keyword cannot consist only of numbers or symbols.',
+        })
+        .refine((value) => !tokenizeForGibberishCheck(value).some((w) => isGibberishWord(w)), {
+          message: 'Please enter a valid keyword.',
         }),
       )
       .min(3, 'Add at least 3 keywords.')
       .max(10, 'You can add up to 10 keywords only.'),
     subjectDc: z.string().trim().min(1, 'Subject is required.'),
-    coverageDc: z
+      coverageDc: z
       .string()
       .trim()
       .min(1, 'Coverage is required.')
       .refine((value) => isValidRightsOrCoverage(value), {
         message: 'Coverage must contain words',
+      })
+      .refine((value) => !containsGibberishWord(value), {
+        message: 'Please provide a valid coverage/scope.',
       }),
-    rightsDc: z
+               rightsDc: z
       .string()
       .trim()
       .min(1, 'Rights is required.')
       .refine((value) => isValidRightsOrCoverage(value), {
         message: 'Rights must contain words',
+      })
+      .refine((value) => !containsGibberishWord(value), {
+        message: 'Please provide a valid rights/access info.',
       }),
     doi: z
       .string()
@@ -820,18 +985,25 @@ function TeamAffiliationStep({
 }
 
 
-    function KeywordsInput({
+  function KeywordsInput({
       keywords,
       onAddKeyword,
       onRemoveKeyword,
       keywordInput,
       setKeywordInput,
-      error,
+      error,        
       warning,
       onBlockedChar,
       onNumberChar,
     }) {
-  const keywordErrorMessage = error ? `Minimum 3 keywords required (${keywords.length} added)` : ''
+  const hasInvalidKeyword = Array.isArray(error) && error.some(Boolean)
+  const arrayLevelMessage = error?.root?.message || (!Array.isArray(error) ? error?.message : undefined)
+
+  const keywordErrorMessage = hasInvalidKeyword
+    ? 'Please enter a valid keyword.'
+    : arrayLevelMessage
+      ? `Minimum 3 keywords required (${keywords.length} added)`
+      : ''
 
   const handleKeyDown = (event) => {
     if (event.key === 'Enter' || event.key === ',') {
@@ -965,7 +1137,7 @@ function TeamAffiliationStep({
           onRemoveKeyword={onRemoveKeyword}
           keywordInput={keywordInput}
           setKeywordInput={setKeywordInput}
-          error={errors.keywords?.message}
+          error={errors.keywords}
           warning={keywordWarning}
           onBlockedChar={onBlockedKeywordChar}
           onNumberChar={onNumberInKeyword}
@@ -1372,8 +1544,14 @@ export default function SubmissionPortal({ onSubmitted }) {
     keywordWarningTimer.current = setTimeout(() => setKeywordWarning(''), 2500)
   }
 
-  const flagTooShortKeyword = () => {
+    const flagTooShortKeyword = () => {
     setKeywordWarning('A keyword must be at least 2 letters long.')
+    clearTimeout(keywordWarningTimer.current)
+    keywordWarningTimer.current = setTimeout(() => setKeywordWarning(''), 2500)
+  }
+
+  const flagInvalidKeyword = () => {
+    setKeywordWarning('Please enter a valid keyword.')
     clearTimeout(keywordWarningTimer.current)
     keywordWarningTimer.current = setTimeout(() => setKeywordWarning(''), 2500)
   }
@@ -1589,13 +1767,17 @@ const addKeyword = () => {
     const next = [...existing]
     let hasDuplicate = false
     let hasTooShort = false
+    let hasInvalid = false
 
     candidates.forEach((candidate) => {
       if (candidate.length < MIN_KEYWORD_LENGTH) {
         hasTooShort = true
         return
       }
-      if (!isValidKeyword(candidate)) return
+      if (!isValidKeyword(candidate)) {
+        hasInvalid = true
+        return
+      }
       const alreadyAdded = next.some(
         (item) => item.toLowerCase() === candidate.toLowerCase(),
       )
@@ -1610,13 +1792,17 @@ const addKeyword = () => {
     if (next.length !== existing.length) {
       setValue('keywords', next, { shouldDirty: true, shouldValidate: true })
       clearErrors('keywords')
+      setKeywordInput('')
+      return
+    }
+
+    if (hasInvalid) {
+      flagInvalidKeyword()
     } else if (hasDuplicate) {
       flagDuplicateKeyword()
     } else if (hasTooShort) {
       flagTooShortKeyword()
     }
-
-    setKeywordInput('')
   }
 
   const removeKeyword = (keyword) => {
@@ -1656,6 +1842,9 @@ const addKeyword = () => {
           if (currentStep === 3) {
             if (field === 'abstractText') return { field, message: 'Abstract is required' }
             if (field === 'keywords') {
+              const kwErrors = errors.keywords
+              const hasInvalidWord = Array.isArray(kwErrors) && kwErrors.some(Boolean)
+              if (hasInvalidWord) return { field, message: 'Please enter a valid keyword.' }
               const count = Array.isArray(getValues('keywords')) ? getValues('keywords').length : 0
               return { field, message: `Minimum 3 keywords required (${count} added)` }
             }

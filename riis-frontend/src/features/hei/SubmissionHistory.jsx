@@ -107,12 +107,7 @@ export default function SubmissionHistory() {
   const [error, setError] = useState('')
   const [pdfStatus, setPdfStatus] = useState('idle')
   const [activePdfId, setActivePdfId] = useState(null)
-  const [kpiCounts, setKpiCounts] = useState({
-    total: 0,
-    approved: 0,
-    pending: 0,
-    requiresCorrection: 0,
-  })
+  const [kpiCounts, setKpiCounts] = useState({ total: 0 })
 
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(0)
@@ -122,7 +117,6 @@ export default function SubmissionHistory() {
   const [selectedId, setSelectedId] = useState(null)
 
   const [filterSubmittedBy, setFilterSubmittedBy] = useState('')
-  const [filterStatus, setFilterStatus] = useState('')
   const [filterType, setFilterType] = useState('')
   const [filterYear, setFilterYear] = useState('')
 
@@ -181,7 +175,6 @@ export default function SubmissionHistory() {
             page,
             size: 5,
             keyword: search || undefined,
-            status: mapStatusForApi(filterStatus),
             researchType: mapResearchTypeForApi(filterType),
             year: filterYear || undefined,
             mine: filterSubmittedBy === 'me' ? true : undefined,
@@ -219,7 +212,7 @@ export default function SubmissionHistory() {
         )
       }
     },
-    [page, search, filterStatus, filterType, filterYear, filterSubmittedBy],
+    [page, search, filterType, filterYear, filterSubmittedBy],
   )
 
   useEffect(() => {
@@ -241,32 +234,12 @@ export default function SubmissionHistory() {
 
     const loadKpis = async () => {
       try {
-        const [allRes, approvedRes, underReviewRes, requiresCorrectionRes] =
-          await Promise.all([
-            apiClient.get('/submissions', {
-              params: { page: 0, size: 1 },
-              signal: controller.signal,
-            }),
-            apiClient.get('/submissions', {
-              params: { page: 0, size: 1, status: 'APPROVED' },
-              signal: controller.signal,
-            }),
-            apiClient.get('/submissions', {
-              params: { page: 0, size: 1, status: mapStatusForApi('UNDER_REVIEW') },
-              signal: controller.signal,
-            }),
-            apiClient.get('/submissions', {
-              params: { page: 0, size: 1, status: 'REQUIRES_CORRECTION' },
-              signal: controller.signal,
-            }),
-          ])
-
-        setKpiCounts({
-          total: readTotalElements(allRes.data),
-          approved: readTotalElements(approvedRes.data),
-          pending: readTotalElements(underReviewRes.data),
-          requiresCorrection: readTotalElements(requiresCorrectionRes.data),
+        const allRes = await apiClient.get('/submissions', {
+          params: { page: 0, size: 1 },
+          signal: controller.signal,
         })
+
+        setKpiCounts({ total: readTotalElements(allRes.data) })
       } catch (err) {
         if (controller.signal.aborted) return
       }
@@ -301,17 +274,6 @@ export default function SubmissionHistory() {
         if (!title.includes(normalizedSearch)) return false
       }
 
-
-      if (filterStatus) {
-        const statusValue = normalizeStatus(item?.status)
-        const requested = normalizeStatus(filterStatus)
-        if (requested === 'UNDER_REVIEW') {
-          if (!['PENDING_REVIEW', 'PENDING', 'UNDER_REVIEW'].includes(statusValue)) return false
-        } else if (statusValue !== requested) {
-          return false
-        }
-      }
-
       if (filterType && normalizeType(item?.researchType) !== normalizeType(filterType)) return false
       if (filterYear) {
         const value = item?.updatedAt || item?.submittedAt
@@ -321,7 +283,7 @@ export default function SubmissionHistory() {
       }
       return true
     })
-  }, [items, search, filterSubmittedBy, filterStatus, filterType, filterYear])
+  }, [items, search, filterSubmittedBy, filterType, filterYear])
 
   const handleViewPdf = useCallback(async (submissionId) => {
     if (!submissionId) return
@@ -409,24 +371,6 @@ export default function SubmissionHistory() {
             accentBorderClass="border-[#e5e7eb]"
             accentTriangleClass="border-b-slate-400/15"
           />
-          <KpiCard
-            value={kpiCounts.approved}
-            label="Approved"
-            accentBorderClass="border-emerald-300"
-            accentTriangleClass="border-b-emerald-500/15"
-          />
-          <KpiCard
-            value={kpiCounts.pending}
-            label="Under Review"
-            accentBorderClass="border-[#f3d08b]"
-            accentTriangleClass="border-b-[#C9A84C]/18"
-          />
-          <KpiCard
-            value={kpiCounts.requiresCorrection}
-            label="Requires Correction"
-            accentBorderClass="border-rose-300"
-            accentTriangleClass="border-b-rose-500/15"
-          />
         </div>
 
         <div className="space-y-4">
@@ -455,7 +399,7 @@ export default function SubmissionHistory() {
             </button>
           </div>
 
-          <div className="grid gap-3 md:grid-cols-4">
+                    <div className="grid gap-3 md:grid-cols-3">
             <select
               value={filterSubmittedBy}
               onChange={(event) => {
@@ -466,21 +410,6 @@ export default function SubmissionHistory() {
             >
               <option value="">Submitted by:</option>
               <option value="me">Me</option>
-            </select>
-            <select
-              value={filterStatus}
-              onChange={(event) => {
-                setFilterStatus(event.target.value)
-                setPage(0)
-              }}
-              className="h-10 w-full rounded-[8px] border border-[#e5e7eb] bg-white px-3 text-sm text-slate-600 outline-none"
-            >
-              <option value="">All Statuses</option>
-              <option value="APPROVED">Approved</option>
-              <option value="UNDER_REVIEW">Under Review</option>
-              <option value="REQUIRES_CORRECTION">Requires Correction</option>
-              <option value="REJECTED">Rejected</option>
-              <option value="DRAFT">Draft</option>
             </select>
             <select
               value={filterType}
@@ -534,17 +463,14 @@ export default function SubmissionHistory() {
                     Submission Date
                   </th>
                   <th className="w-[10%] whitespace-nowrap border-b border-[#e5e7eb] px-4 py-3 text-left text-[12px] font-semibold text-[#6b7280]">
-                    Status
-                  </th>
-                  <th className="w-[10%] whitespace-nowrap border-b border-[#e5e7eb] px-4 py-3 text-left text-[12px] font-semibold text-[#6b7280]">
                     Actions
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#f1f5f9]">
-                {status === 'loading' ? (
+                  {status === 'loading' ? (
                   <tr>
-                    <td className="px-5 py-6 text-sm text-slate-500" colSpan={5}>
+                    <td className="px-5 py-6 text-sm text-slate-500" colSpan={4}>
                       Loading submissions...
                     </td>
                   </tr>
@@ -568,15 +494,6 @@ export default function SubmissionHistory() {
                       </td>
                       <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-600">
                         {formatDate(item?.updatedAt || item?.submittedAt)}
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-4">
-                        <span
-                          className={`inline-flex items-center justify-center whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold ${getStatusBadgeClasses(
-                            item?.status,
-                          )}`}
-                        >
-                          {formatStatusLabel(item?.status)}
-                        </span>
                       </td>
                       <td className="whitespace-nowrap px-4 py-4 text-sm font-semibold">
                         <div className="inline-flex items-center gap-2">
@@ -608,7 +525,7 @@ export default function SubmissionHistory() {
                   ))
                 ) : (
                   <tr>
-                    <td className="px-5 py-10 text-center text-sm text-slate-500" colSpan={5}>
+                    <td className="px-5 py-10 text-center text-sm text-slate-500" colSpan={4}>
                       No submissions found.
                     </td>
                   </tr>
