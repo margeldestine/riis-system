@@ -5,7 +5,8 @@ import { dostNavItems } from './PendingSubmissionsPage'
 import apiClient from '../../services/apiClient'
 
 const RESEARCH_TYPES = ['Journal Article', 'Conference Paper', 'Funded Project', 'Innovation Output', 'IP Registration']
-const YEARS = Array.from({ length: 10 }, (_, i) => 2026 - i)
+const currentYear = new Date().getFullYear()
+const YEARS = Array.from({ length: currentYear - 2026 + 1 }, (_, i) => 2026 + i)
 
 export default function ReportGeneratorPage() {
   const [yearFrom, setYearFrom] = useState('')
@@ -282,7 +283,7 @@ const handleGenerate = async () => {
                       onChange={e => { setYearFrom(e.target.value); setYearError(false) }}
                       className={`w-full rounded-lg border bg-white py-2.5 pl-3 pr-8 text-sm text-slate-600 appearance-none focus:outline-none focus:ring-1 focus:ring-[#C9A84C] ${yearError ? 'border-red-400 ring-1 ring-red-200' : 'border-slate-200'}`}
                     >
-                      <option value=""></option>
+                      <option value="">Select year</option>
                       {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
                     </select>
                   </div>
@@ -295,7 +296,7 @@ const handleGenerate = async () => {
                       onChange={e => { setYearTo(e.target.value); setYearError(false) }}
                       className={`w-full rounded-lg border bg-white py-2.5 pl-3 pr-8 text-sm text-slate-600 appearance-none focus:outline-none focus:ring-1 focus:ring-[#C9A84C] ${yearError ? 'border-red-400 ring-1 ring-red-200' : 'border-slate-200'}`}
                     >
-                      <option value=""></option>
+                      <option value="">Select year</option>
                       {YEARS.filter(y => !yearFrom || y >= parseInt(yearFrom)).map(y => (
                         <option key={y} value={y}>{y}</option>
                       ))}
@@ -337,7 +338,7 @@ const handleGenerate = async () => {
                   onChange={e => setFundingSource(e.target.value)}
                   className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-3 pr-8 text-sm text-slate-600 appearance-none focus:outline-none focus:ring-1 focus:ring-[#C9A84C]"
                 >
-                  <option value=""></option>
+                  <option value="">Select funding source</option>
                   {['DOST-PCAARRD', 'DOST-PCIEERD', 'DOST-CHED', 'Self-Funded', 'Other'].map(f => (
                     <option key={f} value={f}>{f}</option>
                   ))}
