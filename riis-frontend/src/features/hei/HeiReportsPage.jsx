@@ -19,7 +19,8 @@ function decodeJwtPayload(token) {
 }
 
 const RESEARCH_TYPES = ['Journal Article', 'Conference Paper', 'Funded Project', 'Innovation Output', 'IP Registration']
-const YEARS = Array.from({ length: 10 }, (_, i) => 2026 - i)
+const currentYear = new Date().getFullYear()
+const YEARS = Array.from({ length: currentYear - 2026 + 1 }, (_, i) => 2026 + i)
 
 export default function HeiReportsPage() {
   const [yearFrom, setYearFrom] = useState('')
