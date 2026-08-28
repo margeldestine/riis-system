@@ -9,7 +9,6 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
-import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import java.time.LocalDateTime;
@@ -146,13 +145,6 @@ public class ResearchOutput {
 	@Array(length = 768)
 	private float[] sbertEmbedding;
 
-	@ManyToOne(fetch = FetchType.LAZY)
-	@JoinColumn(name = "cluster_id")
-	private Cluster cluster;
-
-	@Column(name = "cluster_assigned_at")
-	private LocalDateTime clusterAssignedAt;
-
 	@CreationTimestamp
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private LocalDateTime createdAt;
@@ -166,12 +158,6 @@ public class ResearchOutput {
 
 	@OneToMany(mappedBy = "researchOutput", fetch = FetchType.LAZY)
 	private Set<ValidationLog> validationLogs;
-
-	@OneToOne(mappedBy = "researchOutput", fetch = FetchType.LAZY)
-	private ResearchOutputCluster researchOutputCluster;
-
-	@OneToOne(mappedBy = "researchOutput", fetch = FetchType.LAZY)
-	private UnclassifiedRecord unclassifiedRecord;
 
 	@OneToMany(mappedBy = "record", fetch = FetchType.LAZY)
 	private Set<AiProcessingQueueItem> aiProcessingQueueItems;

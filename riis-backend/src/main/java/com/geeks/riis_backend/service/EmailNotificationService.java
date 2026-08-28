@@ -274,35 +274,4 @@ public class EmailNotificationService {
 		}
 	}
 
-	@Async
-	public void sendUnclassifiedRecordAlert(String referenceNumber, double maxScoreReached) {
-		if (adminEmail.isBlank()) {
-			log.warn("[sendUnclassifiedRecordAlert] Skipped — app.notification.admin-email is not configured. referenceNumber={}", referenceNumber);
-			return;
-		}
-		if (referenceNumber == null || referenceNumber.isBlank()) {
-			log.warn("[sendUnclassifiedRecordAlert] Skipped — referenceNumber is blank/null.");
-			return;
-		}
-
-		try {
-			JavaMailSender mailSender = resolveMailSender("sendUnclassifiedRecordAlert");
-			if (mailSender == null) return;
-
-			SimpleMailMessage message = new SimpleMailMessage();
-			if (!fromEmail.isBlank()) message.setFrom(fromEmail);
-			message.setTo(adminEmail);
-			message.setSubject("Unclassified Record: " + referenceNumber);
-			message.setText(
-					"A research output could not be automatically assigned to any S&T priority cluster.\n\n" +
-							"Reference Number: " + referenceNumber + "\n" +
-							"Highest cluster score reached: " + String.format("%.2f", maxScoreReached) + " (threshold: 0.65)\n\n" +
-							"Please review and manually assign a cluster via the Data Quality Dashboard."
-			);
-			mailSender.send(message);
-			log.info("[sendUnclassifiedRecordAlert] Email sent successfully to admin {} (ref={})", adminEmail, referenceNumber);
-		} catch (Exception e) {
-			log.error("[sendUnclassifiedRecordAlert] Failed to send email to admin {} (ref={}): {}", adminEmail, referenceNumber, e.getMessage(), e);
-		}
-	}
 }

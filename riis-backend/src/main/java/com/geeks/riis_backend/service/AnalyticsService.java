@@ -1,9 +1,6 @@
 package com.geeks.riis_backend.service;
 
-import com.geeks.riis_backend.model.Cluster;
-import com.geeks.riis_backend.repository.ClusterRepository;
 import com.geeks.riis_backend.repository.InstitutionRepository;
-import com.geeks.riis_backend.repository.ResearchOutputClusterRepository;
 import com.geeks.riis_backend.repository.ResearchOutputRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -19,9 +16,19 @@ public class AnalyticsService {
     private final ResearchOutputRepository researchOutputRepository;
     private final InstitutionRepository institutionRepository;
     private final com.geeks.riis_backend.repository.ThemeKeywordRepository themeKeywordRepository;
-    private final ResearchOutputClusterRepository researchOutputClusterRepository;
-    private final ClusterRepository clusterRepository;
 
+    // The 5 fixed S&T research themes captured directly at submission via
+    // sAndTTheme -> research_outputs.subjectDc (see SubmissionPortal.jsx).
+    // This is now the single source of truth for thematic categorization —
+    // the automatic cluster-assignment pipeline that used to algorithmically
+    // re-derive this same grouping has been removed as redundant.
+    private static final List<String> ST_THEMES = List.of(
+            "Health & Medical",
+            "Climate & Env",
+            "Agriculture",
+            "Education & Social",
+            "Tech & Innovation"
+    );
     // ---- DAS-036/037/038: shared filter helper --------------------------
     // Applies the optional Year-From / Year-To / Province / HEI / Type
     // filters in-memory over the APPROVED research outputs. Kept as a
@@ -272,47 +279,58 @@ public class AnalyticsService {
         }
         return result;
     }
-
     // GET /api/v1/analytics/cluster-heatmap
-    // Institution x 5-S&T-cluster matrix, real output counts (not keyword
-    // counts), backing the redesigned ThematicDensityHeatmap.
+    // [MIGRATED off the removed cluster-assignment pipeline] Institution x
+    // 5-S&T-theme matrix, now grouped directly off research_outputs.subjectDc
+    // instead of joining clusters/research_output_clusters. The response
+    // shape (clusters[]/cells[] with clusterId/clusterName keys) is
+    // deliberately kept identical to the old cluster-table-backed version —
+    // "clusterId"/"clusterName" here are just the raw subjectDc string used
+    // as a stable key/label, not a foreign key into any table — so the
+    // existing AnalyticsDashboard.jsx frontend (ThematicDensityHeatmap panel,
+    // CSV/PDF export) needs zero changes to keep working against this.
     //
-    // "clusters" in the response always lists all 5 clusters from
-    // ClusterRepository, even ones with zero assigned outputs right now —
-    // the join-based count query alone would silently drop empty clusters
-    // from the result, which would shrink the heatmap below 5 columns.
+    // "clusters" in the response always lists all 5 themes, even ones with
+    // zero outputs right now, matching the old ClusterRepository.findAll()
+    // guarantee that the heatmap never shrinks below 5 columns.
     //
     // DAS-039-filters: yearFrom/yearTo/province/institutionId are optional.
-    // Type is NOT accepted here (scope decision) — the heatmap's x-axis is
-    // already the 5 S&T clusters, so it doesn't get a Type filter.
+    // Type is NOT accepted here (unchanged scope decision) — the heatmap's
+    // x-axis is already the 5 S&T themes, so it doesn't get a Type filter.
     public Map<String, Object> getClusterHeatmap(Integer yearFrom, Integer yearTo, String province, String institutionId) {
-        List<Cluster> allClusters = clusterRepository.findAll();
-        List<Object[]> countRows = researchOutputClusterRepository
-                .countApprovedOutputsByInstitutionAndCluster(yearFrom, yearTo, province, institutionId);
+        List<com.geeks.riis_backend.model.ResearchOutput> filtered =
+                getFilteredApprovedOutputs(yearFrom, yearTo, province, institutionId, null);
 
-        Map<String, Long> countsByInstitutionAndCluster = new HashMap<>();
-        for (Object[] row : countRows) {
-            String institutionId2 = String.valueOf(row[0]);
-            String clusterId = String.valueOf(row[1]);
-            long count = ((Number) row[3]).longValue();
-            countsByInstitutionAndCluster.put(institutionId2 + "||" + clusterId, count);
+        Map<String, Long> countsByInstitutionAndTheme = new HashMap<>();
+        for (com.geeks.riis_backend.model.ResearchOutput ro : filtered) {
+            if (ro.getInstitution() == null || ro.getSubjectDc() == null || ro.getSubjectDc().isBlank()) {
+                continue;
+            }
+            String key = ro.getInstitution().getId() + "||" + ro.getSubjectDc();
+            countsByInstitutionAndTheme.merge(key, 1L, Long::sum);
         }
 
-        List<Map<String, String>> clusters = allClusters.stream()
-                .map(c -> {
+        List<Map<String, String>> clusters = ST_THEMES.stream()
+                .map(theme -> {
                     Map<String, String> item = new LinkedHashMap<>();
-                    item.put("clusterId", c.getId());
-                    item.put("clusterName", c.getName());
+                    item.put("clusterId", theme);
+                    item.put("clusterName", theme);
                     return item;
                 })
                 .collect(Collectors.toList());
 
         List<Map<String, Object>> cells = new ArrayList<>();
-        for (Map.Entry<String, Long> entry : countsByInstitutionAndCluster.entrySet()) {
+        for (Map.Entry<String, Long> entry : countsByInstitutionAndTheme.entrySet()) {
             String[] parts = entry.getKey().split("\\|\\|", 2);
+            String theme = parts[1];
+            // Ignore any legacy/free-text subjectDc values that fall outside
+            // the 5 canonical themes, so the heatmap columns stay fixed at 5.
+            if (!ST_THEMES.contains(theme)) {
+                continue;
+            }
             Map<String, Object> cell = new LinkedHashMap<>();
             cell.put("institutionId", parts[0]);
-            cell.put("clusterId", parts[1]);
+            cell.put("clusterId", theme);
             cell.put("count", entry.getValue());
             cells.add(cell);
         }
@@ -322,4 +340,5 @@ public class AnalyticsService {
         result.put("cells", cells);
         return result;
     }
+
 }

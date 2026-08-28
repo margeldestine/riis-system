@@ -95,8 +95,10 @@ public class AnalyticsController {
     }
 
     // GET /api/v1/analytics/cluster-heatmap
-    // Institution x 5-S&T-cluster matrix, real output counts, backing the
-    // redesigned ThematicDensityHeatmap.
+    // [MIGRATED] Institution x 5-S&T-theme matrix, now sourced from
+    // research_outputs.subjectDc (see AnalyticsService.getClusterHeatmap()).
+    // Route and response shape are unchanged from the removed cluster-table
+    // version, so the frontend requires no changes.
     // DAS-039-filters: Year/Province/HEI only — no Type param (scope decision).
     @GetMapping("/cluster-heatmap")
     @PreAuthorize("hasRole('DOST_ADMIN')")
@@ -107,4 +109,5 @@ public class AnalyticsController {
             @RequestParam(required = false) String institutionId) {
         return ResponseEntity.ok(analyticsService.getClusterHeatmap(yearFrom, yearTo, province, institutionId));
     }
+
 }
