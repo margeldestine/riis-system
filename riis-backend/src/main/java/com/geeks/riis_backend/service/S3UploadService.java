@@ -9,9 +9,12 @@ import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectResponse;
+import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
 import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
@@ -97,18 +100,18 @@ public class S3UploadService {
 				.contentType(file.getContentType() == null ? "application/octet-stream" : file.getContentType())
 				.build();
 
-        try {
-            byte[] bytes = file.getBytes();
-            s3Client.putObject(putObjectRequest, RequestBody.fromBytes(bytes));
-        } catch (IOException e) {
-            System.err.println("S3 upload IO error: " + e.getMessage());
-            e.printStackTrace();
-            throw new BadRequestException("Failed to read file for upload.");
-        } catch (Exception e) {
-            System.err.println("S3 upload failed: " + e.getMessage());
-            e.printStackTrace();
-            throw new BadRequestException("Failed to upload file to storage.");
-        }
+		try {
+			byte[] bytes = file.getBytes();
+			s3Client.putObject(putObjectRequest, RequestBody.fromBytes(bytes));
+		} catch (IOException e) {
+			System.err.println("S3 upload IO error: " + e.getMessage());
+			e.printStackTrace();
+			throw new BadRequestException("Failed to read file for upload.");
+		} catch (Exception e) {
+			System.err.println("S3 upload failed: " + e.getMessage());
+			e.printStackTrace();
+			throw new BadRequestException("Failed to upload file to storage.");
+		}
 
 		return new PresignedUpload(null, objectKey);
 	}
@@ -136,6 +139,38 @@ public class S3UploadService {
 
 		PresignedGetObjectRequest presignedRequest = presigner.presignGetObject(presignRequest);
 		return presignedRequest.url().toString();
+	}
+
+	/**
+	 * Server-side byte fetch for an S3 object — added for
+	 * {@code PdfTextExtractionService}, which needs the raw PDF bytes
+	 * in-process rather than a presigned URL for the browser. Mirrors the
+	 * same config/validation guards as the other methods in this class, so
+	 * a misconfigured bucket/credentials fails the same way everywhere.
+	 */
+	public byte[] downloadFileBytes(String objectKey) {
+		if (bucketName.isBlank()) {
+			throw new BadRequestException("S3 bucket is not configured.");
+		}
+		if (accessKey.isBlank() || secretKey.isBlank()) {
+			throw new BadRequestException("S3 credentials are not configured.");
+		}
+		if (objectKey == null || objectKey.isBlank()) {
+			throw new BadRequestException("Object key is required.");
+		}
+
+		GetObjectRequest getObjectRequest = GetObjectRequest.builder()
+				.bucket(bucketName)
+				.key(objectKey.trim())
+				.build();
+
+		try (ResponseInputStream<GetObjectResponse> response = s3Client.getObject(getObjectRequest)) {
+			return response.readAllBytes();
+		} catch (NoSuchKeyException e) {
+			throw new BadRequestException("No object found in storage for key: " + objectKey);
+		} catch (IOException e) {
+			throw new BadRequestException("Failed to read file bytes from storage for key: " + objectKey);
+		}
 	}
 
 	private String uuidShort() {
