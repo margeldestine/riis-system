@@ -1,0 +1,47 @@
+﻿{
+    "id":  "d9e0eee2-e10d-4624-ba9f-7a5c2661f0f5",
+    "researchOutputId":  "f7a3d8c7-cebd-414f-bda8-95a993464903",
+    "rubricVersion":  "v1-tentative",
+    "overallScore":  20,
+    "criteria":  [
+                     {
+                         "name":  "methodology",
+                         "score":  2,
+                         "justification":  "The document is a slide-deck style pitch (e.g., \u0027PAIN POINTS\u0027, \u0027SOLUTION\u0027, \u0027FEATURES\u0027 sections) rather than a research paper. There is no description of a research question, study design, participants, testing procedure, or evaluation protocol â only a list of software features (\u0027Automated Record Validation\u0027, \u0027AI-Powered Search \u0026 Duplicate Detection\u0027). No steps are given that a reader could follow or replicate."
+                     },
+                     {
+                         "name":  "originality",
+                         "score":  6,
+                         "justification":  "The proposed system combines existing off-the-shelf tools (Dublin Core metadata, ORCID, KeyBERT, SBERT) into a regional research repository for DOST Region VII, which is a plausible new application context, but the text never contrasts this against prior repository systems or explains what is technically novel versus a standard institutional repository plus off-the-shelf NLP libraries."
+                     },
+                     {
+                         "name":  "clarity",
+                         "score":  6,
+                         "justification":  "The content is presented as disjointed slide fragments (\u0027139 Zero Centralized Platform Higher Education Institution\u0027, repeated bullet \u0027SBERT semantic similarity flags overlapping research across institutions at 80% accuracy threshold\u0027 appearing twice under different feature headers), team-role lists, and numbered pain points without connecting prose, making it hard to reconstruct a coherent research narrative on a single read."
+                     },
+                     {
+                         "name":  "alignment",
+                         "score":  3,
+                         "justification":  "No explicit research question or hypothesis is stated, so there is nothing for the described features, claimed metrics (e.g., \u002780% accuracy threshold\u0027, \u0027results within 5 seconds\u0027), and the closing conclusion (\u0027DASIG does not just store research... it makes it visible, verifiable, and valuable\u0027) to align against in a testable way."
+                     },
+                     {
+                         "name":  "data_integrity",
+                         "score":  3,
+                         "justification":  "Specific figures are asserted (139 CHED-registered HEIs, 80% accuracy threshold for duplicate detection, 5-second search response, \u0027100% manual data processing / 0% public search access / 0% AI-driven insights\u0027) with no description of how these numbers were measured, sampled, or validated, and no accompanying tables or methodology section to check them against."
+                     }
+                 ],
+    "flags":  [
+                  "missing_methodology",
+                  "limitations_omitted",
+                  "data_fabrication_concern",
+                  "no_original_contribution"
+              ],
+    "summary":  "This submission reads as a startup/product pitch deck for a proposed web platform (DASIG RIS) rather than a research paper: it lists team roles, pain points, features, business model, and target market, but contains no stated research question, no described methodology, no results section, and no discussion of limitations. Specific quantitative claims (e.g., an \u002780% accuracy threshold\u0027 for duplicate detection, \u00275 second\u0027 search response times, \u0027139\u0027 HEIs) are asserted without any explanation of how they were derived or tested, which warrants closer human scrutiny for potential fabrication or unsubstantiated marketing claims. The writing is fragmented and slide-based, making it difficult to assess scientific rigor, and the work does not clearly demonstrate an original research contribution beyond assembling existing tools (Dublin Core, ORCID, KeyBERT, SBERT) into a new application context. As submitted, this document does not meet the basic structural expectations of a research paper suitable for rubric-based academic quality review.",
+    "status":  "COMPLETE",
+    "failureReason":  null,
+    "reviewedByAdminId":  null,
+    "adminDecision":  null,
+    "adminNotes":  null,
+    "createdAt":  "2026-08-29T14:42:00.843873",
+    "reviewedAt":  null
+}

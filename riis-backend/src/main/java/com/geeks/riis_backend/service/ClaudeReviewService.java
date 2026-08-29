@@ -1,11 +1,16 @@
 package com.geeks.riis_backend.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.geeks.riis_backend.exception.BadRequestException;
 import com.geeks.riis_backend.exception.ResourceNotFoundException;
 import com.geeks.riis_backend.model.QualityReview;
 import com.geeks.riis_backend.model.ResearchOutput;
+import com.geeks.riis_backend.model.User;
 import com.geeks.riis_backend.repository.QualityReviewRepository;
 import com.geeks.riis_backend.repository.ResearchOutputRepository;
+import com.geeks.riis_backend.repository.UserRepository;
+import java.time.LocalDateTime;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
@@ -30,8 +35,12 @@ public class ClaudeReviewService {
 
     private static final String DEFAULT_RUBRIC_VERSION = "v1-tentative";
 
+    /** The only values a DOST_ADMIN reviewer may record — deliberately never an award/approval value. */
+    private static final Set<String> VALID_DECISIONS = Set.of("AGREE", "OVERRIDE", "NEEDS_MORE_INFO");
+
     private final QualityReviewRepository qualityReviewRepository;
     private final ResearchOutputRepository researchOutputRepository;
+    private final UserRepository userRepository;
     private final PdfTextExtractionService pdfTextExtractionService;
     private final AIProxyService aiProxyService;
     private final ObjectMapper objectMapper;
@@ -109,5 +118,55 @@ public class ClaudeReviewService {
         review.setSummary(assessment.summary());
         review.setStatus("COMPLETE");
         qualityReviewRepository.save(review);
+    }
+
+    /**
+     * Records a human DOST_ADMIN's read on a completed Claude assessment.
+     * Never touches {@code research_outputs.status} — this is purely an
+     * annotation on the {@code quality_reviews} row itself.
+     */
+    @Transactional
+    public QualityReview recordDecision(String reviewId, String decision, String notes, String adminUserId) {
+        QualityReview review = qualityReviewRepository.findById(reviewId)
+                .orElseThrow(() -> new ResourceNotFoundException("Quality review not found: " + reviewId));
+
+        if (decision == null || !VALID_DECISIONS.contains(decision)) {
+            throw new BadRequestException(
+                    "Invalid admin decision: " + decision + ". Must be one of AGREE, OVERRIDE, NEEDS_MORE_INFO.");
+        }
+
+        if ("OVERRIDE".equals(decision) && (notes == null || notes.isBlank())) {
+            throw new BadRequestException("Admin notes are required when overriding an assessment.");
+        }
+
+        User adminUser = userRepository.findById(adminUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("Admin user not found: " + adminUserId));
+
+        review.setReviewedByAdmin(adminUser);
+        review.setAdminDecision(decision);
+        review.setAdminNotes(notes);
+        review.setReviewedAt(LocalDateTime.now());
+
+        return qualityReviewRepository.save(review);
+    }
+
+    /**
+     * Regenerates a review for the same research output as {@code reviewId}.
+     * Inserts a brand-new {@code QualityReview} row via the existing
+     * {@link #initializeReview} + {@link #runReview} pipeline — prior rows
+     * (including any recorded {@code adminDecision}) are never overwritten
+     * or mutated, preserving the full audit trail.
+     */
+    @Transactional
+    public QualityReview regenerateReview(String reviewId) {
+        QualityReview existing = qualityReviewRepository.findById(reviewId)
+                .orElseThrow(() -> new ResourceNotFoundException("Quality review not found: " + reviewId));
+
+        String researchOutputId = existing.getResearchOutput().getId();
+
+        QualityReview newReview = initializeReview(researchOutputId, DEFAULT_RUBRIC_VERSION);
+        runReview(newReview.getId());
+
+        return newReview;
     }
 }

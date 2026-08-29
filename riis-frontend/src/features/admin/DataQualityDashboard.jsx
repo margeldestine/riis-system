@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
-import { AlertTriangle, CheckCircle2, Loader2, ShieldCheck } from 'lucide-react'
+import { useLocation } from 'react-router-dom'
+import { AlertTriangle, CheckCircle2, Loader2, ShieldCheck, Sparkles } from 'lucide-react'
 import DashboardLayout from './DashboardLayout'
 import apiClient from '../../services/apiClient'
 import { dostNavItems } from './PendingSubmissionsPage'
+import AiQualityAssessmentPanel from './AiQualityAssessmentPanel'
 
 const cardClass = 'rounded-[12px] bg-white p-[20px] shadow-[0_2px_8px_rgba(0,0,0,0.08)]'
 
@@ -31,7 +32,6 @@ export default function DataQualityDashboard() {
   const [selectedInstitution, setSelectedInstitution] = useState(null)
   const [drilldown, setDrilldown] = useState(null)
   const location = useLocation()
-  const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState('overlaps')
 
   useEffect(() => {
@@ -112,7 +112,7 @@ export default function DataQualityDashboard() {
         <div className="flex gap-2">
           <button
             type="button"
-            onClick={() => navigate('/dost/overlap-alerts')}
+            onClick={() => setActiveTab('overlaps')}
             className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition ${
               activeTab === 'overlaps'
                 ? 'bg-[#1A1A2E] text-white'
@@ -126,6 +126,18 @@ export default function DataQualityDashboard() {
                 {overlaps.length}
               </span>
             )}
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('assessment')}
+            className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition ${
+              activeTab === 'assessment'
+                ? 'bg-[#1A1A2E] text-white'
+                : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            <Sparkles className="h-4 w-4" />
+            AI Quality Assessment
           </button>
         </div>
 
@@ -437,6 +449,8 @@ export default function DataQualityDashboard() {
             </div>
           </div>
         )}
+
+        {activeTab === 'assessment' && <AiQualityAssessmentPanel />}
       </div>
     </DashboardLayout>
   )

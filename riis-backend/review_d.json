@@ -1,0 +1,47 @@
+﻿{
+    "id":  "2c4f510d-aa80-493c-a1a9-1f50d7859c85",
+    "researchOutputId":  "24a17680-4adc-4c07-b89b-5d1fb07a2de6",
+    "rubricVersion":  "v1-tentative",
+    "overallScore":  0,
+    "criteria":  [
+                     {
+                         "name":  "methodology",
+                         "score":  0,
+                         "justification":  "The document contains no research methodology whatsoever. The entire text consists of the repeated line \u0027This is filler text generated purely to exceed the fifteen thousand word cap enforced by PdfTextExtractionServ\u0027 with no description of any procedure, data collection, or analysis."
+                     },
+                     {
+                         "name":  "originality",
+                         "score":  0,
+                         "justification":  "There is no identifiable research content, question, finding, or contribution anywhere in the text â only repeated filler sentences, so no originality can be assessed or credited."
+                     },
+                     {
+                         "name":  "clarity",
+                         "score":  0,
+                         "justification":  "The submission is not organized as a paper at all; it is a block of identical repeated sentences with no title, abstract, sections, or argument, making it impossible to identify any research question or findings."
+                     },
+                     {
+                         "name":  "alignment",
+                         "score":  0,
+                         "justification":  "There is no stated research question, methodology, results, or conclusion present in the text, so no alignment between these elements can be evaluated."
+                     },
+                     {
+                         "name":  "data_integrity",
+                         "score":  0,
+                         "justification":  "No data, tables, figures, or results of any kind are reported anywhere in the text, so there is nothing internally consistent or inconsistent to evaluate â data handling is entirely absent."
+                     }
+                 ],
+    "flags":  [
+                  "missing_methodology",
+                  "limitations_omitted",
+                  "no_original_contribution",
+                  "data_fabrication_concern"
+              ],
+    "summary":  "This submission contains no actual scholarly content. The entire body of the text is a single repeated filler sentence (\u0027This is filler text generated purely to exceed the fifteen thousand word cap enforced by PdfTextExtractionServ\u0027), apparently inserted to artificially inflate word count and evade an extraction or length-based filter. There is no research question, methodology, data, results, or conclusion present. This is not merely a low-quality paper but appears to be a non-paper or an attempt to game an automated processing system, and warrants direct human review outside the normal quality rubric before any further consideration.",
+    "status":  "COMPLETE",
+    "failureReason":  null,
+    "reviewedByAdminId":  null,
+    "adminDecision":  null,
+    "adminNotes":  null,
+    "createdAt":  "2026-08-29T15:18:07.517627",
+    "reviewedAt":  null
+}
