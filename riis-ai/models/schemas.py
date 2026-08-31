@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List, Literal, Tuple
+from typing import List, Literal, Optional, Tuple
 
 class KeyBERTRequest(BaseModel):
     text: str
@@ -13,6 +13,20 @@ class SBERTEmbedRequest(BaseModel):
 
 class SBERTEmbedResponse(BaseModel):
     embedding: List[float]
+
+# --- SPECTER (allenai/specter) ---
+#
+# SPECTER's official training/fine-tuning convention takes structured
+# (title, abstract) input rather than a pre-concatenated blob, so its
+# request schema is intentionally separate from SBERTEmbedRequest above
+# (SBERT/KeyBERT input formats are unaffected by this change). The
+# response shape is the same generic {"embedding": [...]} used by SBERT,
+# so SPECTEREncodeRequest reuses SBERTEmbedResponse rather than
+# duplicating an identical response model.
+
+class SPECTEREncodeRequest(BaseModel):
+    title: str
+    abstract: Optional[str] = ""
 
 # --- Claude holistic review (rubric-based) ---
 

@@ -92,15 +92,17 @@ public class AIProxyService {
 
     @CircuitBreaker(name = "aiService", fallbackMethod = "computeSPECTEREmbeddingFallback")
     @Retryable(maxAttempts = 3, backoff = @Backoff(delay = 2000, multiplier = 2))
-    public float[] computeSPECTEREmbedding(String text) {
-        if (text == null || text.isBlank()) {
+    public float[] computeSPECTEREmbedding(String title, String abstractText) {
+        if ((title == null || title.isBlank()) && (abstractText == null || abstractText.isBlank())) {
             return new float[0];
         }
 
         WebClient client = WebClient.create(aiServiceUrl);
         Map response = client.post()
                 .uri("/ai/specter/encode")
-                .bodyValue(Map.of("text", text))
+                .bodyValue(Map.of(
+                        "title", title == null ? "" : title,
+                        "abstract", abstractText == null ? "" : abstractText))
                 .retrieve()
                 .bodyToMono(Map.class)
                 .timeout(Duration.ofSeconds(8))
@@ -118,7 +120,7 @@ public class AIProxyService {
         return embedding;
     }
 
-    public float[] computeSPECTEREmbeddingFallback(String text, Throwable t) {
+    public float[] computeSPECTEREmbeddingFallback(String title, String abstractText, Throwable t) {
         log.warn("AI service unavailable for SPECTER embedding. Fallback activated. Cause: {}", t.getMessage());
         return new float[0];
     }
