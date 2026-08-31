@@ -35,7 +35,7 @@ public class EmailNotificationService {
 	private JavaMailSender resolveMailSender(String context) {
 		JavaMailSender mailSender = mailSenderProvider.getIfAvailable();
 		if (mailSender == null) {
-			log.error("[{}] JavaMailSender bean is not available — check spring.mail.* properties in application.properties/yml.", context);
+			log.error("[{}] JavaMailSender bean is not available -- check spring.mail.* properties in application.properties/yml.", context);
 		}
 		return mailSender;
 	}
@@ -43,11 +43,11 @@ public class EmailNotificationService {
 	@Async
 	public void sendSubmissionConfirmation(String toEmail, String referenceNumber) {
 		if (toEmail == null || toEmail.isBlank()) {
-			log.warn("[sendSubmissionConfirmation] Skipped — toEmail is blank/null. referenceNumber={}", referenceNumber);
+			log.warn("[sendSubmissionConfirmation] Skipped -- toEmail is blank/null. referenceNumber={}", referenceNumber);
 			return;
 		}
 		if (referenceNumber == null || referenceNumber.isBlank()) {
-			log.warn("[sendSubmissionConfirmation] Skipped — referenceNumber is blank/null. toEmail={}", toEmail);
+			log.warn("[sendSubmissionConfirmation] Skipped -- referenceNumber is blank/null. toEmail={}", toEmail);
 			return;
 		}
 
@@ -70,11 +70,11 @@ public class EmailNotificationService {
 	@Async
 	public void sendResubmissionNotificationToAdmin(String referenceNumber) {
 		if (adminEmail.isBlank()) {
-			log.warn("[sendResubmissionNotificationToAdmin] Skipped — app.notification.admin-email is not configured. referenceNumber={}", referenceNumber);
+			log.warn("[sendResubmissionNotificationToAdmin] Skipped -- app.notification.admin-email is not configured. referenceNumber={}", referenceNumber);
 			return;
 		}
 		if (referenceNumber == null || referenceNumber.isBlank()) {
-			log.warn("[sendResubmissionNotificationToAdmin] Skipped — referenceNumber is blank/null.");
+			log.warn("[sendResubmissionNotificationToAdmin] Skipped -- referenceNumber is blank/null.");
 			return;
 		}
 
@@ -96,11 +96,11 @@ public class EmailNotificationService {
 	@Async
 	public void sendReviewStatusEmail(String toEmail, String referenceNumber, String action, String comment) {
 		if (toEmail == null || toEmail.isBlank()) {
-			log.warn("[sendReviewStatusEmail] Skipped — toEmail is blank/null. referenceNumber={}, action={}", referenceNumber, action);
+			log.warn("[sendReviewStatusEmail] Skipped -- toEmail is blank/null. referenceNumber={}, action={}", referenceNumber, action);
 			return;
 		}
 		if (referenceNumber == null || referenceNumber.isBlank()) {
-			log.warn("[sendReviewStatusEmail] Skipped — referenceNumber is blank/null. toEmail={}, action={}", toEmail, action);
+			log.warn("[sendReviewStatusEmail] Skipped -- referenceNumber is blank/null. toEmail={}, action={}", toEmail, action);
 			return;
 		}
 
@@ -145,13 +145,13 @@ public class EmailNotificationService {
 	}
 
 	/**
-	 * SDD §5.6: "sendAccountApprovalEmail() dispatches a notification with
+	 * SDD 5.6: "sendAccountApprovalEmail() dispatches a notification with
 	 * a login link and confirmation that the account is now active."
 	 */
 	@Async
 	public void sendAccountApprovalEmail(String toEmail, String fullName) {
 		if (toEmail == null || toEmail.isBlank()) {
-			log.warn("[sendAccountApprovalEmail] Skipped — toEmail is blank/null. fullName={}", fullName);
+			log.warn("[sendAccountApprovalEmail] Skipped -- toEmail is blank/null. fullName={}", fullName);
 			return;
 		}
 
@@ -179,11 +179,11 @@ public class EmailNotificationService {
 	@Async
 	public void sendPasswordResetEmail(String toEmail, String fullName, String resetLink) {
 		if (toEmail == null || toEmail.isBlank()) {
-			log.warn("[sendPasswordResetEmail] Skipped — toEmail is blank/null.");
+			log.warn("[sendPasswordResetEmail] Skipped -- toEmail is blank/null.");
 			return;
 		}
 		if (resetLink == null || resetLink.isBlank()) {
-			log.warn("[sendPasswordResetEmail] Skipped — resetLink is blank/null. toEmail={}", toEmail);
+			log.warn("[sendPasswordResetEmail] Skipped -- resetLink is blank/null. toEmail={}", toEmail);
 			return;
 		}
 
@@ -212,7 +212,7 @@ public class EmailNotificationService {
 	@Async
 	public void sendAccountRejectionEmail(String toEmail, String fullName, String reason) {
 		if (toEmail == null || toEmail.isBlank()) {
-			log.warn("[sendAccountRejectionEmail] Skipped — toEmail is blank/null. fullName={}", fullName);
+			log.warn("[sendAccountRejectionEmail] Skipped -- toEmail is blank/null. fullName={}", fullName);
 			return;
 		}
 
@@ -245,7 +245,7 @@ public class EmailNotificationService {
 			String existingRecordHei,
 			double similarityScore) {
 		if (toEmail == null || toEmail.isBlank()) {
-			log.warn("[sendOverlapDetectionAlert] Skipped — toEmail is blank/null. newRecordTitle={}", newRecordTitle);
+			log.warn("[sendOverlapDetectionAlert] Skipped -- toEmail is blank/null. newRecordTitle={}", newRecordTitle);
 			return java.util.concurrent.CompletableFuture.completedFuture(false);
 		}
 
@@ -256,14 +256,16 @@ public class EmailNotificationService {
 			SimpleMailMessage message = new SimpleMailMessage();
 			if (!fromEmail.isBlank()) message.setFrom(fromEmail);
 			message.setTo(toEmail);
-			message.setSubject("Overlap Detected: Similar Research Output Found");
+			message.setSubject("Similarity Flag: Related Research Output Found");
 			message.setText(
-					"A thematic overlap has been detected for your recently approved research output.\n\n" +
+					"A similarity flag has been raised for your recently approved research output.\n\n" +
 							"Your Research: " + newRecordTitle + "\n" +
 							"Similar Existing Research: " + existingRecordTitle + "\n" +
 							"Institution: " + existingRecordHei + "\n" +
 							"Similarity Score: " + String.format("%.1f", similarityScore * 100) + "%\n\n" +
-							"Please review this overlap and coordinate with the relevant institution if necessary."
+							"Please review this similarity flag and coordinate with the relevant institution if necessary.\n\n" +
+							"Note: This is an automated similarity signal based on text embeddings. It is intended to " +
+							"assist human reviewers and does not constitute a confirmed finding of duplication or plagiarism."
 			);
 			mailSender.send(message);
 			log.info("[sendOverlapDetectionAlert] Email sent successfully to {}", toEmail);

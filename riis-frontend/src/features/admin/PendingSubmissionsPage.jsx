@@ -11,7 +11,7 @@ import apiClient from '../../services/apiClient'
 export const dostNavItems = [
   { icon: BarChart3, label: 'Analytics Dashboard', to: '/dost/dashboard' },
   { icon: ClipboardList, label: 'Submission Portal', to: '/dost/submissions' },
-  { icon: Bell, label: 'Overlap Alerts', to: '/dost/overlap-alerts' },
+  { icon: Bell, label: 'Similarity Flags', to: '/dost/overlap-alerts' },
   { icon: FileText, label: 'Report Generator', to: '/dost/reports' },
   { icon: Building2, label: 'HEI Management', to: '/dost/hei-management' },
   { icon: Users, label: 'User Management', to: '/dost/user-management' },

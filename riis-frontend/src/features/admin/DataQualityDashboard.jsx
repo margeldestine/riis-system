@@ -76,7 +76,7 @@ export default function DataQualityDashboard() {
 
   return (
     <DashboardLayout
-      activeLabel="Overlap Alerts"
+      activeLabel="Similarity Flags"
       userName="DOST Administrator"
       organization="DOST Region VII"
       navItems={dostNavItems}
@@ -120,7 +120,7 @@ export default function DataQualityDashboard() {
             }`}
           >
             <AlertTriangle className="h-4 w-4" />
-            Overlap Alerts
+            Similarity Flags
             {overlaps.length > 0 && (
               <span className="rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] text-white">
                 {overlaps.length}
@@ -348,7 +348,11 @@ export default function DataQualityDashboard() {
                 <div className="flex items-center gap-3">
                   <AlertTriangle className="h-5 w-5 text-red-500 shrink-0" />
                   <div>
-                    <h2 className="text-[15px] font-bold text-[#1A1A2E]">Overlap Notification Log</h2>
+                    <h2 className="text-[15px] font-bold text-[#1A1A2E]">Similarity Flag Log</h2>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Automated embedding similarity signal — not a confirmed finding of duplication or
+                      plagiarism. Each flag requires human review before any action is taken.
+                    </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
@@ -367,7 +371,7 @@ export default function DataQualityDashboard() {
               ) : overlaps.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-10 text-center">
                   <CheckCircle2 className="h-8 w-8 text-emerald-500 mb-2" />
-                  <p className="text-sm font-semibold text-slate-600">No overlaps detected</p>
+                  <p className="text-sm font-semibold text-slate-600">No similarity flags detected</p>
                   <p className="text-xs text-slate-400 mt-1">All approved research outputs are sufficiently distinct.</p>
                 </div>
               ) : (
@@ -407,9 +411,12 @@ export default function DataQualityDashboard() {
                           </div>
                           <div className="flex flex-col items-end gap-1 shrink-0">
                             <span className="rounded-full px-2.5 py-0.5 text-[10px] font-bold bg-red-100 text-red-600">
-                              ● Flagged
+                              ● Similarity Flag
                             </span>
-                            <span className="text-3xl font-bold text-red-500">
+                            <span
+                              className="text-3xl font-bold text-red-500"
+                              title="Automated embedding similarity score — not a confirmed finding of duplication or plagiarism. Requires human review."
+                            >
                               {score}%
                             </span>
                           </div>
@@ -434,7 +441,10 @@ export default function DataQualityDashboard() {
                                     <p className="text-[10px] text-slate-400 mt-0.5">{match.existingRecordHei}</p>
                                   </div>
                                 </div>
-                                <span className="text-sm font-bold text-slate-600 shrink-0">
+                                <span
+                                  className="text-sm font-bold text-slate-600 shrink-0"
+                                  title="Automated embedding similarity score — not a confirmed finding of duplication or plagiarism."
+                                >
                                   {(match.similarityScore * 100).toFixed(1)}%
                                 </span>
                               </div>
