@@ -53,6 +53,7 @@ public class SubmissionService {
 	private final EmailNotificationService emailNotificationService;
 	private final AuditLogService auditLogService;
 	private final ValidationLogService validationLogService;
+	private final S3UploadService s3UploadService;
 
 	public SubmissionResponse submit(String userId, SubmissionRequest dto) {
 		User user = userRepository.findById(userId)
@@ -76,13 +77,21 @@ public class SubmissionService {
 			throw new SubmissionValidationException(validationResult.errors());
 		}
 
+		// The client reports an attachmentKey after uploading directly to S3
+		// via a presigned URL -- that upload never touched this application,
+		// so the key can't be trusted until we've actually checked what
+		// landed in the bucket matches what was promised (PDF, under 20MB).
+		if (dto.attachmentKey() != null && !dto.attachmentKey().isBlank()) {
+			s3UploadService.verifyUploadedPdf(dto.attachmentKey());
+		}
+
 		String referenceNumber = generateReferenceNumber();
 		String keywords = dto.keywords() == null ? null : dto.keywords().stream()
-														  .filter(value -> value != null && !value.isBlank())
-														  .map(String::trim)
-														  .distinct()
-														  .reduce((a, b) -> a + ", " + b)
-														  .orElse(null);
+				.filter(value -> value != null && !value.isBlank())
+				.map(String::trim)
+				.distinct()
+				.reduce((a, b) -> a + ", " + b)
+				.orElse(null);
 
 		Set<Author> authors = mapAuthors(dto.authors());
 
@@ -179,9 +188,9 @@ public class SubmissionService {
 						output.getInstitution() != null ? output.getInstitution().getName() : null,
 						output.getAuthors() == null ? null
 								: output.getAuthors().stream()
-								  .map(com.geeks.riis_backend.model.Author::getFullName)
-								  .filter(name -> name != null && !name.isBlank())
-								  .collect(java.util.stream.Collectors.joining(", "))
+								.map(com.geeks.riis_backend.model.Author::getFullName)
+								.filter(name -> name != null && !name.isBlank())
+								.collect(java.util.stream.Collectors.joining(", "))
 				));
 	}
 
@@ -198,8 +207,8 @@ public class SubmissionService {
 		List<SubmissionAuthorRequest> authors = output.getAuthors() == null
 				? List.of()
 				: output.getAuthors().stream()
-				  .map(author -> new SubmissionAuthorRequest(author.getFullName(), author.getOrcidId()))
-				  .toList();
+				.map(author -> new SubmissionAuthorRequest(author.getFullName(), author.getOrcidId()))
+				.toList();
 
 		List<String> keywords = parseKeywords(output.getKeywords());
 

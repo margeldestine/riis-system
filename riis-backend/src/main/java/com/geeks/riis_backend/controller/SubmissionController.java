@@ -9,6 +9,7 @@ import com.geeks.riis_backend.dto.UploadUrlRequest;
 import com.geeks.riis_backend.dto.UploadUrlResponse;
 import com.geeks.riis_backend.service.S3UploadService;
 import com.geeks.riis_backend.service.SubmissionService;
+import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
@@ -50,7 +51,7 @@ public class SubmissionController {
 
 	@PostMapping
 	@PreAuthorize("hasAnyAuthority('HEI_STAFF', 'ROLE_HEI_STAFF')")
-	public ResponseEntity<SubmissionResponse> createSubmission(@RequestBody SubmissionRequest request) {
+	public ResponseEntity<SubmissionResponse> createSubmission(@Valid @RequestBody SubmissionRequest request) {
 		String userId = getAuthenticatedUserId();
 		SubmissionResponse response = submissionService.submit(userId, request);
 		return ResponseEntity.status(HttpStatus.CREATED).body(response);
@@ -62,9 +63,13 @@ public class SubmissionController {
 		String userId = getAuthenticatedUserId();
 		String institutionId = submissionService.getInstitutionIdForUser(userId);
 
-		// Proper logging (imports should be at the top of the file)
+		// Auth-context tracing for this endpoint -- DEBUG only, not INFO, so
+		// authority/role details for a specific user aren't written to
+		// production logs by default.
 		Logger logger = LoggerFactory.getLogger(SubmissionController.class);
-		logger.info("Controller: Current authorities: " + SecurityContextHolder.getContext().getAuthentication().getAuthorities());
+		if (logger.isDebugEnabled()) {
+			logger.debug("Controller: Current authorities: {}", SecurityContextHolder.getContext().getAuthentication().getAuthorities());
+		}
 
 		S3UploadService.PresignedUpload presigned = s3UploadService.createPresignedPutUrl(
 				institutionId,
@@ -132,14 +137,14 @@ public class SubmissionController {
 
 	@PutMapping("/{id}")
 	@PreAuthorize("hasAnyAuthority('HEI_STAFF', 'ROLE_HEI_STAFF')")
-	public ResponseEntity<SubmissionResponse> resubmit(@PathVariable("id") String id, @RequestBody SubmissionRequest request) {
+	public ResponseEntity<SubmissionResponse> resubmit(@PathVariable("id") String id, @Valid @RequestBody SubmissionRequest request) {
 		String userId = getAuthenticatedUserId();
 		return ResponseEntity.ok(submissionService.resubmit(userId, id, request));
 	}
 
 	@PatchMapping("/{id}")
 	@PreAuthorize("hasAnyAuthority('HEI_STAFF', 'ROLE_HEI_STAFF')")
-	public ResponseEntity<SubmissionResponse> updateSubmission(@PathVariable("id") String id, @RequestBody SubmissionRequest request) {
+	public ResponseEntity<SubmissionResponse> updateSubmission(@PathVariable("id") String id, @Valid @RequestBody SubmissionRequest request) {
 		String userId = getAuthenticatedUserId();
 		return ResponseEntity.ok(submissionService.updateSubmission(userId, id, request));
 	}

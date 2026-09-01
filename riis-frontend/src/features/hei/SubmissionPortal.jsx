@@ -17,6 +17,14 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import apiClient from '../../services/apiClient'
 
+// Same env-var pattern as apiClient.js -- this file makes several raw
+// axios/fetch calls (token refresh, file upload, submit/resubmit) that
+// bypass the shared apiClient instance entirely (each attaches its own
+// Bearer token manually), so they need their own base URL reference
+// rather than silently staying hardcoded to localhost after apiClient.js
+// gets fixed.
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1'
+
 const currentYear = new Date().getFullYear()
 const doiPattern = /^10\.\d{4,9}\/[-._;()/:A-Z0-9]+$/i
 const orcidPattern = /^(\d{4}-){3}\d{3}[\dX]$/i
@@ -278,7 +286,7 @@ async function ensureFreshToken() {
 
   if (!isTokenExpiringSoon(token, 5 * 60 * 1000)) return token
 
-  const response = await fetch('http://localhost:8080/api/v1/auth/refresh', {
+  const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -1919,7 +1927,7 @@ const addKeyword = () => {
       formData.append('file', file, file.name)
 
       const uploadResponse = await fetch(
-        'http://localhost:8080/api/v1/submissions/upload',
+        `${API_BASE_URL}/submissions/upload`,
         {
           method: 'POST',
           headers: {
@@ -1994,7 +2002,7 @@ const addKeyword = () => {
     const token = localStorage.getItem('token');
     
     // Use axios directly to be absolutely sure of the headers
-    const response = await axios.post('http://localhost:8080/api/v1/submissions', aggregatePayload, {
+    const response = await axios.post(`${API_BASE_URL}/submissions`, aggregatePayload, {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
@@ -2044,7 +2052,7 @@ const addKeyword = () => {
       // Use PUT if editing, POST if new
       if (editSubmissionId) {
         await axios.patch(
-          `http://localhost:8080/api/v1/submissions/${editSubmissionId}`,
+          `${API_BASE_URL}/submissions/${editSubmissionId}`,
           payload,
           {
             headers: {
@@ -2054,7 +2062,7 @@ const addKeyword = () => {
           },
         )
       } else {
-        await axios.post('http://localhost:8080/api/v1/submissions', payload, {
+        await axios.post(`${API_BASE_URL}/submissions`, payload, {
           headers: {
             Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json',

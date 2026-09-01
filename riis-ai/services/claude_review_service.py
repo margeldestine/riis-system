@@ -1,131 +1,179 @@
-"""
-Calls Claude to produce a rubric-based holistic quality review of a
-submitted research paper.
+package com.geeks.riis_backend.service;
 
-Deliberately fail-closed: `run_claude_review()` never raises out to the
-router and never returns a guessed/partial score. Any timeout, missing or
-invalid API key, connection problem, or response that doesn't match the
-expected JSON schema results in a typed `ClaudeReviewFailure` instead.
-"""
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.geeks.riis_backend.exception.BadRequestException;
+import com.geeks.riis_backend.exception.ResourceNotFoundException;
+import com.geeks.riis_backend.model.QualityReview;
+import com.geeks.riis_backend.model.ResearchOutput;
+import com.geeks.riis_backend.model.User;
+import com.geeks.riis_backend.repository.QualityReviewRepository;
+import com.geeks.riis_backend.repository.ResearchOutputRepository;
+import com.geeks.riis_backend.repository.UserRepository;
+import java.time.LocalDateTime;
+import java.util.Set;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Async;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-import json
-import logging
-import os
-from typing import Optional, Union
+/**
+ * Async orchestration for the Claude holistic quality-review pipeline,
+ * following the same {@code PENDING -> PROCESSING -> COMPLETE / FAILED}
+ * pattern as {@code ReportService.generateAsync}.
+ *
+ * Strictly additive: this service only ever creates/updates rows in
+ * {@code quality_reviews}. It never reads or writes
+ * {@code research_outputs.status} and never makes or influences any
+ * approval/award decision — Claude's output here is an aid for a human
+ * admin (see {@code QualityReview.adminDecision}), never a final decision.
+ */
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class ClaudeReviewService {
 
-import anthropic
-from pydantic import ValidationError
+    // Kept in lockstep with RUBRIC_VERSION in
+    // riis-ai/rubric/quality_rubric.py -- this is the value actually
+    // persisted on new quality_reviews rows whenever a caller doesn't
+    // specify a rubric_version explicitly (every review run through the
+    // normal admin UI). If the two drift, riis-ai logs a spurious rubric
+    // mismatch warning on every single review even though nothing is
+    // actually wrong.
+    private static final String DEFAULT_RUBRIC_VERSION = "v1.0.0";
 
-from models.schemas import ClaudeReviewFailure, ClaudeReviewResponse, CriterionScore
-from rubric.quality_rubric import (
-    RUBRIC_VERSION,
-    build_system_instructions,
-    build_user_message,
-)
+    /** The only values a DOST_ADMIN reviewer may record — deliberately never an award/approval value. */
+    private static final Set<String> VALID_DECISIONS = Set.of("AGREE", "OVERRIDE", "NEEDS_MORE_INFO");
 
-logger = logging.getLogger(__name__)
+    private final QualityReviewRepository qualityReviewRepository;
+    private final ResearchOutputRepository researchOutputRepository;
+    private final UserRepository userRepository;
+    private final PdfTextExtractionService pdfTextExtractionService;
+    private final AIProxyService aiProxyService;
+    private final ObjectMapper objectMapper;
 
-# Overridable via env for model upgrades without a code change; defaults
-# to the current general-purpose Claude model.
-CLAUDE_MODEL = os.environ.get("CLAUDE_REVIEW_MODEL", "claude-sonnet-5")
+    /**
+     * Creates the initial {@code PENDING} {@link QualityReview} row
+     * synchronously so the controller has an id/status to return in its
+     * {@code 202 Accepted} response before the async work in
+     * {@link #runReview(String)} even starts.
+     */
+    @Transactional
+    public QualityReview initializeReview(String researchOutputId, String rubricVersion) {
+        ResearchOutput researchOutput = researchOutputRepository.findById(researchOutputId)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Research output not found: " + researchOutputId));
 
-CLIENT_TIMEOUT_SECONDS = 60.0
-MAX_RETRIES = 1
-MAX_TOKENS = 4096
+        QualityReview review = QualityReview.builder()
+                .researchOutput(researchOutput)
+                .rubricVersion(rubricVersion != null && !rubricVersion.isBlank()
+                        ? rubricVersion : DEFAULT_RUBRIC_VERSION)
+                .status("PENDING")
+                .build();
 
+        return qualityReviewRepository.save(review);
+    }
 
-def _get_client() -> Optional[anthropic.Anthropic]:
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
-        return None
-    return anthropic.Anthropic(
-        api_key=api_key,
-        timeout=CLIENT_TIMEOUT_SECONDS,
-        max_retries=MAX_RETRIES,
-    )
+    /**
+     * The actual async pipeline: PENDING -> PROCESSING -> COMPLETE / FAILED.
+     * Every exit point other than full success saves a populated
+     * {@code failure_reason} — this method never leaves a review row
+     * silently stuck in {@code PROCESSING}.
+     */
+    @Async
+    @Transactional
+    public void runReview(String reviewId) {
+        QualityReview review = qualityReviewRepository.findById(reviewId).orElse(null);
+        if (review == null) {
+            log.error("QualityReview {} was not found when async processing started.", reviewId);
+            return;
+        }
 
+        review.setStatus("PROCESSING");
+        qualityReviewRepository.save(review);
 
-def _extract_text(message) -> Optional[str]:
-    """Pull the first text block out of a Claude Messages API response."""
-    for block in getattr(message, "content", []) or []:
-        if getattr(block, "type", None) == "text":
-            return block.text
-    return None
+        ResearchOutput researchOutput = review.getResearchOutput();
 
+        // Step 1: fail-closed PDF text extraction.
+        PdfExtractionResult extraction = pdfTextExtractionService.extractText(researchOutput);
+        if (!extraction.isSuccess()) {
+            log.warn("PDF extraction failed for research output {} (review {}): {}",
+                    researchOutput.getId(), reviewId, extraction.failureReason());
+            review.setStatus("FAILED");
+            review.setFailureReason("PDF extraction failed: " + extraction.failureReason());
+            qualityReviewRepository.save(review);
+            return;
+        }
 
-def run_claude_review(
-    paper_text: str, rubric_version: str
-) -> Union[ClaudeReviewResponse, ClaudeReviewFailure]:
-    if not paper_text or not paper_text.strip():
-        return ClaudeReviewFailure(reason="paper_text is empty.")
+        // Step 2: fail-closed Claude holistic assessment.
+        ClaudeAssessmentResult assessment = aiProxyService.computeClaudeAssessment(
+                extraction.extractedText(), review.getRubricVersion());
 
-    if rubric_version != RUBRIC_VERSION:
-        # Not fatal — we always score against the currently active rubric
-        # and report which version was actually used — but worth a log
-        # line so a caller pinned to a stale version notices in ops.
-        logger.warning(
-            "Requested rubric_version '%s' does not match the active rubric '%s'.",
-            rubric_version,
-            RUBRIC_VERSION,
-        )
+        if (!assessment.success()) {
+            log.warn("Claude assessment failed for research output {} (review {}): {}",
+                    researchOutput.getId(), reviewId, assessment.failureReason());
+            review.setStatus("FAILED");
+            review.setFailureReason("Claude review failed: " + assessment.failureReason());
+            qualityReviewRepository.save(review);
+            return;
+        }
 
-    client = _get_client()
-    if client is None:
-        logger.error("ANTHROPIC_API_KEY is not set in the environment.")
-        return ClaudeReviewFailure(reason="ANTHROPIC_API_KEY is not configured on the server.")
+        // Step 3: success — populate scoring fields and mark COMPLETE.
+        review.setOverallScore(assessment.overallScore());
+        review.setCriteriaJson(objectMapper.valueToTree(assessment.criteria()));
+        review.setFlagsJson(objectMapper.valueToTree(assessment.flags()));
+        review.setSummary(assessment.summary());
+        review.setStatus("COMPLETE");
+        qualityReviewRepository.save(review);
+    }
 
-    system_instructions = build_system_instructions()
-    user_message = build_user_message(paper_text)
+    /**
+     * Records a human DOST_ADMIN's read on a completed Claude assessment.
+     * Never touches {@code research_outputs.status} — this is purely an
+     * annotation on the {@code quality_reviews} row itself.
+     */
+    @Transactional
+    public QualityReview recordDecision(String reviewId, String decision, String notes, String adminUserId) {
+        QualityReview review = qualityReviewRepository.findById(reviewId)
+                .orElseThrow(() -> new ResourceNotFoundException("Quality review not found: " + reviewId));
 
-    try:
-        message = client.messages.create(
-            model=CLAUDE_MODEL,
-            max_tokens=MAX_TOKENS,
-            system=system_instructions,
-            messages=[{"role": "user", "content": user_message}],
-        )
-    except anthropic.AuthenticationError as e:
-        logger.error("Claude review failed: invalid API key. %s", e)
-        return ClaudeReviewFailure(reason="Invalid ANTHROPIC_API_KEY.")
-    except anthropic.APITimeoutError as e:
-        logger.error("Claude review timed out after %ss. %s", CLIENT_TIMEOUT_SECONDS, e)
-        return ClaudeReviewFailure(reason="Claude request timed out.")
-    except anthropic.APIConnectionError as e:
-        logger.error("Claude review connection error. %s", e)
-        return ClaudeReviewFailure(reason="Could not connect to the Claude API.")
-    except anthropic.APIStatusError as e:
-        logger.error("Claude review API error: status=%s body=%s", e.status_code, e.message)
-        return ClaudeReviewFailure(reason=f"Claude API returned an error (status {e.status_code}).")
-    except Exception as e:
-        logger.error("Unexpected error calling Claude: %s", e)
-        return ClaudeReviewFailure(reason="Unexpected error while contacting Claude.")
+        if (decision == null || !VALID_DECISIONS.contains(decision)) {
+            throw new BadRequestException(
+                    "Invalid admin decision: " + decision + ". Must be one of AGREE, OVERRIDE, NEEDS_MORE_INFO.");
+        }
 
-    raw_text = _extract_text(message)
-    if not raw_text:
-        logger.error("Claude response contained no text content.")
-        return ClaudeReviewFailure(reason="Claude response contained no text content.")
+        if ("OVERRIDE".equals(decision) && (notes == null || notes.isBlank())) {
+            throw new BadRequestException("Admin notes are required when overriding an assessment.");
+        }
 
-    try:
-        parsed = json.loads(raw_text)
-    except json.JSONDecodeError as e:
-        logger.error("Claude response was not valid JSON: %s", e)
-        return ClaudeReviewFailure(reason="Claude response was not valid JSON.")
+        User adminUser = userRepository.findById(adminUserId)
+                .orElseThrow(() -> new ResourceNotFoundException("Admin user not found: " + adminUserId));
 
-    if not isinstance(parsed, dict):
-        logger.error("Claude response JSON was not an object.")
-        return ClaudeReviewFailure(reason="Claude response was not a JSON object.")
+        review.setReviewedByAdmin(adminUser);
+        review.setAdminDecision(decision);
+        review.setAdminNotes(notes);
+        review.setReviewedAt(LocalDateTime.now());
 
-    try:
-        criteria = [CriterionScore(**c) for c in parsed["criteria"]]
-        review = ClaudeReviewResponse(
-            rubric_version=RUBRIC_VERSION,
-            overall_score=parsed["overall_score"],
-            criteria=criteria,
-            flags=parsed.get("flags", []),
-            summary=parsed["summary"],
-        )
-    except (ValidationError, KeyError, TypeError) as e:
-        logger.error("Claude response failed schema validation: %s", e)
-        return ClaudeReviewFailure(reason="Claude response did not match the expected schema.")
+        return qualityReviewRepository.save(review);
+    }
 
-    return review
+    /**
+     * Regenerates a review for the same research output as {@code reviewId}.
+     * Inserts a brand-new {@code QualityReview} row via the existing
+     * {@link #initializeReview} + {@link #runReview} pipeline — prior rows
+     * (including any recorded {@code adminDecision}) are never overwritten
+     * or mutated, preserving the full audit trail.
+     */
+    @Transactional
+    public QualityReview regenerateReview(String reviewId) {
+        QualityReview existing = qualityReviewRepository.findById(reviewId)
+                .orElseThrow(() -> new ResourceNotFoundException("Quality review not found: " + reviewId));
+
+        String researchOutputId = existing.getResearchOutput().getId();
+
+        QualityReview newReview = initializeReview(researchOutputId, DEFAULT_RUBRIC_VERSION);
+        runReview(newReview.getId());
+
+        return newReview;
+    }
+}

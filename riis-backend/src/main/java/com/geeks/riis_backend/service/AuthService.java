@@ -39,6 +39,19 @@ public class AuthService {
 
 	private static final SecureRandom SECURE_RANDOM = new SecureRandom();
 
+	/**
+	 * A pre-hashed dummy value, never a real credential for any account.
+	 * Used only so an unrecognized email still triggers exactly one bcrypt
+	 * comparison in login() below -- the same cost (strength 10, matching
+	 * every real hash produced by BCryptPasswordEncoder() elsewhere in this
+	 * class) as checking a real password against a real hash. Its only
+	 * purpose is to make an unknown-email attempt cost the same wall-clock
+	 * time as a known-email one with a wrong password, so the two cases
+	 * can't be told apart by response timing.
+	 */
+	private static final String DUMMY_PASSWORD_HASH =
+			"$2b$10$/woQFJdE0a3G.33j/L7U1OdKIpSjM4ErQ9NCbhZYGQSleVE7Tv1/u";
+
 	private final UserRepository userRepository;
 	private final InstitutionRepository institutionRepository;
 	private final PasswordResetTokenRepository passwordResetTokenRepository;
@@ -114,8 +127,19 @@ public class AuthService {
 		}
 
 		String email = normalizeEmail(request.email());
-		User user = userRepository.findByEmail(email)
-				.orElseThrow(() -> new ResourceNotFoundException("User not found"));
+		User user = userRepository.findByEmail(email).orElse(null);
+
+		// An unrecognized email must be indistinguishable from a recognized
+		// one with a wrong password -- same status code, same message, and
+		// (by still running a real bcrypt comparison here, against a dummy
+		// hash) roughly the same response time. Without this, an unknown
+		// email used to short-circuit straight to a 404 with no bcrypt work
+		// at all, which is both a status-code and a timing signal an
+		// attacker could use to enumerate which emails have accounts.
+		if (user == null) {
+			passwordEncoder.matches(request.password(), DUMMY_PASSWORD_HASH);
+			throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials.");
+		}
 
 		// Whitelist check: only ACTIVE accounts may log in. Previously this
 		// only blocked PENDING, which meant a REJECTED account (status is

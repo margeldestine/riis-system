@@ -12,7 +12,14 @@ code.
 # below change in a way that would affect scoring. The router/service pass
 # this back on every response so a human reviewer can tell which rubric
 # version produced a given score.
-RUBRIC_VERSION = "v1-tentative"
+#
+# Keep this in lockstep with DEFAULT_RUBRIC_VERSION in
+# riis-backend/.../service/ClaudeReviewService.java -- that's the value
+# actually persisted on new quality_reviews rows when a caller doesn't
+# specify one explicitly (which is every review run through the normal
+# admin UI). If the two drift, every review logs a spurious rubric
+# mismatch warning here even though nothing is actually wrong.
+RUBRIC_VERSION = "v1.0.0"
 
 MAX_SCORE_PER_CRITERION = 20
 

@@ -9,15 +9,11 @@ import java.time.Instant;
 import java.util.Date;
 import java.util.Map;
 import javax.crypto.SecretKey;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 @Service
 public class JwtService {
-
-	private static final Logger logger = LoggerFactory.getLogger(JwtService.class);
 
 	private final String issuer;
 	private final long accessTokenTtlSeconds;
@@ -34,8 +30,16 @@ public class JwtService {
 		this.accessTokenTtlSeconds = accessTokenTtlSeconds;
 		this.rememberMeTtlSeconds = rememberMeTtlSeconds;
 		String normalizedSecret = secret == null ? "" : secret.trim();
-		if ("PLEASE_SET_JWT_SECRET".equals(normalizedSecret)) {
-			logger.warn("JWT_SECRET is not set; using fallback placeholder secret.");
+		if (normalizedSecret.isBlank() || "PLEASE_SET_JWT_SECRET".equals(normalizedSecret)) {
+			// Fail fast, not fail warn: a placeholder or missing secret is
+			// computable by anyone who's seen this public repo, so signing
+			// real tokens with it would mean any caller could forge a valid
+			// admin JWT. Refusing to start is the only safe option here --
+			// a warning that the app keeps running past is exactly the fail-open
+			// behavior this replaces.
+			throw new IllegalStateException(
+					"JWT_SECRET is not configured. Refusing to start with an insecure placeholder " +
+							"signing key. Set the JWT_SECRET environment variable before starting this application.");
 		}
 		this.signingKey = Keys.hmacShaKeyFor(hashTo256Bits(normalizedSecret));
 	}

@@ -10,6 +10,12 @@ spring:
   mail:
     username: ${MAIL_USERNAME}
     password: ${MAIL_PASSWORD}
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+internal:
+  service:
+    token: ${INTERNAL_SERVICE_TOKEN}
 app:
   s3:
     bucket: ${S3_BUCKET}
@@ -26,3 +32,18 @@ app:
     password-reset-token-ttl-minutes: 30
   frontend:
     base-url: http://localhost:5173
+    allowed-origins: ${FRONTEND_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:5174,http://localhost:5175}
+
+---
+# Applies only when SPRING_PROFILES_ACTIVE=prod is explicitly set (e.g. in
+# a production deploy's environment config). No profile is currently set
+# anywhere in local development, so this document has zero effect on
+# today's setup -- the base show-sql: true above continues to apply
+# exactly as it always has, unless and until a real prod deploy opts in
+# to this override by name.
+spring:
+  config:
+    activate:
+      on-profile: prod
+  jpa:
+    show-sql: false

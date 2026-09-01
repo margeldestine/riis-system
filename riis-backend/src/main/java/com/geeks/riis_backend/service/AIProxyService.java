@@ -22,9 +22,21 @@ public class AIProxyService {
     private String aiServiceUrl;
 
     /**
+     * Shared secret sent as X-Internal-Token on every call to riis-ai, so
+     * that service can reject anything that isn't this backend. No default
+     * value is provided here on purpose -- if INTERNAL_SERVICE_TOKEN isn't
+     * set, Spring fails to start this bean rather than silently sending an
+     * empty/null token that riis-ai's dependencies.py would then reject
+     * anyway, just later and less clearly (at first request instead of at
+     * startup).
+     */
+    @Value("${internal.service.token}")
+    private String internalServiceToken;
+
+    /**
      * The Claude holistic-review pass is a single, comparatively slow LLM
      * call (full paper text in, structured rubric scoring out), unlike the
-     * sub-second KeyBERT/SBERT/SPECTER calls below — per the integration
+     * sub-second KeyBERT/SBERT/SPECTER calls below -- per the integration
      * spec this gets a much longer timeout (60-90s) rather than the 8s used
      * elsewhere in this class.
      */
@@ -40,6 +52,7 @@ public class AIProxyService {
         WebClient client = WebClient.create(aiServiceUrl);
         Map response = client.post()
                 .uri("/ai/keybert/extract")
+                .header("X-Internal-Token", internalServiceToken)
                 .bodyValue(Map.of("text", text, "top_n", 10))
                 .retrieve()
                 .bodyToMono(Map.class)
@@ -67,6 +80,7 @@ public class AIProxyService {
         WebClient client = WebClient.create(aiServiceUrl);
         Map response = client.post()
                 .uri("/ai/sbert/embed")
+                .header("X-Internal-Token", internalServiceToken)
                 .bodyValue(Map.of("text", text))
                 .retrieve()
                 .bodyToMono(Map.class)
@@ -100,6 +114,7 @@ public class AIProxyService {
         WebClient client = WebClient.create(aiServiceUrl);
         Map response = client.post()
                 .uri("/ai/specter/encode")
+                .header("X-Internal-Token", internalServiceToken)
                 .bodyValue(Map.of(
                         "title", title == null ? "" : title,
                         "abstract", abstractText == null ? "" : abstractText))
@@ -131,10 +146,10 @@ public class AIProxyService {
      *
      * Fail-closed by design, matching {@link PdfTextExtractionService}'s
      * style: this never returns an empty/silent placeholder. Every failure
-     * mode — blank input, a transport-level failure that trips the circuit
+     * mode -- blank input, a transport-level failure that trips the circuit
      * breaker, a malformed response body, or {@code riis-ai} itself
      * reporting {@code status: "FAILED"} (missing API key, invalid JSON,
-     * schema-invalid model output, timeout, auth error) — comes back as an
+     * schema-invalid model output, timeout, auth error) -- comes back as an
      * explicit {@link ClaudeAssessmentResult#failure(String)} so
      * {@code ClaudeReviewService} can record a real {@code failure_reason}
      * on the {@code quality_reviews} row rather than persisting a
@@ -157,6 +172,7 @@ public class AIProxyService {
         // method below.
         Map response = client.post()
                 .uri("/ai/claude/review")
+                .header("X-Internal-Token", internalServiceToken)
                 .bodyValue(Map.of("paper_text", paperText, "rubric_version", rubricVersion))
                 .retrieve()
                 .bodyToMono(Map.class)
@@ -182,16 +198,16 @@ public class AIProxyService {
 
             List<Map<String, Object>> criteriaRaw = (List<Map<String, Object>>) response.get("criteria");
             List<CriterionScoreDTO> criteria = criteriaRaw == null ? List.of() : criteriaRaw.stream()
-                                                                                 .map(c -> new CriterionScoreDTO(
-                                                                                         String.valueOf(c.get("name")),
-                                                                                         ((Number) c.get("score")).intValue(),
-                                                                                         String.valueOf(c.get("justification"))))
-                                                                                 .collect(Collectors.toList());
+                    .map(c -> new CriterionScoreDTO(
+                            String.valueOf(c.get("name")),
+                            ((Number) c.get("score")).intValue(),
+                            String.valueOf(c.get("justification"))))
+                    .collect(Collectors.toList());
 
             List<?> flagsRaw = (List<?>) response.get("flags");
             List<String> flags = flagsRaw == null ? List.of() : flagsRaw.stream()
-                                                                .map(String::valueOf)
-                                                                .collect(Collectors.toList());
+                    .map(String::valueOf)
+                    .collect(Collectors.toList());
 
             String summary = response.get("summary") != null ? String.valueOf(response.get("summary")) : "";
 
