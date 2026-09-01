@@ -6,8 +6,10 @@ import com.geeks.riis_backend.dto.QualityReviewRunResponseDTO;
 import com.geeks.riis_backend.exception.ResourceNotFoundException;
 import com.geeks.riis_backend.model.QualityReview;
 import com.geeks.riis_backend.repository.QualityReviewRepository;
+import com.geeks.riis_backend.security.KeyedRateLimiter;
 import com.geeks.riis_backend.service.ClaudeReviewService;
 import jakarta.validation.Valid;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
@@ -29,7 +31,7 @@ import org.springframework.web.server.ResponseStatusException;
  *
  * Strictly additive: nothing here reads or writes
  * {@code research_outputs.status}, and there is no approval/award decision
- * made anywhere in this controller — it only ever creates or reads
+ * made anywhere in this controller -- it only ever creates or reads
  * {@code quality_reviews} rows. This pipeline is strictly advisory for
  * human {@code DOST_ADMIN} reviewers.
  */
@@ -41,17 +43,29 @@ public class QualityReviewController {
 
     private final ClaudeReviewService claudeReviewService;
     private final QualityReviewRepository qualityReviewRepository;
+    private final KeyedRateLimiter keyedRateLimiter;
+
+    /**
+     * Every real Claude review call has a genuine Anthropic API cost.
+     * Bounding this per admin user (10/hour) limits the blast radius of a
+     * compromised admin session or a scripted client looping this endpoint
+     * -- it does not limit legitimate review volume in normal use.
+     */
+    private static final int CLAUDE_REVIEW_LIMIT_PER_HOUR = 10;
 
     /**
      * Initializes a PENDING QualityReview row and kicks off async
      * processing in {@link ClaudeReviewService#runReview(String)}.
-     * Returns immediately with 202 Accepted — poll GET .../{researchOutputId}
+     * Returns immediately with 202 Accepted -- poll GET .../{researchOutputId}
      * for the result.
      */
     @PostMapping("/{researchOutputId}/run")
     public ResponseEntity<QualityReviewRunResponseDTO> runReview(
             @PathVariable String researchOutputId,
-            @RequestBody(required = false) Map<String, String> body) {
+            @RequestBody(required = false) Map<String, String> body,
+            Authentication authentication) {
+
+        enforceClaudeReviewRateLimit(authentication);
 
         String rubricVersion = body != null ? body.get("rubric_version") : null;
 
@@ -64,7 +78,7 @@ public class QualityReviewController {
 
     /**
      * Returns the most recent QualityReview for a research output,
-     * regardless of status (PENDING/PROCESSING/COMPLETE/FAILED) — callers
+     * regardless of status (PENDING/PROCESSING/COMPLETE/FAILED) -- callers
      * poll this to watch a review progress.
      */
     @GetMapping("/{researchOutputId}")
@@ -78,7 +92,7 @@ public class QualityReviewController {
     }
 
     /**
-     * Returns the full review history for a research output, newest first —
+     * Returns the full review history for a research output, newest first --
      * the audit trail across every regeneration and admin decision.
      */
     @GetMapping("/{researchOutputId}/history")
@@ -94,7 +108,7 @@ public class QualityReviewController {
 
     /**
      * Records a human DOST_ADMIN's decision on a Claude assessment
-     * (AGREE / OVERRIDE / NEEDS_MORE_INFO). Never an award/approval action —
+     * (AGREE / OVERRIDE / NEEDS_MORE_INFO). Never an award/approval action --
      * see {@link ClaudeReviewService#recordDecision}.
      */
     @PostMapping("/{id}/decision")
@@ -113,14 +127,32 @@ public class QualityReviewController {
     /**
      * Triggers an async regeneration: a brand-new QualityReview row for the
      * same research output as {@code id}, leaving all prior rows (and their
-     * admin decisions) untouched.
+     * admin decisions) untouched. Counts against the same per-admin Claude
+     * review rate limit as {@link #runReview} -- a regenerate is just as
+     * costly as an initial run.
      */
     @PostMapping("/{id}/regenerate")
-    public ResponseEntity<QualityReviewRunResponseDTO> regenerateReview(@PathVariable String id) {
+    public ResponseEntity<QualityReviewRunResponseDTO> regenerateReview(
+            @PathVariable String id,
+            Authentication authentication) {
+
+        enforceClaudeReviewRateLimit(authentication);
+
         QualityReview newReview = claudeReviewService.regenerateReview(id);
 
         return ResponseEntity.accepted()
                 .body(new QualityReviewRunResponseDTO(newReview.getId(), newReview.getStatus()));
+    }
+
+    private void enforceClaudeReviewRateLimit(Authentication authentication) {
+        String adminUserId = getAuthenticatedUserId(authentication);
+        boolean allowed = keyedRateLimiter.tryConsume(
+                "quality-review-run", adminUserId, CLAUDE_REVIEW_LIMIT_PER_HOUR, Duration.ofHours(1));
+        if (!allowed) {
+            throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS,
+                    "Rate limit exceeded: no more than " + CLAUDE_REVIEW_LIMIT_PER_HOUR
+                            + " AI quality reviews per hour per admin.");
+        }
     }
 
     private String getAuthenticatedUserId(Authentication authentication) {

@@ -1,5 +1,6 @@
 package com.geeks.riis_backend.config;
 
+import com.geeks.riis_backend.security.AuthRateLimitingFilter;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import org.springframework.context.annotation.Bean;
@@ -19,9 +20,11 @@ import org.springframework.web.cors.CorsConfiguration;
 public class SecurityConfig {
 
 	private final JwtAuthenticationFilter jwtAuthenticationFilter;
+	private final AuthRateLimitingFilter authRateLimitingFilter;
 
-	public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter) {
+	public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter, AuthRateLimitingFilter authRateLimitingFilter) {
 		this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+		this.authRateLimitingFilter = authRateLimitingFilter;
 	}
 
 	@Bean
@@ -30,7 +33,7 @@ public class SecurityConfig {
 				.cors(cors -> cors.configurationSource(request -> {
 					CorsConfiguration config = new CorsConfiguration();
 					config.setAllowedOrigins(Arrays.asList("http://localhost:5173", "http://localhost:5174", "http://localhost:5175"));
-                    config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+					config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
 					config.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "X-Requested-With"));
 					config.setAllowCredentials(true);
 					return config;
@@ -56,23 +59,23 @@ public class SecurityConfig {
 						})
 						.accessDeniedHandler((request, response, accessDeniedException) -> response.sendError(403))
 				)
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
-                .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        .requestMatchers("/api/v1/auth/**").permitAll()
-                        .requestMatchers("/error").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/v1/search").permitAll()
+				.addFilterBefore(authRateLimitingFilter, UsernamePasswordAuthenticationFilter.class)				.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+				.authorizeHttpRequests(auth -> auth
+						.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+						.requestMatchers("/api/v1/auth/**").permitAll()
+						.requestMatchers("/error").permitAll()
+						.requestMatchers(HttpMethod.POST, "/api/v1/search").permitAll()
 						.requestMatchers(HttpMethod.GET, "/api/v1/search/related/**").permitAll()
 						.requestMatchers(HttpMethod.GET, "/api/v1/search/**").permitAll()
-                        .requestMatchers("/api/v1/institutions/**").permitAll()
-                        .requestMatchers(HttpMethod.POST, "/api/v1/submissions").hasAnyAuthority("ROLE_HEI_STAFF", "HEI_STAFF", "ROLE_HEI", "HEI", "ROLE_DOST_ADMIN", "DOST_ADMIN")
+						.requestMatchers("/api/v1/institutions/**").permitAll()
+						.requestMatchers(HttpMethod.POST, "/api/v1/submissions").hasAnyAuthority("ROLE_HEI_STAFF", "HEI_STAFF", "ROLE_HEI", "HEI", "ROLE_DOST_ADMIN", "DOST_ADMIN")
 						.requestMatchers(HttpMethod.POST, "/api/v1/submissions/upload-url").hasAnyAuthority("ROLE_HEI_STAFF", "HEI_STAFF", "ROLE_HEI", "HEI", "ROLE_DOST_ADMIN", "DOST_ADMIN")
 						.requestMatchers(HttpMethod.POST, "/api/v1/submissions/upload").hasAnyAuthority("ROLE_HEI_STAFF", "HEI_STAFF", "ROLE_HEI", "HEI", "ROLE_DOST_ADMIN", "DOST_ADMIN")
 						.requestMatchers(HttpMethod.PUT, "/api/v1/submissions/**").hasAnyAuthority("ROLE_HEI_STAFF", "HEI_STAFF", "ROLE_HEI", "HEI", "ROLE_DOST_ADMIN", "DOST_ADMIN")
 						.requestMatchers(HttpMethod.GET, "/api/v1/submissions/**").hasAnyAuthority("ROLE_HEI_STAFF", "HEI_STAFF", "ROLE_HEI", "HEI", "ROLE_DOST_ADMIN", "DOST_ADMIN")
 						.requestMatchers("/api/v1/admin/**").hasAnyAuthority("ROLE_DOST_ADMIN", "DOST_ADMIN")
-                        .requestMatchers("/api/v1/analytics/**").hasRole("DOST_ADMIN")
-                        .requestMatchers("/api/v1/admin/submissions/**").hasRole("DOST_ADMIN")
+						.requestMatchers("/api/v1/analytics/**").hasRole("DOST_ADMIN")
+						.requestMatchers("/api/v1/admin/submissions/**").hasRole("DOST_ADMIN")
 						.requestMatchers("/api/v1/admin/submissions/**").hasRole("DOST_ADMIN")
 						.requestMatchers("/api/v1/reports/**").hasAnyAuthority("ROLE_DOST_ADMIN", "DOST_ADMIN", "ROLE_HEI_STAFF", "HEI_STAFF")
 
