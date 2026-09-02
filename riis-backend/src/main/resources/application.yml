@@ -31,16 +31,11 @@ app:
       remember-me-ttl-seconds: 2592000   # 30 days
     password-reset-token-ttl-minutes: 30
   frontend:
-    base-url: http://localhost:5173
+    base-url: ${FRONTEND_BASE_URL:http://localhost:5173}
     allowed-origins: ${FRONTEND_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:5174,http://localhost:5175}
 
 ---
-# Applies only when SPRING_PROFILES_ACTIVE=prod is explicitly set (e.g. in
-# a production deploy's environment config). No profile is currently set
-# anywhere in local development, so this document has zero effect on
-# today's setup -- the base show-sql: true above continues to apply
-# exactly as it always has, unless and until a real prod deploy opts in
-# to this override by name.
+
 spring:
   config:
     activate:
