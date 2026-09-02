@@ -101,7 +101,16 @@ function SubmissionMetadataPanel({ submission }) {
   }
 
   const authors = Array.isArray(submission.authors)
-    ? submission.authors.map(a => typeof a === 'string' ? a : a.fullName).filter(Boolean).join('; ')
+    ? submission.authors
+        .map((a) => {
+          if (typeof a === 'string') return a
+          const name = a?.fullName || a?.name
+          const orcid = a?.orcidId || a?.orcid
+          if (!name) return null
+          return orcid ? `${name} (${orcid})` : name
+        })
+        .filter(Boolean)
+        .join('; ')
     : '—'
 
   const keywords = Array.isArray(submission.keywords) ? submission.keywords : []
@@ -120,10 +129,10 @@ function SubmissionMetadataPanel({ submission }) {
 
       {/* Metadata grid */}
       <div className="px-6 py-5 border-b border-slate-100">
-        <p className="text-[10px] uppercase tracking-wider text-slate-400 mb-4">Record Metadata</p>
+        <p className="text-[10px] uppercase tracking-wider text-slate-400 mb-4">Record Details</p>
         <div className="grid grid-cols-2 gap-x-8 gap-y-4">
           <div>
-            <p className="text-[10px] uppercase tracking-wider text-slate-400 mb-0.5">PI / M.L. Contributor</p>
+            <p className="text-[10px] uppercase tracking-wider text-slate-400 mb-0.5">Principal Investigator</p>
             <p className="text-sm font-medium text-[#1A1A2E]">{submission.principalInvestigator || '—'}</p>
           </div>
           <div>
@@ -131,15 +140,23 @@ function SubmissionMetadataPanel({ submission }) {
             <p className="text-sm font-medium text-[#1A1A2E]">{authors}</p>
           </div>
           <div>
+            <p className="text-[10px] uppercase tracking-wider text-slate-400 mb-0.5">Institutional Affiliation</p>
+            <p className="text-sm font-medium text-[#1A1A2E]">{submission.institutionalAffiliation || submission.institutionName || '—'}</p>
+          </div>
+          <div>
             <p className="text-[10px] uppercase tracking-wider text-slate-400 mb-0.5">Completion Year</p>
             <p className="text-sm font-medium text-[#1A1A2E]">{submission.completionYear || '—'}</p>
           </div>
           <div>
-            <p className="text-[10px] uppercase tracking-wider text-slate-400 mb-0.5">Type</p>
+            <p className="text-[10px] uppercase tracking-wider text-slate-400 mb-0.5">Research Type</p>
             <p className="text-sm font-medium text-[#1A1A2E]">{submission.researchType || '—'}</p>
           </div>
           <div>
-            <p className="text-[10px] uppercase tracking-wider text-slate-400 mb-0.5">Publication Venue</p>
+            <p className="text-[10px] uppercase tracking-wider text-slate-400 mb-0.5">Funding Source</p>
+            <p className="text-sm font-medium text-[#1A1A2E]">{submission.fundingSource || '—'}</p>
+          </div>
+          <div>
+            <p className="text-[10px] uppercase tracking-wider text-slate-400 mb-0.5">Publication Venue / Status</p>
             <p className="text-sm font-medium text-[#1A1A2E]">{submission.publicationVenue || '—'}</p>
           </div>
           <div>
@@ -147,26 +164,20 @@ function SubmissionMetadataPanel({ submission }) {
             <p className="text-sm font-medium text-[#1A1A2E]">{submission.doi || '—'}</p>
           </div>
           <div>
-            <p className="text-[10px] uppercase tracking-wider text-slate-400 mb-0.5">RC Subspace</p>
+            <p className="text-[10px] uppercase tracking-wider text-slate-400 mb-0.5">Conference URL</p>
+            <p className="text-sm font-medium text-[#1A1A2E] break-all">{submission.conferenceUrl || '—'}</p>
+          </div>
+          <div>
+            <p className="text-[10px] uppercase tracking-wider text-slate-400 mb-0.5">Subject</p>
             <p className="text-sm font-medium text-[#1A1A2E]">{submission.subjectDc || '—'}</p>
           </div>
           <div>
-            <p className="text-[10px] uppercase tracking-wider text-slate-400 mb-0.5">RC Coverage</p>
+            <p className="text-[10px] uppercase tracking-wider text-slate-400 mb-0.5">Coverage</p>
             <p className="text-sm font-medium text-[#1A1A2E]">{submission.coverageDc || '—'}</p>
           </div>
           <div>
-            <p className="text-[10px] uppercase tracking-wider text-slate-400 mb-0.5">RC Rights</p>
+            <p className="text-[10px] uppercase tracking-wider text-slate-400 mb-0.5">Rights</p>
             <p className="text-sm font-medium text-[#1A1A2E]">{submission.rightsDc || '—'}</p>
-          </div>
-          <div>
-            <p className="text-[10px] uppercase tracking-wider text-slate-400 mb-0.5">Validation Status</p>
-            {submission.validationErrorCount > 0 ? (
-              <p className="text-sm font-semibold text-red-600">
-                {submission.validationErrorCount} Validation {submission.validationErrorCount === 1 ? 'Error' : 'Errors'}
-              </p>
-            ) : (
-              <p className="text-sm font-semibold text-emerald-600">Validation Passed</p>
-            )}
           </div>
         </div>
         <div className="mt-5 pt-5 border-t border-slate-100">
@@ -238,14 +249,7 @@ function PublicationStatusPanel({ submission }) {
         </div>
             
 
-        <div className="border-t border-slate-100 pt-3 text-xs text-slate-500">
-          <p>
-            Submissions from registered, verified HEI staff accounts publish
-            automatically — there's no separate DOST Admin approval step.
-            This panel is for monitoring only.
-          </p>
-        </div>
-      </div>
+              </div>
     </div>
   )
 }
@@ -342,21 +346,31 @@ export default function PendingSubmissionsPage() {
       organization="DOST Region VII"
       navItems={dostNavItems}
     >
-      {selectedDetail ? (
+            {selectedDetail ? (
         /* Detail view */
           <div className="space-y-4">
-            <div className="flex items-center gap-2 text-sm text-slate-500">
-              <button type="button" onClick={() => { setSelectedDetail(null) }} className="hover:text-[#C9A84C]">
-                Submissions
-              </button>
-              <span>›</span>
-              <span className="text-[#C9A84C]">Details</span>
-            </div>
-            <div className="flex items-start justify-between">
-              <div>
-                <h1 className="text-3xl font-bold text-[#1A1A2E]">Submission Details</h1>
-                <p className="mt-1 text-sm text-slate-500">Inspect the full record. No action needed — submissions publish automatically.</p>
+            {/* Header */}
+            <div className="-mx-[32px] -mt-[32px] w-[calc(100%+64px)]">
+              <div className="relative overflow-hidden bg-[#f8fafc] px-8 py-8">
+                <div className="pointer-events-none absolute inset-0" style={{ backgroundImage: 'url(/DOST_Building.png)', backgroundSize: 'cover', backgroundPosition: '78% 32%', opacity: 0.18 }} />
+                <div className="pointer-events-none absolute inset-0" style={{ background: 'rgba(13, 31, 60, 0.08)' }} />
+                <div className="relative z-10">
+                  <div className="flex items-center gap-2 text-sm text-slate-500">
+                    <button type="button" onClick={() => { setSelectedDetail(null) }} className="hover:text-[#C9A84C]">
+                      Submissions
+                    </button>
+                    <span>›</span>
+                    <span className="text-[#C9A84C]">Details</span>
+                  </div>
+                  <h1 className="mt-2 text-[30px] font-bold tracking-tight text-[#0d1f3c]" style={{ fontFamily: "'Libre Baskerville', serif" }}>
+                    Submission Details
+                  </h1>
+                  <p className="mt-2 text-[13px] text-[#6b7280]">
+                    Inspect the full record. No action needed — submissions publish automatically.
+                  </p>
+                </div>
               </div>
+              <div className="h-px w-full bg-[#c9a84c]" />
             </div>
 
             <div className="grid gap-6" style={{ gridTemplateColumns: '1fr 360px' }}>

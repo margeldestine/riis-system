@@ -146,17 +146,15 @@ function exportCSV({ summary, trendData, typeDistribution, heiComparison, provin
   const row = (cols) => cols.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(',')
 
   // Summary
-  sections.push('SUMMARY')
+    sections.push('SUMMARY')
   sections.push(row(['Metric', 'Value']))
-  sections.push(row(['Total Approved Outputs', summary?.totalApprovedOutputs ?? 0]))
+  sections.push(row(['Total Outputs', summary?.totalApprovedOutputs ?? 0]))
   sections.push(row(['Registered HEIs', summary?.totalRegisteredHeis ?? 0]))
-  sections.push(row(['Completeness Rate (%)', summary?.completenessRate ?? 0]))
-  sections.push(row(['Incomplete Rate (%)', summary?.incompleteRate ?? 0]))
   sections.push('')
 
-  // Research Outputs by Year
+    // Research Outputs by Year
   if (trendData.length > 0) {
-    sections.push('RESEARCH OUTPUTS BY YEAR & DISCIPLINE')
+    sections.push('RESEARCH OUTPUTS BY YEAR')
     const types = Object.keys(trendData[0]).filter(k => k !== 'year')
     sections.push(row(['Year', ...types]))
     trendData.forEach(d => sections.push(row([d.year, ...types.map(t => d[t] ?? 0)])))
@@ -171,13 +169,13 @@ function exportCSV({ summary, trendData, typeDistribution, heiComparison, provin
     sections.push('')
   }
 
-  // HEI Comparison
+    // HEI Comparison
   if (heiComparison.length > 0) {
     sections.push('HEI SUBMISSION OVERVIEW')
-    sections.push(row(['Rank', 'Institution', 'Approved Outputs', 'Progress (%)']))
+    sections.push(row(['Rank', 'Institution', 'Outputs']))
     heiComparison
       .filter(item => item.count > 0)
-      .forEach((item, i) => sections.push(row([i + 1, item.name, item.count, item.progress])))
+      .forEach((item, i) => sections.push(row([i + 1, item.name, item.count])))
     sections.push('')
   }
 
@@ -245,20 +243,17 @@ function exportPDF({ summary, trendData, typeDistribution, heiComparison, provin
       ${content}
     </div>`
 
-  // Summary section
-  const summaryHTML = section('Summary', table(
+    const summaryHTML = section('Summary', table(
     ['Metric', 'Value'],
     [
-      ['Total Approved Outputs', summary?.totalApprovedOutputs ?? 0],
+      ['Total Outputs', summary?.totalApprovedOutputs ?? 0],
       ['Registered HEIs', summary?.totalRegisteredHeis ?? 0],
-      ['Completeness Rate', `${summary?.completenessRate ?? 0}%`],
-      ['Incomplete Rate', `${summary?.incompleteRate ?? 0}%`],
     ]
   ))
 
   // Trend section
   const trendTypes = trendData.length > 0 ? Object.keys(trendData[0]).filter(k => k !== 'year') : []
-  const trendHTML = trendData.length > 0 ? section('Research Outputs by Year & Discipline', table(
+    const trendHTML = trendData.length > 0 ? section('Research Outputs by Year', table(
     ['Year', ...trendTypes],
     trendData.map(d => [d.year, ...trendTypes.map(t => d[t] ?? 0)])
   )) : ''
@@ -271,9 +266,9 @@ function exportPDF({ summary, trendData, typeDistribution, heiComparison, provin
 
   // HEI comparison
   const heiFiltered = heiComparison.filter(item => item.count > 0)
-  const heiHTML = heiFiltered.length > 0 ? section('HEI Submission Overview', table(
-    ['Rank', 'Institution', 'Approved Outputs', 'Progress (%)'],
-    heiFiltered.map((item, i) => [i + 1, item.name, item.count, item.progress])
+    const heiHTML = heiFiltered.length > 0 ? section('HEI Submission Overview', table(
+    ['Rank', 'Institution', 'Outputs'],
+    heiFiltered.map((item, i) => [i + 1, item.name, item.count])
   )) : ''
 
   // Province summary
@@ -354,17 +349,13 @@ function exportPDF({ summary, trendData, typeDistribution, heiComparison, provin
 </body>
 </html>`
 
-  const blob = new Blob([html], { type: 'text/html;charset=utf-8;' })
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8;' })
   const url = URL.createObjectURL(blob)
-  const win = window.open(url, '_blank')
-  if (win) {
-    win.onload = () => {
-      setTimeout(() => {
-        win.print()
-        URL.revokeObjectURL(url)
-      }, 500)
-    }
-  }
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `DOST_Region7_Analytics_${new Date().toISOString().slice(0, 10)}.html`
+  a.click()
+  URL.revokeObjectURL(url)
 }
 
 // ---- D3-powered Thematic Density Heatmap ----------------------------------
@@ -506,12 +497,12 @@ export default function AnalyticsDashboard({
   const [provinceOptions, setProvinceOptions] = useState([])
   const [yearOptions, setYearOptions] = useState([])
 
-  useEffect(() => {
+    useEffect(() => {
     const controller = new AbortController()
     apiClient.get('/institutions', { signal: controller.signal })
       .then((res) => {
         const list = res.data || []
-        setInstitutionOptions(list.map((i) => ({ value: i.id, label: i.name })))
+        setInstitutionOptions(list.map((i) => ({ value: i.id, label: i.name, province: i.province })))
         setProvinceOptions([...new Set(list.map((i) => i.province).filter(Boolean))].sort())
       })
       .catch((err) => { if (!controller.signal.aborted) console.error('Institutions fetch error:', err) })
@@ -525,6 +516,17 @@ export default function AnalyticsDashboard({
 
     return () => controller.abort()
   }, [])
+
+  // Clear the selected HEI if it doesn't belong to the newly selected province.
+  useEffect(() => {
+    if (!pendingFilters.province || !pendingFilters.institutionId) return
+    const stillValid = institutionOptions.some(
+      (opt) => opt.value === pendingFilters.institutionId && opt.province === pendingFilters.province,
+    )
+    if (!stillValid) {
+      setPendingFilters((f) => ({ ...f, institutionId: '' }))
+    }
+  }, [pendingFilters.province, institutionOptions])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -632,7 +634,7 @@ export default function AnalyticsDashboard({
                 Regional Research Analytics Dashboard
               </h1>
               <p className="mt-2 text-[13px] text-[#6b7280]">
-                DOST Administrator View · Region VII · AY 2025-2026
+                DOST Administrator View · Region VII
               </p>
             </div>
             <div className="text-right shrink-0">
@@ -662,12 +664,16 @@ export default function AnalyticsDashboard({
               onChange={(v) => setPendingFilters((f) => ({ ...f, province: v }))}
               options={provinceOptions.map((p) => ({ value: p, label: p }))}
             />
-            <FilterField
+                        <FilterField
               label="All HEIs"
               placeholder="All HEIs"
               value={pendingFilters.institutionId}
               onChange={(v) => setPendingFilters((f) => ({ ...f, institutionId: v }))}
-              options={institutionOptions}
+              options={
+                pendingFilters.province
+                  ? institutionOptions.filter((opt) => opt.province === pendingFilters.province)
+                  : institutionOptions
+              }
             />
             <FilterField
               label="All Types"
@@ -734,12 +740,12 @@ export default function AnalyticsDashboard({
       {/* Trend + Donut */}
       <section style={{ display: 'grid', gridTemplateColumns: '1.55fr 0.85fr', gap: '16px' }}>
         <div className="rounded-[12px] bg-white p-[20px] shadow-[0_2px_8px_rgba(0,0,0,0.08)]">
-          <h3 className="text-[17px] font-semibold text-[#1A1A2E]">Research Outputs by Year & Discipline</h3>
-          <p className="mt-1 text-xs text-[#6B7280]">Approved outputs grouped by research type</p>
+          <h3 className="text-[17px] font-semibold text-[#1A1A2E]">Research Outputs by Year</h3>
+          <p className="mt-1 text-xs text-[#6B7280]">Outputs grouped by research type</p>
           <div className="mt-5 h-[260px]">
-            {loading ? (
+                        {loading ? (
               <div className="flex h-full items-center justify-center">
-                <Loader2 className="h-6 w-6 animate-spin text-white/40" />
+                <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
               </div>
             ) : trendData.length === 0 ? (
               <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
@@ -776,9 +782,9 @@ export default function AnalyticsDashboard({
           <h3 className="text-[17px] font-semibold text-[#1A1A2E]">Research Type Distribution</h3>
           <p className="mt-1 text-xs text-[#6B7280]">All outputs</p>
           <div className="mt-5 grid gap-4 lg:grid-cols-[150px,1fr] xl:grid-cols-1 2xl:grid-cols-[150px,1fr]">
-            <div className="relative mx-auto flex h-[150px] w-[150px] items-center justify-center">
+              <div className="relative mx-auto flex h-[150px] w-[150px] items-center justify-center">
               {loading ? (
-                <Loader2 className="h-6 w-6 animate-spin text-white/40" />
+                <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
               ) : (
                 <>
                   <ResponsiveContainer width="100%" height="100%">
@@ -846,7 +852,7 @@ export default function AnalyticsDashboard({
 
         <div className={cardClass}>
           <h3 className="text-[17px] font-semibold text-[#1A1A2E]">Province-Level Summary</h3>
-          <p className="mt-1 text-xs text-[#6B7280]">Approved outputs by province</p>
+          <p className="mt-1 text-xs text-[#6B7280]">Outputs by province</p>
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
             {loading ? (
               <div className="col-span-2 flex items-center justify-center py-8">
@@ -907,7 +913,7 @@ export default function AnalyticsDashboard({
               getCell={getClusterCell}
               maxCellCount={maxClusterCellCount}
             />
-            <p className="mt-3 text-[11px] text-[#9CA3AF]">Approved research outputs per S&T priority cluster, by institution.</p>
+            <p className="mt-3 text-[11px] text-[#9CA3AF]">Research outputs per S&T priority cluster, by institution.</p>
           </>
         ) : (
           <p className="mt-5 text-xs text-slate-400 italic">No cluster data available yet.</p>
@@ -928,7 +934,7 @@ export default function AnalyticsDashboard({
 
         <div className="mt-5 rounded-[12px] bg-[#1A2744] p-5">
           <p className="text-sm font-semibold text-white">DOST Region VII — Aggregated Research Themes</p>
-          <p className="mt-1 text-xs text-white/50">Weighted frequency of subject tags across all HEI submissions · AY 2025-2026</p>
+          <p className="mt-1 text-xs text-white/50">Weighted frequency of subject tags across all HEI submissions</p>
           <div className="mt-4 flex flex-wrap gap-2">
             {heatmapData.length === 0 ? (
               <p className="text-xs text-white/40 italic">No research themes available yet.</p>

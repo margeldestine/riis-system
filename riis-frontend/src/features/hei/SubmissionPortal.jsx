@@ -207,14 +207,17 @@ function formatDoiInput(value) {
   return withoutPrefix
 }
 
+const CONFERENCE_URL_PREFIX = 'https://'
+
 function formatConferenceUrlInput(value) {
-  const trimmed = (value ?? '').toString().trim()
-  if (!trimmed) return ''
+  const raw = (value ?? '').toString()
 
-  if (/^[a-zA-Z][a-zA-Z\d+.-]*:\/\//.test(trimmed)) return trimmed
-  if (!/[./]/.test(trimmed)) return trimmed
+  if (!raw.startsWith(CONFERENCE_URL_PREFIX)) {
+    const withoutPrefix = raw.replace(/^https?:?\/{0,2}/i, '')
+    return `${CONFERENCE_URL_PREFIX}${withoutPrefix}`
+  }
 
-  return `https://${trimmed.replace(/^\/+/, '')}`
+  return raw
 }
 
 const namePattern = /^[A-Za-z]+(?:[ '-][A-Za-z]+)*$/
@@ -1535,7 +1538,7 @@ export default function SubmissionPortal({ onSubmitted }) {
   } = useForm({
     resolver: zodResolver(submissionSchema),
     mode: 'onChange',
-    defaultValues: {
+            defaultValues: {
       title: '',
       researchType: '',
       completionYear: currentYear,
@@ -1550,7 +1553,7 @@ export default function SubmissionPortal({ onSubmitted }) {
       coverageDc: '',
       rightsDc: '',
       doi: '',
-      conferenceUrl: '',
+      conferenceUrl: 'https://',
       attachment: null,
     },
   })
@@ -1600,7 +1603,7 @@ const authorOptions = useMemo(
     setKeywordInput('')
     setExistingAttachmentKey(null)
     setFormSubmitAttempted(false)
-    reset({
+            reset({
       title: '',
       researchType: '',
       completionYear: currentYear,
@@ -1615,7 +1618,7 @@ const authorOptions = useMemo(
       coverageDc: '',
       rightsDc: '',
       doi: '',
-      conferenceUrl: '',
+      conferenceUrl: 'https://',
       attachment: null,
     })
   }

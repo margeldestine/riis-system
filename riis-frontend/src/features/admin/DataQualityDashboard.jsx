@@ -370,7 +370,7 @@ export default function DataQualityDashboard() {
                 <div className="flex flex-col items-center justify-center py-10 text-center">
                   <CheckCircle2 className="h-8 w-8 text-emerald-500 mb-2" />
                   <p className="text-sm font-semibold text-slate-600">No similarity flags detected</p>
-                  <p className="text-xs text-slate-400 mt-1">All approved research outputs are sufficiently distinct.</p>
+                  <p className="text-xs text-slate-400 mt-1">All research outputs are sufficiently distinct.</p>
                 </div>
               ) : (
                 <div className="space-y-4">

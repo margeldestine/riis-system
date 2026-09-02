@@ -143,7 +143,7 @@ export default function HeiReportsPage() {
     }, 3000)
   }
 
-  const handleReset = () => {
+    const handleReset = () => {
     setYearFrom('')
     setYearTo('')
     setSelectedTypes([])
@@ -153,6 +153,24 @@ export default function HeiReportsPage() {
     setStatus('idle')
     setResult(null)
     setError('')
+  }
+
+  const handleDownload = async (url, filename) => {
+    try {
+      const response = await fetch(url)
+      const blob = await response.blob()
+      const objectUrl = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = objectUrl
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(objectUrl)
+    } catch (err) {
+      console.error('Download failed:', err)
+      setError('Failed to download the report. Please try again.')
+    }
   }
 
   return (
@@ -290,25 +308,17 @@ export default function HeiReportsPage() {
                 </div>
               </div>
 
-              <div className="mb-5">
+                            <div className="mb-5">
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
                   Funding Source
                 </p>
-                <div className="relative">
-                  <select
-                    value={fundingSource}
-                    onChange={e => setFundingSource(e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-3 pr-8 text-sm text-slate-600 appearance-none focus:outline-none focus:ring-1 focus:ring-[#C9A84C]"
-                  >
-                    <option value="">Select funding source</option>
-                    {['DOST-PCAARRD', 'DOST-PCIEERD', 'DOST-CHED', 'Self-Funded', 'Other'].map(f => (
-                      <option key={f} value={f}>{f}</option>
-                    ))}
-                  </select>
-                  <svg className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                  </svg>
-                </div>
+                <input
+                  type="text"
+                  value={fundingSource}
+                  onChange={e => setFundingSource(e.target.value)}
+                  placeholder="e.g., DOST-PCIEERD"
+                  className="w-full rounded-lg border border-slate-200 bg-white py-2.5 px-3 text-sm text-slate-600 focus:outline-none focus:ring-1 focus:ring-[#C9A84C]"
+                />
               </div>
             </div>
 
@@ -436,15 +446,14 @@ export default function HeiReportsPage() {
                 <p className="text-xs text-slate-500">
                   {result.recordCount} records exported successfully.
                 </p>
-                <a
-                  href={result.downloadUrl}
-                  target="_blank"
-                  rel="noreferrer"
+                  <button
+                  type="button"
+                  onClick={() => handleDownload(result.downloadUrl, `report.${outputFormat.toLowerCase()}`)}
                   className="flex items-center justify-center gap-2 w-full rounded-lg bg-emerald-600 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 transition"
                 >
                   <Download className="h-4 w-4" />
                   Download {outputFormat} Report
-                </a>
+                </button>
               </div>
             ) : null}
 
