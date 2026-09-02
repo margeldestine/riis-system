@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Search, Filter, X, Download, ChevronDown, ExternalLink } from 'lucide-react'
 import apiClient from '../../services/apiClient'
@@ -41,8 +41,8 @@ function ResultCard({ result, onSelect }) {
         <div className="flex-1 min-w-0">
           {/* Title */}
           {result.doi ? (
-            <a
-              href={`https://doi.org/${result.doi}`}
+            
+            <a  href={`https://doi.org/${result.doi}`}
               target="_blank"
               rel="noreferrer"
               className="text-lg font-semibold text-[#1A1A2E] hover:text-blue-600 leading-snug"
@@ -104,10 +104,22 @@ function ResultCard({ result, onSelect }) {
 
           {/* Type + venue */}
           <div className="mt-3 flex items-center gap-3">
-          <TypeBadge type={result.researchType} />
-          {result.publicationVenue && (
-            <span className="text-xs text-slate-400">{result.publicationVenue}</span>
-          )}
+            <span className="shrink-0">
+              <TypeBadge type={result.researchType} />
+            </span>
+            {result.publicationVenue && (
+              <span
+                className="min-w-0 flex-1 truncate text-xs text-slate-400"
+                title={result.publicationVenue}
+              >
+                {result.publicationVenue}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="shrink-0 flex flex-col items-end gap-2">
           {result.similarityScore != null && (
             <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
               result.similarityScore >= 85 ? 'bg-emerald-100 text-emerald-700' :
@@ -117,24 +129,19 @@ function ResultCard({ result, onSelect }) {
               {result.similarityScore}% match
             </span>
           )}
-        </div>
-        </div>
-
-        {/* Actions */}
-        <div className="shrink-0 flex flex-col gap-2">
           <button
-          type="button"
-          onClick={() => {
-            console.log('similarity score being passed:', result.similarityScore)
-            navigate(`/research/${result.id}`, { state: { similarityScore: result.similarityScore ?? null } })
-          }}
-          className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition whitespace-nowrap"
-        >
-          View Details
-        </button>
+            type="button"
+            onClick={() => {
+              console.log('similarity score being passed:', result.similarityScore)
+              navigate(`/research/${result.id}`, { state: { similarityScore: result.similarityScore ?? null } })
+            }}
+            className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition whitespace-nowrap"
+          >
+            View Details
+          </button>
           {result.doi && (
-            <a
-              href={`https://doi.org/${result.doi}`}
+            
+            <a href={`https://doi.org/${result.doi}`}
               target="_blank"
               rel="noreferrer"
               className="flex items-center justify-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
@@ -207,8 +214,8 @@ function RelatedDrawer({ open, record, related, relatedLoading, onClose }) {
           {record.doi && (
             <div>
               <p className="text-[10px] uppercase tracking-wider text-slate-400 mb-1">DOI</p>
-              <a
-                href={`https://doi.org/${record.doi}`}
+              
+              <a href={`https://doi.org/${record.doi}`}
                 target="_blank"
                 rel="noreferrer"
                 className="text-sm text-blue-600 hover:underline flex items-center gap-1"
@@ -295,12 +302,19 @@ export default function DiscoveryPortalPage({ embedded = false }) {
   const [relatedLoading, setRelatedLoading] = useState(false)
 
   const [institutions, setInstitutions] = useState([])
+  const isFirstRender = useRef(true)
 
   useEffect(() => {
     apiClient.get('/institutions').then(res => {
       setInstitutions(Array.isArray(res.data) ? res.data : [])
     }).catch(() => {})
   }, [])
+
+  // Cascading filter: HEI dropdown only shows institutions within the
+  // selected province. When no province is selected, all institutions show.
+  const filteredInstitutions = filters.province
+    ? institutions.filter(i => i.province === filters.province)
+    : institutions
 
   const handleSearch = useCallback(async (overrideQuery) => {
     const q = overrideQuery !== undefined ? overrideQuery : query
@@ -332,6 +346,14 @@ export default function DiscoveryPortalPage({ embedded = false }) {
     else handleSearch('')
   }, [])
 
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false
+      return
+    }
+    handleSearch()
+  }, [mode])
+
   const handleSelectRecord = async (record) => {
     setSelectedRecord(record)
     setDrawerOpen(true)
@@ -348,7 +370,20 @@ export default function DiscoveryPortalPage({ embedded = false }) {
   }
 
   const handleFilterChange = (key, value) => {
-    setFilters(prev => ({ ...prev, [key]: value }))
+    setFilters(prev => {
+      const next = { ...prev, [key]: value }
+
+      // If Province changes, drop the HEI selection unless it still
+      // belongs to the newly selected province.
+      if (key === 'province' && prev.institutionId) {
+        const stillValid = value
+          ? institutions.some(i => i.id === prev.institutionId && i.province === value)
+          : true
+        if (!stillValid) next.institutionId = ''
+      }
+
+      return next
+    })
   }
 
   const activeFilterCount = Object.values(filters).filter(Boolean).length
@@ -396,8 +431,6 @@ export default function DiscoveryPortalPage({ embedded = false }) {
         </div>
       </nav>}
 
-      {/* Hero section */}
-      {/* Hero section */}
       {/* Hero section */}
       <div className={`relative py-16 text-center overflow-hidden ${embedded ? '-mx-[32px] -mt-[32px] w-[calc(100%+64px)]' : ''}`} style={{ background: '#1a3a6b' }}>
         <div
@@ -471,6 +504,23 @@ export default function DiscoveryPortalPage({ embedded = false }) {
 
               <div className="space-y-4 text-xs">
                 <div>
+                  <p className="font-semibold uppercase tracking-wider text-slate-400 text-[10px] mb-1">Province</p>
+                  <div className="relative">
+                    <select
+                      value={filters.province}
+                      onChange={(e) => handleFilterChange('province', e.target.value)}
+                      className="w-full rounded-lg border border-slate-200 bg-white py-1.5 pl-2 pr-6 text-xs text-slate-600 appearance-none focus:outline-none focus:ring-1 focus:ring-[#C9A84C]"
+                    >
+                      <option value="">Select province</option>
+                      {['Cebu', 'Bohol'].map(p => (
+                        <option key={p} value={p}>{p}</option>
+                      ))}
+                    </select>
+                    <ChevronDown className="absolute right-2 top-2 h-3 w-3 text-slate-400 pointer-events-none" />
+                  </div>
+                </div>
+
+                <div>
                   <p className="font-semibold uppercase tracking-wider text-slate-400 text-[10px] mb-1">HEI / Institution</p>
                   <div className="relative">
                     <select
@@ -478,13 +528,18 @@ export default function DiscoveryPortalPage({ embedded = false }) {
                       onChange={(e) => handleFilterChange('institutionId', e.target.value)}
                       className="w-full rounded-lg border border-slate-200 bg-white py-1.5 pl-2 pr-6 text-xs text-slate-600 appearance-none focus:outline-none focus:ring-1 focus:ring-[#C9A84C]"
                     >
-                      <option value="">Select institution</option>
-                      {institutions.map(i => (
+                      <option value="">
+                        {filters.province ? `All in ${filters.province}` : 'Select institution'}
+                      </option>
+                      {filteredInstitutions.map(i => (
                         <option key={i.id} value={i.id}>{i.name}</option>
                       ))}
                     </select>
                     <ChevronDown className="absolute right-2 top-2 h-3 w-3 text-slate-400 pointer-events-none" />
                   </div>
+                  {filters.province && filteredInstitutions.length === 0 && (
+                    <p className="mt-1 text-[10px] text-slate-400">No institutions registered in {filters.province} yet.</p>
+                  )}
                 </div>
 
                 <div>
@@ -505,23 +560,6 @@ export default function DiscoveryPortalPage({ embedded = false }) {
                 </div>
 
                 <div>
-                  <p className="font-semibold uppercase tracking-wider text-slate-400 text-[10px] mb-1">Province</p>
-                  <div className="relative">
-                    <select
-                      value={filters.province}
-                      onChange={(e) => handleFilterChange('province', e.target.value)}
-                      className="w-full rounded-lg border border-slate-200 bg-white py-1.5 pl-2 pr-6 text-xs text-slate-600 appearance-none focus:outline-none focus:ring-1 focus:ring-[#C9A84C]"
-                    >
-                      <option value="">Select province</option>
-                      {['Cebu', 'Bohol'].map(p => (
-                        <option key={p} value={p}>{p}</option>
-                      ))}
-                    </select>
-                    <ChevronDown className="absolute right-2 top-2 h-3 w-3 text-slate-400 pointer-events-none" />
-                  </div>
-                </div>
-
-                <div>
                   <p className="font-semibold uppercase tracking-wider text-slate-400 text-[10px] mb-1">Year</p>
                   <div className="relative">
                     <select
@@ -530,9 +568,9 @@ export default function DiscoveryPortalPage({ embedded = false }) {
                       className="w-full rounded-lg border border-slate-200 bg-white py-1.5 pl-2 pr-6 text-xs text-slate-600 appearance-none focus:outline-none focus:ring-1 focus:ring-[#C9A84C]"
                     >
                       <option value="">Select year</option>
-                      {Array.from({ length: 10 }, (_, i) => 2026 - i).map(y => (
-                        <option key={y} value={y}>{y}</option>
-                      ))}
+                      {Array.from({ length: new Date().getFullYear() - 2026 + 1 }, (_, i) => 2026 + i).map(y => (
+                      <option key={y} value={y}>{y}</option>
+                    ))}
                     </select>
                     <ChevronDown className="absolute right-2 top-2 h-3 w-3 text-slate-400 pointer-events-none" />
                   </div>

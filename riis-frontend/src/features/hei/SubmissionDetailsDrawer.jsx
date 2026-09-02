@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { X } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, ExternalLink, X, XCircle } from 'lucide-react'
 import apiClient from '../../services/apiClient'
 
 function extractApiErrorMessage(error, fallbackMessage) {
@@ -33,6 +33,8 @@ function formatStatusLabel(status) {
   return status || 'Unknown'
 }
 
+// Same badge classes as SubmissionHistory's table, so the status reads
+// identically whether you're looking at the list or this panel.
 function getStatusBadgeClasses(status) {
   const value = normalizeStatus(status)
 
@@ -61,26 +63,58 @@ function getStatusBadgeClasses(status) {
   return 'bg-slate-100 text-slate-700'
 }
 
-function formatDate(value) {
-  if (!value) return ''
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return String(value)
-  return new Intl.DateTimeFormat('en-PH', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  }).format(date)
+function getCommentBoxConfig(status) {
+  const value = normalizeStatus(status)
+
+  if (value === 'APPROVED' || value === 'VALIDATED') {
+    return {
+      heading: 'Approval Note',
+      Icon: CheckCircle2,
+      border: 'border-emerald-300',
+      iconColor: 'text-emerald-500',
+      triangle: 'border-b-emerald-500/15',
+    }
+  }
+  if (value === 'REJECTED') {
+    return {
+      heading: 'Rejection Reason',
+      Icon: XCircle,
+      border: 'border-red-300',
+      iconColor: 'text-red-500',
+      triangle: 'border-b-red-500/15',
+    }
+  }
+  if (value === 'REQUIRES_CORRECTION') {
+    return {
+      heading: 'Correction Required',
+      Icon: AlertTriangle,
+      border: 'border-yellow-300',
+      iconColor: 'text-yellow-500',
+      triangle: 'border-b-yellow-500/15',
+    }
+  }
+  return null
 }
 
-function DetailRow({ label, value, valueClassName }) {
+function formatDate(value) {
+  if (!value) return 'N/A'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return String(value)
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function DetailField({ label, value, valueClassName, span }) {
   if (value === null || value === undefined || value === '') return null
 
   return (
-    <div>
-      <p className="mb-1 text-[10px] uppercase tracking-wider text-slate-500">
+    <div className={span ? 'sm:col-span-2' : ''}>
+      <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
         {label}
       </p>
-      <p className={`text-sm text-[#1A1A2E] ${valueClassName || ''}`}>{value}</p>
+      <p className={`text-sm text-[#0d1f3c] ${valueClassName || ''}`}>{value}</p>
     </div>
   )
 }
@@ -127,111 +161,171 @@ export default function SubmissionDetailsDrawer({
     return () => controller.abort()
   }, [open, submissionId])
 
+  // Close on Escape, and don't let the page scroll behind the modal.
+  useEffect(() => {
+    if (!open) return
+
+    const handleKeyDown = (event) => {
+      if (event.key === 'Escape') onClose?.()
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+      document.body.style.overflow = previousOverflow
+    }
+  }, [open, onClose])
+
   const normalizedStatus = useMemo(
     () => normalizeStatus(details?.status),
     [details?.status],
   )
 
   const canResubmit = normalizedStatus === 'REQUIRES_CORRECTION'
+  const commentBoxConfig = getCommentBoxConfig(details?.status)
+
+  const referenceNumber =
+    details?.referenceNumber || details?.referenceNo || details?.reference || details?.id
+
+  const authorsLabel = Array.isArray(details?.authors)
+    ? details.authors
+        .map((author) => author?.fullName || author?.name || author)
+        .filter(Boolean)
+        .join(', ')
+    : details?.authors
+
+  if (!open) return null
 
   return (
     <div
-      className={`fixed inset-0 z-50 ${open ? '' : 'pointer-events-none'}`}
-      aria-hidden={!open}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-8"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Submission details"
     >
       <div
-        className={`absolute inset-0 bg-slate-950/30 transition-opacity ${
-          open ? 'opacity-100' : 'opacity-0'
-        }`}
+        className="absolute inset-0 bg-slate-950/60"
         onClick={onClose}
       />
 
-      <div
-        className={`absolute right-0 top-0 h-screen w-96 transform bg-white shadow-xl transition-transform ${
-          open ? 'translate-x-0' : 'translate-x-full'
-        }`}
-      >
-        <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
-          <h3 className="text-lg font-bold text-[#1A1A2E]">Submission Details</h3>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-md border border-slate-200 bg-white p-2 text-slate-400 transition hover:bg-slate-50 hover:text-slate-600"
-          >
-            <X className="h-4 w-4" />
-          </button>
+      <div className="relative flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-[10px] border border-[#e5e7eb] bg-white shadow-xl">
+        {/* Header — same hero pattern as the Submission History page */}
+        <div className="relative shrink-0 overflow-hidden bg-[#f8fafc] px-8 py-6">
+          <div
+            className="pointer-events-none absolute inset-0"
+            style={{
+              backgroundImage: 'url(/DOST_Building.png)',
+              backgroundSize: 'cover',
+              backgroundPosition: '78% 32%',
+              opacity: 0.12,
+            }}
+          />
+          <div className="relative z-10 flex items-start justify-between gap-6">
+            <div className="min-w-0">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-[#94a3b8]">
+                SUBMISSION HISTORY &gt; <span className="text-[#c9a84c]">DETAILS</span>
+              </p>
+              <h3
+                className="mt-2 truncate text-[22px] font-bold leading-snug text-[#0d1f3c]"
+                style={{ fontFamily: "'Libre Baskerville', serif" }}
+              >
+                {details?.title || 'Submission Details'}
+              </h3>
+                {details ? (
+                <div className="mt-3 flex flex-wrap items-center gap-3">
+                  {referenceNumber ? (
+                    <span className="text-[12px] font-bold text-[#6b7280]">Ref. {referenceNumber}</span>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="shrink-0 rounded-[8px] border border-[#e5e7eb] bg-white p-2 text-slate-400 transition hover:bg-slate-50 hover:text-slate-600"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
         </div>
+        <div className="h-px w-full shrink-0 bg-[#c9a84c]" />
 
-        <div className="h-screen overflow-y-auto p-6 pb-28">
+        {/* Scrollable body */}
+        <div className="flex-1 overflow-y-auto px-8 py-6">
           {status === 'loading' ? (
             <div className="text-sm text-slate-500">Loading submission...</div>
           ) : error ? (
-            <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            <div className="rounded-[10px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
               {error}
             </div>
           ) : details ? (
-            <div className="flex flex-col gap-5">
-              <span
-                className={`inline-flex w-fit rounded-full px-3 py-1 text-xs font-semibold ${getStatusBadgeClasses(
-                  details.status,
-                )}`}
-              >
-                {formatStatusLabel(details.status)}
-              </span>
+            <div className="flex flex-col gap-6">
+              <div className="grid grid-cols-1 gap-x-6 gap-y-4 rounded-[10px] border border-[#e5e7eb] bg-[#f8fafc] p-5 sm:grid-cols-2">
+                <DetailField label="Type" value={details.researchType || details.type} />
+                <DetailField label="Completion Year" value={details.completionYear || details.year} />
+                <DetailField
+                  label="Publication Venue"
+                  value={details.publicationVenue || details.publicationVenueStatus}
+                />
+                <DetailField
+                  label="Submitted"
+                  value={formatDate(details.submittedAt || details.createdAt || details.submissionDate)}
+                />
+                <DetailField label="Authors" value={authorsLabel} span />
+                <DetailField label="Subject" value={details.subjectDc || details.sAndTTheme} />
+                <DetailField label="Coverage" value={details.coverageDc} />
+                <DetailField label="Rights" value={details.rightsDc} />
+                {details.doi ? (
+                  <div>
+                    <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                      DOI
+                    </p>
+                    <a
+                      href={
+                        String(details.doi).startsWith('http')
+                          ? details.doi
+                          : `https://doi.org/${details.doi}`
+                      }
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 text-sm font-medium text-blue-700 hover:text-blue-900"
+                    >
+                      {details.doi}
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  </div>
+                ) : null}
+              </div>
 
-              <DetailRow
-                label="Reference Number"
-                value={
-                  details.referenceNumber ||
-                  details.referenceNo ||
-                  details.reference ||
-                  details.id
-                }
-              />
-              <DetailRow label="Research Title" value={details.title} valueClassName="font-bold" />
-              <DetailRow label="Type" value={details.researchType || details.type} />
-              <DetailRow label="Completion Year" value={details.completionYear || details.year} />
-              <DetailRow
-                label="Publication Venue"
-                value={details.publicationVenue || details.publicationVenueStatus}
-              />
-              <DetailRow
-                label="Authors"
-                value={Array.isArray(details.authors)
-                  ? details.authors
-                      .map((author) => author?.fullName || author?.name || author)
-                      .filter(Boolean)
-                      .join(', ')
-                  : details.authors}
-              />
-              <DetailRow
-                label="Submitted At"
-                value={formatDate(details.submittedAt || details.createdAt || details.submissionDate)}
-              />
-              <DetailRow label="Abstract" value={details.abstractText || details.abstract} />
-              {details.doi ? (
+              {(details.abstractText || details.abstract) ? (
                 <div>
-                  <p className="mb-1 text-[10px] uppercase tracking-wider text-slate-500">
-                    DOI
+                  <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                    Abstract
                   </p>
-                  <a
-                    href={String(details.doi).startsWith('http') ? details.doi : `https://doi.org/${details.doi}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-sm text-blue-600 hover:text-blue-800"
-                  >
-                    {details.doi}
-                  </a>
+                  <p className="text-sm leading-relaxed text-[#0d1f3c]">
+                    {details.abstractText || details.abstract}
+                  </p>
                 </div>
               ) : null}
-              <DetailRow label="Subject" value={details.subjectDc || details.sAndTTheme} />
-              <DetailRow label="Coverage" value={details.coverageDc} />
-              <DetailRow label="Rights" value={details.rightsDc} />
 
-              {canResubmit && details?.correctionNotes ? (
-                <div className="mt-4 rounded-md border border-yellow-300 bg-yellow-50 p-4 text-sm text-yellow-800">
-                  <p className="font-bold">⚠ Correction Required</p>
-                  <p className="mt-2">{details.correctionNotes}</p>
+              {commentBoxConfig && details.correctionNotes ? (
+                <div className={`relative overflow-hidden rounded-[8px] border bg-white shadow-sm ${commentBoxConfig.border}`}>
+                  <div className="flex items-start gap-3 px-5 py-4">
+                    <commentBoxConfig.Icon className={`mt-0.5 h-4 w-4 shrink-0 ${commentBoxConfig.iconColor}`} />
+                    <div>
+                      <p className="text-sm font-semibold text-[#0d1f3c]">{commentBoxConfig.heading}</p>
+                      <p className="mt-2 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                        Admin Comment
+                      </p>
+                      <p className="mt-1 text-sm leading-relaxed text-slate-600">
+                        {details.correctionNotes}
+                      </p>
+                    </div>
+                  </div>
+                  <div className={`pointer-events-none absolute bottom-0 right-0 h-0 w-0 border-b-[56px] border-l-[56px] border-l-transparent ${commentBoxConfig.triangle}`} />
                 </div>
               ) : null}
             </div>
@@ -241,18 +335,26 @@ export default function SubmissionDetailsDrawer({
         </div>
 
         {details ? (
-          <div className="absolute bottom-0 left-0 right-0 border-t border-slate-200 bg-white px-6 py-4">
-            <div className="flex items-center justify-end gap-3">
-              {canResubmit ? (
-                <button
-                  type="button"
-                  onClick={() => onEditResubmit?.(details)}
-                  className="flex items-center gap-2 rounded-md bg-[#1A1A2E] px-6 py-2 text-white transition hover:bg-[#11111f]"
-                >
-                  Edit & Resubmit
-                </button>
-              ) : null}
-            </div>
+          <div className="flex shrink-0 items-center justify-end gap-3 border-t border-[#e5e7eb] bg-white px-8 py-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-[8px] border border-[#e5e7eb] bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+            >
+              Close
+            </button>
+            {canResubmit ? (
+              <button
+                type="button"
+                onClick={() => {
+                  console.log("DETAILS:", details);
+                  onEditResubmit?.(details);
+                }}
+                className="rounded-[8px] bg-[#0d1f3c] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#0b1a33]"
+              >
+                Edit & Resubmit
+              </button>
+            ) : null}
           </div>
         ) : null}
       </div>

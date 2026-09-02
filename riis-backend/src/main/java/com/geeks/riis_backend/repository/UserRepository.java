@@ -37,6 +37,8 @@ public interface UserRepository extends JpaRepository<User, String> {
 			@Param("status") String status
 	);
 
+	List<User> findByEmployeeId(String employeeId);
+
 	Optional<User> findByEmail(String email);
 
 	boolean existsByEmail(String email);

@@ -5,7 +5,8 @@ import { dostNavItems } from './PendingSubmissionsPage'
 import apiClient from '../../services/apiClient'
 
 const RESEARCH_TYPES = ['Journal Article', 'Conference Paper', 'Funded Project', 'Innovation Output', 'IP Registration']
-const YEARS = Array.from({ length: 10 }, (_, i) => 2026 - i)
+const currentYear = new Date().getFullYear()
+const YEARS = Array.from({ length: currentYear - 2026 + 1 }, (_, i) => 2026 + i)
 
 export default function ReportGeneratorPage() {
   const [yearFrom, setYearFrom] = useState('')
@@ -16,20 +17,31 @@ export default function ReportGeneratorPage() {
   const [status, setStatus] = useState('idle')
   const [result, setResult] = useState(null)
   const [error, setError] = useState('')
+  const [yearError, setYearError] = useState(false)
   const [jobId, setJobId] = useState(null)
   const [preview, setPreview] = useState([])
   const [previewLoading, setPreviewLoading] = useState(true)
+  const [scopeType, setScopeType] = useState('REGION')
+  const [institutionId, setInstitutionId] = useState('')
+  const [province, setProvince] = useState('')
+  const [institutions, setInstitutions] = useState([])
 
   useEffect(() => {
     const fetchPreview = async () => {
       setPreviewLoading(true)
       try {
-        const res = await apiClient.get('/admin/submissions', {
-          params: { status: 'APPROVED', page: 0, size: 5 }
+        const res = await apiClient.post('/reports/preview', {
+          yearFrom: yearFrom ? parseInt(yearFrom) : null,
+          yearTo: yearTo ? parseInt(yearTo) : null,
+          researchTypes: selectedTypes.length > 0 ? selectedTypes : null,
+          fundingSources: fundingSource ? [fundingSource] : null,
+          outputFormat,
+          scopeType,
+          institutionId: institutionId || null,
+          province: province || null,
         })
         const data = res.data
-        const content = Array.isArray(data) ? data : data?.content || []
-        setPreview(content)
+        setPreview(Array.isArray(data) ? data : [])
       } catch {
         setPreview([])
       } finally {
@@ -37,7 +49,7 @@ export default function ReportGeneratorPage() {
       }
     }
     fetchPreview()
-  }, [])
+  }, [yearFrom, yearTo, selectedTypes, fundingSource, scopeType, institutionId, province])
 
   useEffect(() => {
     if (yearFrom) {
@@ -45,16 +57,43 @@ export default function ReportGeneratorPage() {
     }
   }, [yearFrom])
 
+   useEffect(() => {
+    if (!yearFrom || !yearTo) return
+    handleGenerate()
+  }, [yearFrom, yearTo, selectedTypes, fundingSource, outputFormat, scopeType, institutionId, province])
+
+
+  useEffect(() => {
+    const fetchInstitutions = async () => {
+      try {
+        const res = await apiClient.get('/admin/institutions')
+        const data = res.data
+        setInstitutions(Array.isArray(data) ? data : (data?.content ?? []))
+      } catch {
+        setInstitutions([])
+      }
+    }
+    fetchInstitutions()
+  }, [])
+
   const toggleType = (type) => {
     setSelectedTypes(prev =>
       prev.includes(type) ? prev.filter(t => t !== type) : [...prev, type]
     )
   }
 
-  const handleGenerate = async () => {
-    setStatus('generating')
-    setError('')
-    setResult(null)
+const handleGenerate = async () => {
+  if (!yearFrom || !yearTo) {
+    setYearError(true)
+    setError('Year From and Year To are required. Please select a year range before generating a report.')
+    document.querySelector('main')?.scrollTo({ top: 0, behavior: 'smooth' })
+    return
+  }
+  setYearError(false)
+
+  setStatus('generating')
+  setError('')
+  setResult(null)
 
     try {
       const res = await apiClient.post('/reports/generate', {
@@ -63,6 +102,9 @@ export default function ReportGeneratorPage() {
         researchTypes: selectedTypes.length > 0 ? selectedTypes : null,
         fundingSources: fundingSource ? [fundingSource] : null,
         outputFormat,
+        scopeType,
+        institutionId: institutionId || null,
+        province: province || null,
       })
 
       if (res.status === 200) {
@@ -100,16 +142,37 @@ export default function ReportGeneratorPage() {
     }, 3000)
   }
 
-  const handleReset = () => {
+    const handleReset = () => {
     setYearFrom('')
     setYearTo('')
     setSelectedTypes([])
     setFundingSource('')
     setOutputFormat('CSV')
+    setScopeType('REGION')
+    setInstitutionId('')
+    setProvince('')
     setStatus('idle')
     setResult(null)
     setError('')
     setJobId(null)
+  }
+
+  const handleDownload = async (url, filename) => {
+    try {
+      const response = await fetch(url)
+      const blob = await response.blob()
+      const objectUrl = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = objectUrl
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(objectUrl)
+    } catch (err) {
+      console.error('Download failed:', err)
+      setError('Failed to download the report. Please try again.')
+    }
   }
 
   return (
@@ -138,8 +201,6 @@ export default function ReportGeneratorPage() {
                 </p>
               </div>
               <div className="text-right shrink-0">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-[#94a3b8]">ACADEMIC YEAR</p>
-                <p className="text-[13px] font-bold text-[#0d1f3c]">2025-2026</p>
                 <p className="mt-1 text-[12px] text-[#6b7280]">DOST Region VII</p>
               </div>
             </div>
@@ -179,6 +240,61 @@ export default function ReportGeneratorPage() {
                 </div>
               </div>
 
+              {/* Report Scope */}
+              <div className="mb-5">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-2">
+                  Report Scope
+                </p>
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {[
+                    { key: 'REGION', label: 'All Region VII' },
+                    { key: 'PROVINCE', label: 'By Province' },
+                    { key: 'HEI', label: 'By HEI' },
+                  ].map(opt => (
+                    <button
+                      key={opt.key}
+                      type="button"
+                      onClick={() => {
+                        setScopeType(opt.key)
+                        setProvince('')
+                        setInstitutionId('')
+                      }}
+                      className={`rounded-full px-3 py-1.5 text-xs font-medium transition border ${
+                        scopeType === opt.key
+                          ? 'bg-[#1A1A2E] text-white border-[#1A1A2E]'
+                          : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+
+                {scopeType === 'PROVINCE' && (
+                  <select
+                    value={province}
+                    onChange={e => setProvince(e.target.value)}
+                    className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-3 pr-8 text-sm text-slate-600 appearance-none focus:outline-none focus:ring-1 focus:ring-[#C9A84C]"
+                  >
+                    <option value="">Select province</option>
+                    {['Cebu', 'Bohol'].map(p => <option key={p} value={p}>{p}</option>)}
+                  </select>
+                )}
+
+                {scopeType === 'HEI' && (
+                  <select
+                    value={institutionId}
+                    onChange={e => setInstitutionId(e.target.value)}
+                    className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-3 pr-8 text-sm text-slate-600 appearance-none focus:outline-none focus:ring-1 focus:ring-[#C9A84C]"
+                  >
+                    <option value="">Select institution</option>
+                    {institutions.map(inst => (
+                      <option key={inst.id} value={inst.id}>{inst.name}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
               {/* Year range */}
               <div className="grid grid-cols-2 gap-4 mb-5">
                 <div>
@@ -186,10 +302,10 @@ export default function ReportGeneratorPage() {
                   <div className="relative">
                     <select
                       value={yearFrom}
-                      onChange={e => setYearFrom(e.target.value)}
-                      className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-3 pr-8 text-sm text-slate-600 appearance-none focus:outline-none focus:ring-1 focus:ring-[#C9A84C]"
+                      onChange={e => { setYearFrom(e.target.value); setYearError(false) }}
+                      className={`w-full rounded-lg border bg-white py-2.5 pl-3 pr-8 text-sm text-slate-600 appearance-none focus:outline-none focus:ring-1 focus:ring-[#C9A84C] ${yearError ? 'border-red-400 ring-1 ring-red-200' : 'border-slate-200'}`}
                     >
-                      <option value=""></option>
+                      <option value="">Select year</option>
                       {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
                     </select>
                   </div>
@@ -199,10 +315,10 @@ export default function ReportGeneratorPage() {
                   <div className="relative">
                     <select
                       value={yearTo}
-                      onChange={e => setYearTo(e.target.value)}
-                      className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-3 pr-8 text-sm text-slate-600 appearance-none focus:outline-none focus:ring-1 focus:ring-[#C9A84C]"
+                      onChange={e => { setYearTo(e.target.value); setYearError(false) }}
+                      className={`w-full rounded-lg border bg-white py-2.5 pl-3 pr-8 text-sm text-slate-600 appearance-none focus:outline-none focus:ring-1 focus:ring-[#C9A84C] ${yearError ? 'border-red-400 ring-1 ring-red-200' : 'border-slate-200'}`}
                     >
-                      <option value=""></option>
+                      <option value="">Select year</option>
                       {YEARS.filter(y => !yearFrom || y >= parseInt(yearFrom)).map(y => (
                         <option key={y} value={y}>{y}</option>
                       ))}
@@ -234,21 +350,18 @@ export default function ReportGeneratorPage() {
                 </div>
               </div>
 
-              {/* Funding Source */}
+                            {/* Funding Source */}
               <div className="mb-5">
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
                   Funding Source
                 </p>
-                <select
+                <input
+                  type="text"
                   value={fundingSource}
                   onChange={e => setFundingSource(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-3 pr-8 text-sm text-slate-600 appearance-none focus:outline-none focus:ring-1 focus:ring-[#C9A84C]"
-                >
-                  <option value=""></option>
-                  {['DOST-PCAARRD', 'DOST-PCIEERD', 'DOST-CHED', 'Self-Funded', 'Other'].map(f => (
-                    <option key={f} value={f}>{f}</option>
-                  ))}
-                </select>
+                  placeholder="e.g., DOST-PCIEERD"
+                  className="w-full rounded-lg border border-slate-200 bg-white py-2.5 px-3 text-sm text-slate-600 focus:outline-none focus:ring-1 focus:ring-[#C9A84C]"
+                />
               </div>
             </div>
 
@@ -307,17 +420,16 @@ export default function ReportGeneratorPage() {
                 </div>
               ) : preview.length === 0 ? (
                 <div className="px-6 py-8 text-center text-sm text-slate-400">
-                  No approved records found.
+                  No records found.
                 </div>
               ) : (
-                <table className="min-w-full">
+                  <table className="min-w-full">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-100">
                       <th className="px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-400">Report Title</th>
                       <th className="px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-400">Type</th>
                       <th className="px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-400">Year</th>
                       <th className="px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-400">Funding</th>
-                      <th className="px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-400">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
@@ -333,11 +445,6 @@ export default function ReportGeneratorPage() {
                         </td>
                         <td className="px-5 py-3 text-sm text-slate-600">{item.completionYear || '—'}</td>
                         <td className="px-5 py-3 text-sm text-slate-600">{item.fundingSource || '—'}</td>
-                        <td className="px-5 py-3">
-                          <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">
-                            Approved
-                          </span>
-                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -357,7 +464,13 @@ export default function ReportGeneratorPage() {
                 <h3 className="text-sm font-bold text-[#1A1A2E]">Report Configuration Summary</h3>
               </div>
               <div className="space-y-2 text-xs">
-                <p><span className="text-amber-600 font-semibold">● Scope:</span> <span className="text-slate-600">DOST Region VII</span></p>
+                <p><span className="text-amber-600 font-semibold">● Scope:</span> <span className="text-slate-600">
+                  {scopeType === 'HEI'
+                    ? (institutions.find(i => i.id === institutionId)?.name || 'Select an HEI')
+                    : scopeType === 'PROVINCE'
+                    ? (province || 'Select a province')
+                    : 'DOST Region VII'}
+                </span></p>
                 <p><span className="text-amber-600 font-semibold">● Year Range:</span> <span className="text-slate-600">{yearFrom || '—'} – {yearTo || '—'}</span></p>
                 <p><span className="text-amber-600 font-semibold">● Types:</span> <span className="text-slate-600">{selectedTypes.length > 0 ? selectedTypes.join(', ') : 'All'}</span></p>
                 <p><span className="text-amber-600 font-semibold">● Format:</span> <span className="text-slate-600">{outputFormat}</span></p>
@@ -383,29 +496,19 @@ export default function ReportGeneratorPage() {
                 <p className="text-xs text-slate-500">
                   {result.recordCount} records exported successfully.
                 </p>
-                <a
-                  href={result.downloadUrl}
-                  target="_blank"
-                  rel="noreferrer"
+                                <button
+                  type="button"
+                  onClick={() => handleDownload(result.downloadUrl, `report.${outputFormat.toLowerCase()}`)}
                   className="flex items-center justify-center gap-2 w-full rounded-lg bg-emerald-600 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 transition"
                 >
                   <Download className="h-4 w-4" />
                   Download {outputFormat} Report
-                </a>
+                </button>
               </div>
             ) : null}
 
             {/* Action buttons */}
             <div className="space-y-3">
-              <button
-                type="button"
-                onClick={handleGenerate}
-                disabled={status === 'generating' || status === 'polling'}
-                className="w-full flex items-center justify-center gap-2 rounded-lg bg-[#1A1A2E] py-3 text-sm font-semibold text-white hover:bg-[#11111f] disabled:opacity-50 disabled:cursor-not-allowed transition"
-              >
-                <Download className="h-4 w-4" />
-                Download All Reports
-              </button>
               <button
                 type="button"
                 onClick={handleReset}

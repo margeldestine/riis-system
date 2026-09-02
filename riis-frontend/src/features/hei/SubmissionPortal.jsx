@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import {
   Check,
@@ -17,14 +17,177 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import apiClient from '../../services/apiClient'
 
+// Same env-var pattern as apiClient.js -- this file makes several raw
+// axios/fetch calls (token refresh, file upload, submit/resubmit) that
+// bypass the shared apiClient instance entirely (each attaches its own
+// Bearer token manually), so they need their own base URL reference
+// rather than silently staying hardcoded to localhost after apiClient.js
+// gets fixed.
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1'
+
 const currentYear = new Date().getFullYear()
 const doiPattern = /^10\.\d{4,9}\/[-._;()/:A-Z0-9]+$/i
 const orcidPattern = /^(\d{4}-){3}\d{3}[\dX]$/i
 const conferenceUrlPattern = /^https?:\/\/.+/i
+const alphabeticContentPattern = /[a-zA-Z]/
+const keywordPattern = /^[A-Za-z0-9./'()-]+(?:\s[A-Za-z0-9./'()-]+){0,5}$/
+
+
+function isValidRightsOrCoverage(value) {
+  const trimmed = (value ?? '').trim()
+  if (alphabeticContentPattern.test(trimmed)) return true
+  if (/^\d+$/.test(trimmed)) return trimmed.length <= 5
+  return false
+}
+
+function isValidKeyword(word) {
+  return keywordPattern.test(word)
+}
+
+const vowelPattern = /[aeiouAEIOU]/
+
+const QWERTY_ADJACENCY = {
+  q: 'wa', w: 'qeas', e: 'wrsd', r: 'etdf', t: 'ryfg', y: 'tugh', u: 'yihj',
+  i: 'uojk', o: 'ipkl', p: 'ol',
+  a: 'qwsz', s: 'awedxz', d: 'serfcx', f: 'drtgvc', g: 'ftyhbv', h: 'gyujnb',
+  j: 'huikmn', k: 'jiolm', l: 'kop',
+  z: 'asx', x: 'zsdc', c: 'xdfv', v: 'cfgb', b: 'vghn', n: 'bhjm', m: 'njk',
+}
+
+function isKeyboardAdjacent(a, b) {
+  const neighbors = QWERTY_ADJACENCY[a]
+  return Boolean(neighbors && neighbors.includes(b))
+}
+
+function keyboardAdjacencyRatio(word) {
+  const letters = word.toLowerCase().replace(/[^a-z]/g, '')
+  if (letters.length < 4) return 0
+  let adjacentPairs = 0
+  for (let i = 1; i < letters.length; i++) {
+    if (isKeyboardAdjacent(letters[i - 1], letters[i])) adjacentPairs++
+  }
+  return adjacentPairs / (letters.length - 1)
+}
+
+function hasExcessiveConsonantRun(word, maxRun = 5) {
+  let run = 0
+  for (const ch of word) {
+    if (/[a-zA-Z]/.test(ch) && !vowelPattern.test(ch)) {
+      run += 1
+      if (run > maxRun) return true
+    } else {
+      run = 0
+    }
+  }
+  return false
+}
+
+function hasExcessiveRepeatedChar(word, maxRun = 3) {
+  let run = 1
+  for (let i = 1; i < word.length; i++) {
+    if (word[i].toLowerCase() === word[i - 1].toLowerCase()) {
+      run += 1
+      if (run > maxRun) return true
+    } else {
+      run = 1
+    }
+  }
+  return false
+}
+
+function isRepeatedSubstring(word) {
+  return /^(.+)\1+$/.test(word.toLowerCase())
+}
+
+const COMMON_ENGLISH_BIGRAMS = new Set([
+  'th','he','in','er','an','re','on','at','en','nd','ti','es','or','te',
+  'of','ed','is','it','al','ar','st','to','nt','ng','se','ha','as','ou',
+  'io','le','ve','co','me','de','hi','ri','ro','ic','ne','ea','ra','ce',
+  'li','ch','ll','be','ma','si','om','ur','ca','el','ta','la','ns','di',
+  'fo','ho','pe','ec','pr','no','ct','us','ac','ot','il','tr','ly','nc',
+  'ex','so','ss','wi','wa','sh','ee','id','oo','oc','fi','ai','ea','ow',
+  'ne','ge','ki','sa','av','pa','au','ni','gh','ir','ph','sc','wo','fr',
+])
+
+function bigramPlausibilityRatio(word) {
+  const letters = word.toLowerCase().replace(/[^a-z]/g, '')
+  if (letters.length < 5) return 1 // too short to judge reliably; don't penalize
+  let commonCount = 0
+  const total = letters.length - 1
+  for (let i = 0; i < total; i++) {
+    if (COMMON_ENGLISH_BIGRAMS.has(letters.slice(i, i + 2))) commonCount++
+  }
+  return commonCount / total
+}
+
+function isGibberishWord(rawWord) {
+  const clean = (rawWord ?? '').replace(/[^A-Za-z]/g, '')
+  if (clean.length < 3) return false
+  if (isRepeatedSubstring(clean)) return true
+  if (!vowelPattern.test(clean)) return true
+  if (hasExcessiveConsonantRun(clean, 5) && bigramPlausibilityRatio(clean) < 0.3) return true
+  if (hasExcessiveRepeatedChar(clean)) return true
+  if (keyboardAdjacencyRatio(clean) > 0.5) return true
+  if (bigramPlausibilityRatio(clean) < 0.15) return true
+  return false
+}
+
+const ENGLISH_STOPWORDS = new Set([
+  'the','and','of','to','in','is','was','for','with','this','that','are',
+  'on','as','by','an','be','from','at','it','we','our','which','these',
+  'their','has','have','were','can','also','may','been','not','its',
+  'such','other','than','into','more','used','based','study','research',
+  'data','analysis','method','methods','results','findings','a','or',
+  'between','among','using','showed','found','significant','both',
+])
+
+function commonWordRatio(text) {
+  const words = (text ?? '')
+    .toLowerCase()
+    .replace(/[^a-z\s]/g, ' ')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+  if (words.length === 0) return 0
+  return words.filter((w) => ENGLISH_STOPWORDS.has(w)).length / words.length
+}
+
+function isGibberishText(value, { maxGibberishRatio = 0.34, minWordsToCheck = 3, minCommonWordRatio = 0.08 } = {}) {
+  const words = (value ?? '').trim().split(/\s+/).filter(Boolean)
+  if (words.length < minWordsToCheck) return false
+
+  const tokens = tokenizeForGibberishCheck(value)
+  const gibberishCount = tokens.filter(isGibberishWord).length
+  const tooManyGibberishWords = tokens.length > 0 && gibberishCount / tokens.length > maxGibberishRatio
+
+  const tooFewCommonWords = words.length >= 15 && commonWordRatio(value) < minCommonWordRatio
+
+  return tooManyGibberishWords || tooFewCommonWords
+}
+
+function tokenizeForGibberishCheck(value) {
+  return (value ?? '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .flatMap((word) => word.split(/[/-]+/).filter(Boolean))
+}
+
+function findFirstGibberishWord(value) {
+  return tokenizeForGibberishCheck(value).find((w) => isGibberishWord(w)) || null
+}
+
+function containsGibberishWord(text) {
+  return tokenizeForGibberishCheck(text).some((word) => isGibberishWord(word))
+}
 
 function formatOrcidInput(value) {
-  const digits = (value ?? '').toString().replace(/\D/g, '').slice(0, 16)
-  const chunks = digits.match(/.{1,4}/g) || []
+  const cleaned = (value ?? '')
+    .toString()
+    .toUpperCase()
+    .replace(/[^0-9X]/g, '')
+    .slice(0, 16)
+  const chunks = cleaned.match(/.{1,4}/g) || []
   return chunks.join('-')
 }
 
@@ -44,14 +207,35 @@ function formatDoiInput(value) {
   return withoutPrefix
 }
 
+const CONFERENCE_URL_PREFIX = 'https://'
+
 function formatConferenceUrlInput(value) {
-  const trimmed = (value ?? '').toString().trim()
-  if (!trimmed) return ''
+  const raw = (value ?? '').toString()
 
-  if (/^[a-zA-Z][a-zA-Z\d+.-]*:\/\//.test(trimmed)) return trimmed
-  if (!/[./]/.test(trimmed)) return trimmed
+  if (!raw.startsWith(CONFERENCE_URL_PREFIX)) {
+    const withoutPrefix = raw.replace(/^https?:?\/{0,2}/i, '')
+    return `${CONFERENCE_URL_PREFIX}${withoutPrefix}`
+  }
 
-  return `https://${trimmed.replace(/^\/+/, '')}`
+  return raw
+}
+
+const namePattern = /^[A-Za-z]+(?:[ '-][A-Za-z]+)*$/
+
+function sanitizeFullNameInput(value) {
+  return (value ?? '').replace(/[^A-Za-z\s'-]/g, '')
+}
+
+function sanitizeKeywordInput(value) {
+  return (value ?? '').replace(/[^A-Za-z0-9\s./'()-]/g, '')
+}
+
+function sanitizeRightsInput(value) {
+  return (value ?? '').replace(/[^A-Za-z0-9\s\-',.()/&]/g, '')
+}
+
+function sanitizeCoverageInput(value) {
+  return (value ?? '').replace(/[^A-Za-z0-9\s\-',.()/&]/g, '')
 }
 
 function decodeBase64Url(value) {
@@ -104,7 +288,7 @@ async function ensureFreshToken() {
 
   if (!isTokenExpiringSoon(token, 5 * 60 * 1000)) return token
 
-  const response = await fetch('http://localhost:8080/api/v1/auth/refresh', {
+  const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -186,7 +370,13 @@ function countWords(value) {
 }
 
 const authorSchema = z.object({
-  fullName: z.string().trim().min(1, 'Author full name is required.'),
+    fullName: z
+    .string()
+    .trim()
+    .min(1, 'Author full name is required.')
+    .regex(namePattern, {
+      message: 'Full name can only contain letters, spaces, hyphens, and apostrophes.',
+    }),
   orcidId: z
     .string()
     .trim()
@@ -198,11 +388,11 @@ const authorSchema = z.object({
 
 const submissionSchema = z
   .object({
-    title: z
-      .string()
-      .trim()
-      .min(1, 'Research title is required.')
-      .max(500, 'Research title must be 500 characters or fewer.'),
+  title: z
+  .string()
+  .trim()
+  .min(1, 'Research title is required.')
+  .max(500, 'Research title must be 500 characters or fewer.'),
     researchType: z.string().trim().min(1, 'Research type is required.'),
     completionYear: z.coerce
       .number({
@@ -211,11 +401,14 @@ const submissionSchema = z
       .int('Completion year must be a whole number.')
       .min(1900, 'Completion year must be valid.')
       .max(currentYear, `Completion year cannot exceed ${currentYear}.`),
-    fundingSource: z.string().trim().min(1, 'Funding source is required.'),
-    publicationVenue: z
+      fundingSource: z
       .string()
       .trim()
-      .min(1, 'Publication venue or status is required.'),
+      .min(1, 'Funding source is required.'),
+      publicationVenue: z
+    .string()
+    .trim()
+    .min(1, 'Publication venue or status is required.'),
     authors: z.array(authorSchema).min(1, 'Add at least one author.'),
     principalInvestigator: z
       .string()
@@ -226,25 +419,39 @@ const submissionSchema = z
       .trim()
       .min(1, 'Institutional affiliation is required.'),
     abstractText: z
-      .string()
-      .trim()
-      .min(1, 'Abstract is required.')
-      .superRefine((value, ctx) => {
-        const words = countWords(value)
-        if (words < 100 || words > 500) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: 'Abstract must be between 100 and 500 words.',
-          })
-        }
-      }),
-    keywords: z
-      .array(z.string().trim().min(1))
+    .string()
+    .trim()
+    .min(1, 'Abstract is required.')
+    .superRefine((value, ctx) => {
+      const words = countWords(value)
+      if (words < 100 || words > 500) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Abstract must be between 100 and 500 words.',
+        })
+      }
+    }),
+        keywords: z
+      .array(
+        z
+        .string()
+        .trim()
+        .min(1)
+          .refine((value) => keywordPattern.test(value), {
+          message: 'Invalid keyword format.',
+        }),
+      )
       .min(3, 'Add at least 3 keywords.')
       .max(10, 'You can add up to 10 keywords only.'),
     subjectDc: z.string().trim().min(1, 'Subject is required.'),
-    coverageDc: z.string().trim().min(1, 'Coverage is required.'),
-    rightsDc: z.string().trim().min(1, 'Rights is required.'),
+      coverageDc: z
+      .string()
+      .trim()
+      .min(1, 'Coverage is required.'),
+      rightsDc: z
+      .string()
+      .trim()
+      .min(1, 'Rights is required.'),
     doi: z
       .string()
       .trim()
@@ -267,6 +474,35 @@ const submissionSchema = z
       .optional(),
   })
   .superRefine((values, ctx) => {
+    const seenNames = new Set()
+    const seenOrcids = new Set()
+    values.authors.forEach((author, index) => {
+      const normalizedName = author.fullName.trim().toLowerCase()
+      if (normalizedName) {
+        if (seenNames.has(normalizedName)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['authors', index, 'fullName'],
+            message: 'This author has already been added.',
+          })
+        } else {
+          seenNames.add(normalizedName)
+        }
+      }
+
+      const normalizedOrcid = (author.orcidId || '').trim().toLowerCase()
+      if (normalizedOrcid) {
+        if (seenOrcids.has(normalizedOrcid)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['authors', index, 'orcidId'],
+            message: 'This ORCID iD is already used by another author.',
+          })
+        } else {
+          seenOrcids.add(normalizedOrcid)
+        }
+      }
+    })
     const authorNames = values.authors
       .map((author) => author.fullName.trim())
       .filter(Boolean)
@@ -425,6 +661,7 @@ function StepHeader({ stepId, title }) {
   )
 }
 
+
 const fieldLabelClass =
   'mb-2 block text-[11px] font-semibold uppercase tracking-[0.22em] text-[#374151]'
 
@@ -439,7 +676,7 @@ const fieldOkClass =
 const fieldErrorClass =
   'border-[#f87171] focus:border-[#f87171] focus:ring-2 focus:ring-[#f87171]/15'
 
-function BasicInfoStep({ register, errors }) {
+function BasicInfoStep({ register, errors, watchedTitle }) {
   return (
     <div>
       <StepHeader stepId={1} title="Research Identification" />
@@ -454,7 +691,7 @@ function BasicInfoStep({ register, errors }) {
             placeholder="e.g., Flood Risk Assessment in Bohol Using SAR imagery and GIS"
             className={`${fieldBaseClass} ${errors.title ? fieldErrorClass : fieldOkClass}`}
           />
-          <p className="text-[11px] text-[#94a3b8]">0 / 500</p>
+          <p className="text-[11px] text-[#94a3b8]">{(watchedTitle || '').length} / 500</p>
           <FieldMessage message={errors.title?.message} />
         </div>
 
@@ -511,7 +748,7 @@ function BasicInfoStep({ register, errors }) {
           </label>
           <input
             {...register('publicationVenue')}
-            placeholder="e.g., DOST-PCIEERD"
+            placeholder="e.g., Published in Philippine Journal of Science, 2024"
             className={`${fieldBaseClass} ${errors.publicationVenue ? fieldErrorClass : fieldOkClass}`}
           />
           <FieldMessage message={errors.publicationVenue?.message} />
@@ -525,10 +762,13 @@ function TeamAffiliationStep({
   control,
   register,
   errors,
+  touchedFields,
   authorFields,
   appendAuthor,
   removeAuthor,
   authorOptions,
+  authorNameWarnings,
+  onBlockedNameChar,
 }) {
   const hasAuthorGroupError = Boolean(errors?.authors?.message)
 
@@ -564,21 +804,35 @@ function TeamAffiliationStep({
                     <label className={fieldLabelClass}>
                       Full Name <span className="text-[#C9A84C]">*</span>
                     </label>
-                    <input
-                      {...register(`authors.${index}.fullName`)}
-                      placeholder="Type author name and press Enter..."
-                      className={`${fieldBaseClass} ${
-                        (index === 0 && hasAuthorGroupError) || errors.authors?.[index]?.fullName
-                          ? fieldErrorClass
-                          : fieldOkClass
-                      }`}
+                    <Controller
+                      control={control}
+                      name={`authors.${index}.fullName`}
+                      render={({ field: controllerField }) => (
+                        <input
+                          {...controllerField}
+                          value={controllerField.value ?? ''}
+                          onChange={(event) => {
+                            const raw = event.target.value
+                            const sanitized = sanitizeFullNameInput(raw)
+                            if (sanitized !== raw) {
+                              onBlockedNameChar(index)
+                            }
+                            controllerField.onChange(sanitized)
+                          }}
+                          placeholder="Type author name and press Enter..."
+                          className={`${fieldBaseClass} ${
+                            (index === 0 && hasAuthorGroupError) || errors.authors?.[index]?.fullName
+                              ? fieldErrorClass
+                              : fieldOkClass
+                          }`}
+                        />
+                      )}
                     />
                     <FieldMessage
                       message={
-                        index === 0 &&
-                        (hasAuthorGroupError || Boolean(errors.authors?.[index]?.fullName))
-                          ? 'Author(s) is required'
-                          : errors.authors?.[index]?.fullName?.message
+                        authorNameWarnings?.[index] ||
+                        errors.authors?.[index]?.fullName?.message ||
+                        (index === 0 && hasAuthorGroupError ? 'Author(s) is required' : undefined)
                       }
                     />
                   </div>
@@ -591,26 +845,38 @@ function TeamAffiliationStep({
                       </span>
                     </label>
                     <Controller
-                      control={control}
-                      name={`authors.${index}.orcidId`}
-                      render={({ field: controllerField }) => (
-                        <input
-                          {...controllerField}
-                          value={controllerField.value ?? ''}
-                          onChange={(event) => {
-                            controllerField.onChange(
-                              formatOrcidInput(event.target.value),
-                            )
-                          }}
-                          placeholder="0000-0000-0000-0000"
-                          maxLength={19}
-                          className={`${fieldBaseClass} ${errors.authors?.[index]?.orcidId ? fieldErrorClass : fieldOkClass}`}
-                        />
-                      )}
+                        control={control}
+                        name={`authors.${index}.orcidId`}
+                        render={({ field: controllerField }) => {
+                          const isTouched = Boolean(touchedFields.authors?.[index]?.orcidId)
+                          const showError = isTouched && Boolean(errors.authors?.[index]?.orcidId)
+                          return (
+                    <input
+                      {...controllerField}
+                      value={controllerField.value ?? ''}
+                      onChange={(event) => {
+                        controllerField.onChange(
+                          formatOrcidInput(event.target.value),
+                        )
+                      }}
+                      onBlur={() => {
+                        controllerField.onBlur()
+                      }}
+                      placeholder="0000-0000-0000-0000"
+                      maxLength={19}
+                      className={`${fieldBaseClass} ${showError ? fieldErrorClass : fieldOkClass}`}
                     />
-                    <FieldMessage message={errors.authors?.[index]?.orcidId?.message} />
-                  </div>
-
+                  )
+                }}
+              />
+              <FieldMessage
+                message={
+                  touchedFields.authors?.[index]?.orcidId
+                    ? errors.authors?.[index]?.orcidId?.message
+                    : undefined
+                }
+            />
+            </div>
                   <div className="flex items-end pb-[2px]">
                     <button
                       type="button"
@@ -627,6 +893,7 @@ function TeamAffiliationStep({
             ))}
           </div>
         </div>
+        
 
         <div className="grid gap-5 md:grid-cols-2">
           <div className="space-y-2">
@@ -680,15 +947,25 @@ function TeamAffiliationStep({
 }
 
 
-function KeywordsInput({
-  keywords,
-  onAddKeyword,
-  onRemoveKeyword,
-  keywordInput,
-  setKeywordInput,
-  error,
-}) {
-  const keywordErrorMessage = error ? `Minimum 3 keywords required (${keywords.length} added)` : ''
+  function KeywordsInput({
+      keywords,
+      onAddKeyword,
+      onRemoveKeyword,
+      keywordInput,
+      setKeywordInput,
+      error,        
+      warning,
+      onBlockedChar,
+      onNumberChar,
+    }) {
+  const hasInvalidKeyword = Array.isArray(error) && error.some(Boolean)
+  const arrayLevelMessage = error?.root?.message || (!Array.isArray(error) ? error?.message : undefined)
+
+  const keywordErrorMessage = hasInvalidKeyword
+    ? 'Please enter a valid keyword.'
+    : arrayLevelMessage
+      ? `Minimum 3 keywords required (${keywords.length} added)`
+      : ''
 
   const handleKeyDown = (event) => {
     if (event.key === 'Enter' || event.key === ',') {
@@ -731,7 +1008,16 @@ function KeywordsInput({
           {keywords.length < 10 ? (
             <input
               value={keywordInput}
-              onChange={(event) => setKeywordInput(event.target.value)}
+              onChange={(event) => {
+                const raw = event.target.value
+                const sanitized = sanitizeKeywordInput(raw)
+                if (sanitized !== raw) {
+                  onBlockedChar()
+                } else if (/\d/.test(raw) && /^\d+$/.test(raw.trim())) {
+                  onNumberChar()
+                }
+                setKeywordInput(sanitized)
+              }}
               onKeyDown={handleKeyDown}
               onBlur={onAddKeyword}
               placeholder="Type Keyword and press Enter or comma...."
@@ -743,24 +1029,34 @@ function KeywordsInput({
       <div className="mt-1 flex justify-end">
         <p className="text-[12px] text-[#9ca3af]">{keywords.length} / 10 keywords</p>
       </div>
-      {error ? (
+      {warning ? (
+        <p className="mt-1 text-[12px] font-medium text-[#dc2626]">{warning}</p>
+      ) : error ? (
         <p className="mt-1 text-[12px] font-mono text-[#dc2626]">{keywordErrorMessage}</p>
       ) : null}
     </div>
   )
 }
 
-function ResearchDetailsStep({
-  register,
-  errors,
-  abstractText,
-  keywords,
-  onAddKeyword,
-  onRemoveKeyword,
-  keywordInput,
-  setKeywordInput,
-}) {
+  function ResearchDetailsStep({
+    register,
+    errors,
+    submitAttempted,
+    onAbstractEdit,
+    abstractText,
+    keywords,
+    onAddKeyword,
+    onRemoveKeyword,
+    keywordInput,
+    setKeywordInput,
+    keywordWarning,
+    onBlockedKeywordChar,
+    onNumberInKeyword,
+  }) {
+
   const words = countWords(abstractText)
+  const showAbstractError = Boolean(submitAttempted) && Boolean(errors.abstractText)
+  const abstractRegister = register('abstractText')
 
   return (
     <div>
@@ -771,11 +1067,15 @@ function ResearchDetailsStep({
             Abstract <span className="text-[#C9A84C]">*</span>
           </label>
           <textarea
-            {...register('abstractText')}
+            {...abstractRegister}
+            onChange={(event) => {
+              abstractRegister.onChange(event)
+              onAbstractEdit()
+            }}
             id="field-abstractText"
             rows={9}
             placeholder="Provide a structured abstract covering background, methodology, findings, and conclusions..."
-            className={`${fieldBaseClass} ${errors.abstractText ? fieldErrorClass : fieldOkClass}`}
+            className={`${fieldBaseClass} ${showAbstractError ? fieldErrorClass : fieldOkClass}`}
           />
           <div className="mt-1 flex justify-end">
             <span
@@ -786,8 +1086,10 @@ function ResearchDetailsStep({
               {words} / 100-500 words
             </span>
           </div>
-          {errors.abstractText ? (
-            <p className="mt-1 text-[11px] font-medium text-[#dc2626]">Abstract is required</p>
+          {showAbstractError ? (
+            <p className="mt-1 text-[11px] font-medium text-[#dc2626]">
+              {errors.abstractText?.message || 'Abstract is required'}
+            </p>
           ) : null}
         </div>
 
@@ -797,7 +1099,10 @@ function ResearchDetailsStep({
           onRemoveKeyword={onRemoveKeyword}
           keywordInput={keywordInput}
           setKeywordInput={setKeywordInput}
-          error={errors.keywords?.message}
+          error={errors.keywords}
+          warning={keywordWarning}
+          onBlockedChar={onBlockedKeywordChar}
+          onNumberChar={onNumberInKeyword}
         />
       </div>
     </div>
@@ -894,6 +1199,10 @@ function DublinCoreMetadataStep({
   control,
   register,
   errors,
+  coverageWarning,
+  onBlockedCoverageChar,
+  rightsWarning,
+  onBlockedRightsChar,
   attachment,
   existingAttachmentKey,
   onFileSelect,
@@ -926,24 +1235,54 @@ function DublinCoreMetadataStep({
             <label className={fieldLabelClass}>
               Coverage (SCOPE) <span className="text-[#C9A84C]">*</span>
             </label>
-            <input
-              {...register('coverageDc')}
-              placeholder="Region VII, institution, or relevant locale"
-              className={`${fieldBaseClass} ${errors.coverageDc ? fieldErrorClass : fieldOkClass}`}
-          />
-          <FieldMessage message={errors.coverageDc?.message} />
+            <Controller
+              control={control}
+              name="coverageDc"
+              render={({ field: controllerField }) => (
+                <input
+                  {...controllerField}
+                  value={controllerField.value ?? ''}
+                  onChange={(event) => {
+                    const raw = event.target.value
+                    const sanitized = sanitizeCoverageInput(raw)
+                    if (sanitized !== raw) {
+                      onBlockedCoverageChar()
+                    }
+                    controllerField.onChange(sanitized)
+                  }}
+                  placeholder="Region VII, institution, or relevant locale"
+                  className={`${fieldBaseClass} ${errors.coverageDc ? fieldErrorClass : fieldOkClass}`}
+                />
+              )}
+            />
+            <FieldMessage message={coverageWarning || errors.coverageDc?.message} />
           </div>
 
           <div className="space-y-2">
             <label className={fieldLabelClass}>
               Rights (LICENSE/ACCESS) <span className="text-[#C9A84C]">*</span>
             </label>
-            <input
-              {...register('rightsDc')}
-              placeholder="Copyright, usage notes, or permissions"
-              className={`${fieldBaseClass} ${errors.rightsDc ? fieldErrorClass : fieldOkClass}`}
-          />
-          <FieldMessage message={errors.rightsDc?.message} />
+            <Controller
+              control={control}
+              name="rightsDc"
+              render={({ field: controllerField }) => (
+                <input
+                  {...controllerField}
+                  value={controllerField.value ?? ''}
+                  onChange={(event) => {
+                    const raw = event.target.value
+                    const sanitized = sanitizeRightsInput(raw)
+                    if (sanitized !== raw) {
+                      onBlockedRightsChar()
+                    }
+                    controllerField.onChange(sanitized)
+                  }}
+                  placeholder="Copyright, usage notes, or permissions"
+                  className={`${fieldBaseClass} ${errors.rightsDc ? fieldErrorClass : fieldOkClass}`}
+                />
+              )}
+            />
+            <FieldMessage message={rightsWarning || errors.rightsDc?.message} />
           </div>
 
           <div className="space-y-2">
@@ -1013,7 +1352,11 @@ function DublinCoreMetadataStep({
   )
 }
 
-function ReviewSubmitStep({ values }) {
+function ReviewSubmitStep({ values, existingAttachmentKey }) {
+  const attachmentLabel = values.attachment?.name
+    || (existingAttachmentKey
+      ? existingAttachmentKey.split('/').pop().replace(/^[a-f0-9]{8}-/, '')
+      : 'No file attached')
   const summaryRows = [
     ['Research Title', values.title],
     ['Research Type', values.researchType],
@@ -1029,7 +1372,7 @@ function ReviewSubmitStep({ values }) {
     ['Rights', values.rightsDc],
     ['DOI', values.doi || 'Not provided'],
     ['Conference URL', values.conferenceUrl || 'Not provided'],
-    ['Attachment', values.attachment?.name || 'No file attached'],
+    ['Attachment', attachmentLabel],
   ]
 
   return (
@@ -1098,6 +1441,7 @@ export default function SubmissionPortal({ onSubmitted }) {
   const location = useLocation()
   const navigate = useNavigate()
   const [currentStep, setCurrentStep] = useState(1)
+  const [submitSuccess, setSubmitSuccess] = useState(false)
   const [keywordInput, setKeywordInput] = useState('')
   const [submitError, setSubmitError] = useState('')
   const [fieldBanner, setFieldBanner] = useState('')
@@ -1105,13 +1449,80 @@ export default function SubmissionPortal({ onSubmitted }) {
   const [isFinalSubmitting, setIsFinalSubmitting] = useState(false)
   const [editSubmissionId, setEditSubmissionId] = useState(null)
   const [existingAttachmentKey, setExistingAttachmentKey] = useState(null)
+  const [authorNameWarnings, setAuthorNameWarnings] = useState({})
+  const nameWarningTimers = useRef({})
+
+  const flagBlockedNameChar = (index) => {
+    setAuthorNameWarnings((prev) => ({
+      ...prev,
+      [index]: 'Numbers and special characters are not allowed in names.',
+    }))
+    clearTimeout(nameWarningTimers.current[index])
+    nameWarningTimers.current[index] = setTimeout(() => {
+      setAuthorNameWarnings((prev) => {
+        const next = { ...prev }
+        delete next[index]
+        return next
+      })
+    }, 2000)
+  }
+
+  const [keywordWarning, setKeywordWarning] = useState('')
+  const keywordWarningTimer = useRef(null)
+  const [formSubmitAttempted, setFormSubmitAttempted] = useState(false)
+
+  const [rightsWarning, setRightsWarning] = useState('')
+  const rightsWarningTimer = useRef(null)
+
+  const flagBlockedRightsChar = () => {
+    setRightsWarning('That character is not allowed in Rights.')
+    clearTimeout(rightsWarningTimer.current)
+    rightsWarningTimer.current = setTimeout(() => setRightsWarning(''), 2500)
+  }
+
+  const [coverageWarning, setCoverageWarning] = useState('')
+  const coverageWarningTimer = useRef(null)
+
+  const flagBlockedCoverageChar = () => {
+    setCoverageWarning('That character is not allowed in Coverage.')
+    clearTimeout(coverageWarningTimer.current)
+    coverageWarningTimer.current = setTimeout(() => setCoverageWarning(''), 2500)
+  }
+  const flagBlockedKeywordChar = () => {
+    setKeywordWarning('This character is not allowed in keywords.')
+    clearTimeout(keywordWarningTimer.current)
+    keywordWarningTimer.current = setTimeout(() => setKeywordWarning(''), 2500)
+  }
+
+  const flagNumberInKeyword = () => {
+    setKeywordWarning('A keyword cannot consist only of numbers.')
+    clearTimeout(keywordWarningTimer.current)
+    keywordWarningTimer.current = setTimeout(() => setKeywordWarning(''), 2500)
+  }
+
+  const flagDuplicateKeyword = () => {
+    setKeywordWarning('This keyword has already been added.')
+    clearTimeout(keywordWarningTimer.current)
+    keywordWarningTimer.current = setTimeout(() => setKeywordWarning(''), 2500)
+  }
+
+    const flagTooShortKeyword = () => {
+    setKeywordWarning('A keyword must be at least 2 letters long.')
+    clearTimeout(keywordWarningTimer.current)
+    keywordWarningTimer.current = setTimeout(() => setKeywordWarning(''), 2500)
+  }
+
+  const flagInvalidKeyword = () => {
+    setKeywordWarning('Please enter a valid keyword.')
+    clearTimeout(keywordWarningTimer.current)
+    keywordWarningTimer.current = setTimeout(() => setKeywordWarning(''), 2500)
+  }
 
   const institutionName =
     localStorage.getItem('institutionName') ||
     localStorage.getItem('userInstitution') ||
     'Higher Education Institution'
 
-  const academicYearLabel = `${currentYear - 1}-${currentYear}`
 
   const {
     control,
@@ -1123,11 +1534,11 @@ export default function SubmissionPortal({ onSubmitted }) {
     clearErrors,
     getValues,
     trigger,
-    formState: { errors },
+    formState: { errors, touchedFields },
   } = useForm({
     resolver: zodResolver(submissionSchema),
     mode: 'onChange',
-    defaultValues: {
+            defaultValues: {
       title: '',
       researchType: '',
       completionYear: currentYear,
@@ -1142,7 +1553,7 @@ export default function SubmissionPortal({ onSubmitted }) {
       coverageDc: '',
       rightsDc: '',
       doi: '',
-      conferenceUrl: '',
+      conferenceUrl: 'https://',
       attachment: null,
     },
   })
@@ -1152,6 +1563,7 @@ export default function SubmissionPortal({ onSubmitted }) {
     name: 'authors',
   })
 
+  const watchedTitle = useWatch({ control, name: 'title' }) || ''
   const watchedAbstract = useWatch({ control, name: 'abstractText' }) || ''
   const watchedKeywords = useWatch({ control, name: 'keywords' }) || []
   const watchedAuthors = useWatch({ control, name: 'authors' }) || []
@@ -1159,16 +1571,26 @@ export default function SubmissionPortal({ onSubmitted }) {
   const watchedPi = useWatch({ control, name: 'principalInvestigator' }) || ''
   const allValues = useWatch({ control })
 
-  const authorOptions = useMemo(
-    () =>
-      watchedAuthors
-        .map((author) => author?.fullName?.trim())
-        .filter(Boolean),
-    [watchedAuthors],
-  )
+const authorOptions = useMemo(
+  () =>
+    Array.from(
+      new Set(
+        watchedAuthors
+          .map((author) => author?.fullName?.trim())
+          .filter(Boolean),
+      ),
+    ),
+  [watchedAuthors],
+)
 
   useEffect(() => {
-    if (watchedPi && !authorOptions.includes(watchedPi)) {
+    if (!watchedPi) return
+    if (authorOptions.length === 0) return
+    const normalizedPi = watchedPi.trim().toLowerCase()
+    const matches = authorOptions.some(
+      (name) => name.trim().toLowerCase() === normalizedPi,
+    )
+    if (!matches) {
       setValue('principalInvestigator', '')
     }
   }, [authorOptions, setValue, watchedPi])
@@ -1180,7 +1602,8 @@ export default function SubmissionPortal({ onSubmitted }) {
     setCurrentStep(1)
     setKeywordInput('')
     setExistingAttachmentKey(null)
-    reset({
+    setFormSubmitAttempted(false)
+            reset({
       title: '',
       researchType: '',
       completionYear: currentYear,
@@ -1195,7 +1618,7 @@ export default function SubmissionPortal({ onSubmitted }) {
       coverageDc: '',
       rightsDc: '',
       doi: '',
-      conferenceUrl: '',
+      conferenceUrl: 'https://',
       attachment: null,
     })
   }
@@ -1265,21 +1688,23 @@ export default function SubmissionPortal({ onSubmitted }) {
 
     if (maybeSubmission) {
       hydrateFrom(maybeSubmission)
-      return
     }
 
     if (!maybeId) return
 
     const controller = new AbortController()
     const fetchDetails = async () => {
-      try {
-        const response = await apiClient.get(`/submissions/${maybeId}`, {
-          signal: controller.signal,
-        })
-        hydrateFrom(response.data)
-      } catch {
-      }
-    }
+    try {
+    const response = await apiClient.get(`/submissions/${maybeId}`, {
+      signal: controller.signal,
+    })
+    hydrateFrom(response.data)
+  } catch (err) {
+    if (controller.signal.aborted) return
+    console.error('Failed to load submission details for edit:', err)
+    setSubmitError('Unable to load submission details for editing. Please try again.')
+  }
+}
 
     fetchDetails()
     return () => controller.abort()
@@ -1293,23 +1718,56 @@ export default function SubmissionPortal({ onSubmitted }) {
     remove(index)
   }
 
-  const addKeyword = () => {
-    const value = keywordInput.trim()
-    if (!value) return
+  const MIN_KEYWORD_LENGTH = 2
+
+const addKeyword = () => {
+    const raw = keywordInput.trim()
+    if (!raw) return
+
+    const words = raw.split(/\s+/).filter(Boolean)
+
+    const candidates = words.length <= 6 ? [words.join(' ')] : words
 
     const existing = getValues('keywords')
-    if (existing.includes(value)) {
+    const next = [...existing]
+    let hasDuplicate = false
+    let hasTooShort = false
+    let hasInvalid = false
+
+    candidates.forEach((candidate) => {
+      if (candidate.length < MIN_KEYWORD_LENGTH) {
+        hasTooShort = true
+        return
+      }
+      if (!isValidKeyword(candidate)) {
+        hasInvalid = true
+        return
+      }
+      const alreadyAdded = next.some(
+        (item) => item.toLowerCase() === candidate.toLowerCase(),
+      )
+      if (alreadyAdded) {
+        hasDuplicate = true
+        return
+      }
+      if (next.length >= 10) return
+      next.push(candidate)
+    })
+
+    if (next.length !== existing.length) {
+      setValue('keywords', next, { shouldDirty: true, shouldValidate: true })
+      clearErrors('keywords')
       setKeywordInput('')
       return
     }
-    if (existing.length >= 10) return
 
-    setValue('keywords', [...existing, value], {
-      shouldDirty: true,
-      shouldValidate: true,
-    })
-    clearErrors('keywords')
-    setKeywordInput('')
+    if (hasInvalid) {
+      flagInvalidKeyword()
+    } else if (hasDuplicate) {
+      flagDuplicateKeyword()
+    } else if (hasTooShort) {
+      flagTooShortKeyword()
+    }
   }
 
   const removeKeyword = (keyword) => {
@@ -1328,6 +1786,7 @@ export default function SubmissionPortal({ onSubmitted }) {
   }
 
   const handleContinue = async () => {
+    setFormSubmitAttempted(true)
     const step = stepDefinitions.find((item) => item.id === currentStep)
     const isValid = await trigger(step?.fields, { shouldFocus: true })
     if (!isValid) {
@@ -1348,6 +1807,9 @@ export default function SubmissionPortal({ onSubmitted }) {
           if (currentStep === 3) {
             if (field === 'abstractText') return { field, message: 'Abstract is required' }
             if (field === 'keywords') {
+              const kwErrors = errors.keywords
+              const hasInvalidWord = Array.isArray(kwErrors) && kwErrors.some(Boolean)
+              if (hasInvalidWord) return { field, message: 'Please enter a valid keyword.' }
               const count = Array.isArray(getValues('keywords')) ? getValues('keywords').length : 0
               return { field, message: `Minimum 3 keywords required (${count} added)` }
             }
@@ -1414,15 +1876,15 @@ export default function SubmissionPortal({ onSubmitted }) {
   }
 
   const maybeUploadAttachment = async (file) => {
-    if (!file) return null
-    const token = localStorage.getItem('token') || ''
+  if (!file) return null
+  const token = (await ensureFreshToken()) || ''
 
     try {
       const formData = new FormData()
       formData.append('file', file, file.name)
 
       const uploadResponse = await fetch(
-        'http://localhost:8080/api/v1/submissions/upload',
+        `${API_BASE_URL}/submissions/upload`,
         {
           method: 'POST',
           headers: {
@@ -1479,7 +1941,10 @@ export default function SubmissionPortal({ onSubmitted }) {
       publicationVenue: values.publicationVenue,
       principalInvestigator: values.principalInvestigator,
       institutionalAffiliation: values.institutionalAffiliation,
-      authors: values.authors,
+      authors: values.authors.map((author) => ({
+        fullName: author.fullName,
+        orcid: author.orcidId || null,
+      })),
       abstractText: values.abstractText,
       keywords: values.keywords,
       sAndTTheme: values.subjectDc,
@@ -1489,12 +1954,12 @@ export default function SubmissionPortal({ onSubmitted }) {
       conferenceUrl: values.conferenceUrl || null,
       attachmentKey: attachmentMeta?.fileKey || null,
     };
- 
+    
     // Explicitly get token and add to headers
     const token = localStorage.getItem('token');
     
     // Use axios directly to be absolutely sure of the headers
-    const response = await axios.post('http://localhost:8080/api/v1/submissions', aggregatePayload, {
+    const response = await axios.post(`${API_BASE_URL}/submissions`, aggregatePayload, {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
@@ -1509,7 +1974,7 @@ export default function SubmissionPortal({ onSubmitted }) {
     setIsFinalSubmitting(true)
 
     try {
-      const token = localStorage.getItem('token')
+      const token = await ensureFreshToken()
       let attachmentMeta = null
 
       try {
@@ -1527,7 +1992,10 @@ export default function SubmissionPortal({ onSubmitted }) {
         publicationVenue: values.publicationVenue,
         principalInvestigator: values.principalInvestigator,
         institutionalAffiliation: values.institutionalAffiliation,
-        authors: values.authors,
+        authors: values.authors.map((author) => ({
+          fullName: author.fullName,
+          orcid: author.orcidId || null,
+        })),
         abstractText: values.abstractText,
         keywords: values.keywords,
         sAndTTheme: values.subjectDc,
@@ -1541,7 +2009,7 @@ export default function SubmissionPortal({ onSubmitted }) {
       // Use PUT if editing, POST if new
       if (editSubmissionId) {
         await axios.patch(
-          `http://localhost:8080/api/v1/submissions/${editSubmissionId}`,
+          `${API_BASE_URL}/submissions/${editSubmissionId}`,
           payload,
           {
             headers: {
@@ -1551,7 +2019,7 @@ export default function SubmissionPortal({ onSubmitted }) {
           },
         )
       } else {
-        await axios.post('http://localhost:8080/api/v1/submissions', payload, {
+        await axios.post(`${API_BASE_URL}/submissions`, payload, {
           headers: {
             Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json',
@@ -1560,6 +2028,8 @@ export default function SubmissionPortal({ onSubmitted }) {
       }
 
       resetWizard()
+      setSubmitSuccess(true)
+      setTimeout(() => setSubmitSuccess(false), 5000)
       onSubmitted?.()
     } catch (error) {
       console.error('Submission error:', error)
@@ -1594,17 +2064,20 @@ export default function SubmissionPortal({ onSubmitted }) {
   const renderStep = () => {
     switch (currentStep) {
       case 1:
-        return <BasicInfoStep register={register} errors={errors} />
+        return <BasicInfoStep register={register} errors={errors} watchedTitle={watchedTitle} />
       case 2:
         return (
           <TeamAffiliationStep
             control={control}
             register={register}
             errors={errors}
+            touchedFields={touchedFields}
             authorFields={authorFields}
             appendAuthor={addAuthor}
             removeAuthor={removeAuthor}
             authorOptions={authorOptions}
+            authorNameWarnings={authorNameWarnings}
+            onBlockedNameChar={flagBlockedNameChar}
           />
         )
       case 3:
@@ -1612,12 +2085,17 @@ export default function SubmissionPortal({ onSubmitted }) {
           <ResearchDetailsStep
             register={register}
             errors={errors}
+            submitAttempted={formSubmitAttempted}
+            onAbstractEdit={() => setFormSubmitAttempted(false)}
             abstractText={watchedAbstract}
             keywords={watchedKeywords}
             onAddKeyword={addKeyword}
             onRemoveKeyword={removeKeyword}
             keywordInput={keywordInput}
             setKeywordInput={setKeywordInput}
+            keywordWarning={keywordWarning}
+            onBlockedKeywordChar={flagBlockedKeywordChar}
+            onNumberInKeyword={flagNumberInKeyword}
           />
         )
       case 4:
@@ -1626,6 +2104,8 @@ export default function SubmissionPortal({ onSubmitted }) {
             control={control}
             register={register}
             errors={errors}
+            rightsWarning={rightsWarning}
+            onBlockedRightsChar={flagBlockedRightsChar}
             attachment={watchedAttachment}
             existingAttachmentKey={existingAttachmentKey}
             onFileSelect={handleFileSelect}
@@ -1633,7 +2113,7 @@ export default function SubmissionPortal({ onSubmitted }) {
           />
         )
       case 5:
-        return <ReviewSubmitStep values={allValues} />
+        return <ReviewSubmitStep values={allValues} existingAttachmentKey={existingAttachmentKey} />
       default:
         return null
     }
@@ -1675,10 +2155,6 @@ export default function SubmissionPortal({ onSubmitted }) {
             </div>
 
             <div className="text-right">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-[#94a3b8]">
-                ACADEMIC YEAR
-              </p>
-              <p className="text-[13px] font-bold text-[#0d1f3c]">{academicYearLabel}</p>
               <p className="mt-1 text-[12px] text-[#6b7280]">{institutionName}</p>
             </div>
           </div>
@@ -1702,17 +2178,22 @@ export default function SubmissionPortal({ onSubmitted }) {
               </div>
             ) : null}
 
+            {submitSuccess ? (
+            <div className="mb-6 rounded-[10px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-[13px] text-emerald-700">
+              ✓ Submission successful! Your research output has been recorded.
+            </div>
+          ) : null}
+
             {renderStep()}
 
             {currentStep === 1 ? (
               <div className="mt-6 flex w-full items-center gap-3 rounded-[2px] border border-[#bfdbfe] bg-[#eff6ff] px-4 py-3 text-[13px] text-[#0d1f3c]">
                 <Info className="h-4 w-4 shrink-0 text-[#3b82f6]" />
                 <p>
-                  Institution{' '}
-                  <span className="font-semibold text-[#1d4ed8]">{institutionName}</span>
-                  , is pre-linked. Submission period:{' '}
-                  <span className="font-semibold text-[#1d4ed8]">AY {academicYearLabel}</span>
-                </p>
+                Institution{' '}
+                <span className="font-semibold text-[#1d4ed8]">{institutionName}</span>
+                {' '}is pre-linked.
+              </p>
               </div>
             ) : null}
 
@@ -1728,17 +2209,22 @@ export default function SubmissionPortal({ onSubmitted }) {
 
           <div className="flex w-full items-center justify-between border-t border-[#e5e7eb] bg-[#f8fafc] px-8 py-4">
             <button
-              type="button"
-              onClick={() => setCurrentStep((value) => Math.max(1, value - 1))}
-              disabled={currentStep === 1 || isFinalSubmitting}
-              className={`h-10 rounded-[6px] border px-4 text-sm font-semibold transition disabled:cursor-not-allowed ${
-                currentStep === 1 || isFinalSubmitting
-                  ? 'border-[#e5e7eb] bg-[#f8fafc] text-[#cbd5e1]'
-                  : 'border-[#e5e7eb] bg-white text-[#0d1f3c] hover:bg-[#f8fafc]'
-              }`}
-            >
-              Previous
-            </button>
+            type="button"
+            onClick={() => {
+              setBannerErrors([])
+              setFieldBanner('')
+              clearErrors()
+              setCurrentStep((value) => Math.max(1, value - 1))
+            }}
+            disabled={currentStep === 1 || isFinalSubmitting}
+            className={`h-10 rounded-[6px] border px-4 text-sm font-semibold transition disabled:cursor-not-allowed ${
+              currentStep === 1 || isFinalSubmitting
+                ? 'border-[#e5e7eb] bg-[#f8fafc] text-[#cbd5e1]'
+                : 'border-[#e5e7eb] bg-white text-[#0d1f3c] hover:bg-[#f8fafc]'
+            }`}
+          >
+            Previous
+          </button>
 
             {currentStep < stepDefinitions.length ? (
               <button
@@ -1752,7 +2238,10 @@ export default function SubmissionPortal({ onSubmitted }) {
             ) : (
               <button
                 type="button"
-                onClick={handleSubmit(onFinalSubmit, onFinalSubmitError)}
+                onClick={() => {
+                  setFormSubmitAttempted(true)
+                  handleSubmit(onFinalSubmit, onFinalSubmitError)()
+                }}
                 disabled={isFinalSubmitting}
                 className="flex h-10 items-center gap-2 rounded-[6px] bg-[#0d1f3c] px-6 text-sm font-semibold text-white transition hover:bg-[#0b1a33] disabled:cursor-not-allowed disabled:opacity-70"
               >

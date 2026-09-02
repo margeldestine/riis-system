@@ -46,6 +46,14 @@ public class ReportController {
         );
     }
 
+    @PostMapping("/preview")
+    @PreAuthorize("hasAnyAuthority('ROLE_DOST_ADMIN', 'DOST_ADMIN', 'ROLE_HEI_STAFF', 'HEI_STAFF')")
+    public ResponseEntity<List<com.geeks.riis_backend.dto.SubmissionSummaryDTO>> preview(
+            @RequestBody ReportRequestDTO request
+    ) {
+        return ResponseEntity.ok(reportService.previewFilteredDataset(request));
+    }
+
     @GetMapping("/{jobId}/status")
     @PreAuthorize("hasAnyAuthority('ROLE_DOST_ADMIN', 'DOST_ADMIN', 'ROLE_HEI_STAFF', 'HEI_STAFF')")
     public ResponseEntity<ReportResultDTO> getStatus(@PathVariable String jobId) {

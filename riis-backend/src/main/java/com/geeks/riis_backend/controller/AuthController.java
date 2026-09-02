@@ -1,8 +1,10 @@
 package com.geeks.riis_backend.controller;
 
+import com.geeks.riis_backend.dto.ForgotPasswordRequest;
 import com.geeks.riis_backend.dto.LoginRequest;
 import com.geeks.riis_backend.dto.LoginResponse;
 import com.geeks.riis_backend.dto.RegisterRequest;
+import com.geeks.riis_backend.dto.ResetPasswordRequest;
 import com.geeks.riis_backend.model.User;
 import com.geeks.riis_backend.service.AuthService;
 import java.util.Map;
@@ -34,5 +36,22 @@ public class AuthController {
 	@PostMapping("/login")
 	public ResponseEntity<LoginResponse> login(@RequestBody LoginRequest request) {
 		return ResponseEntity.ok(authService.login(request));
+	}
+
+	@PostMapping("/forgot-password")
+	public ResponseEntity<?> forgotPassword(@RequestBody ForgotPasswordRequest request) {
+		authService.forgotPassword(request);
+		// Same response whether or not the email exists — avoids account enumeration.
+		return ResponseEntity.ok(Map.of(
+				"message", "If an account with that email exists, a password reset link has been sent."
+		));
+	}
+
+	@PostMapping("/reset-password")
+	public ResponseEntity<?> resetPassword(@RequestBody ResetPasswordRequest request) {
+		authService.resetPassword(request);
+		return ResponseEntity.ok(Map.of(
+				"message", "Your password has been reset. You can now log in with your new password."
+		));
 	}
 }

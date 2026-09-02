@@ -25,7 +25,7 @@ public class SubmissionSpecifications {
 				predicate = cb.and(predicate, root.get("status").in(statuses));
 			}
 
-			List<String> researchTypes = normalizeList(filter.getResearchTypes());
+			List<String> researchTypes = trimmedList(filter.getResearchTypes());
 			if (!researchTypes.isEmpty()) {
 				predicate = cb.and(predicate, root.get("researchType").in(researchTypes));
 			}
@@ -38,6 +38,10 @@ public class SubmissionSpecifications {
 				predicate = cb.and(predicate, cb.lessThanOrEqualTo(root.get("completionYear"), filter.getCompletionYearTo()));
 			}
 
+			if (filter.getSubmittedByUserId() != null && !filter.getSubmittedByUserId().isBlank()) {
+				predicate = cb.and(predicate, cb.equal(root.get("submittedBy").get("id"), filter.getSubmittedByUserId()));
+			}
+
 			return predicate;
 		};
 	}
@@ -47,6 +51,15 @@ public class SubmissionSpecifications {
 		return values.stream()
 				.filter(v -> v != null && !v.isBlank())
 				.map(v -> v.trim().toUpperCase(Locale.ROOT))
+				.distinct()
+				.toList();
+	}
+
+	private static List<String> trimmedList(List<String> values) {
+		if (values == null) return List.of();
+		return values.stream()
+				.filter(v -> v != null && !v.isBlank())
+				.map(String::trim)
 				.distinct()
 				.toList();
 	}

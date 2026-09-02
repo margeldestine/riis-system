@@ -1,20 +1,14 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+from dependencies import verify_internal_caller
 from models.schemas import (
-    SBERTEmbedRequest,
+    SPECTEREncodeRequest,
     SBERTEmbedResponse,
-    CentroidSimilarityRequest,
-    CentroidSimilarityResponse,
 )
-from services.specter_service import encode_text, compute_centroid_similarities
+from services.specter_service import encode_pair
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(verify_internal_caller)])
 
 @router.post("/ai/specter/encode")
-def specter_encode(request: SBERTEmbedRequest):
-    embedding = encode_text(request.text)
+def specter_encode(request: SPECTEREncodeRequest):
+    embedding = encode_pair(request.title, request.abstract)
     return SBERTEmbedResponse(embedding=embedding)
-
-@router.post("/ai/specter/centroid-similarity")
-def specter_centroid_similarity(request: CentroidSimilarityRequest):
-    similarities = compute_centroid_similarities(request.embedding, request.centroids)
-    return CentroidSimilarityResponse(similarities=similarities)

@@ -15,6 +15,29 @@ function extractApiErrorMessage(error, fallbackMessage) {
   return fallbackMessage
 }
 
+function decodeJwtPayload(token) {
+  if (!token) return null
+  try {
+    const payload = token.split('.')[1]
+    const normalized = payload.replace(/-/g, '+').replace(/_/g, '/')
+    return JSON.parse(atob(normalized))
+  } catch {
+    return null
+  }
+}
+
+function getCurrentUserEmail() {
+  const stored =
+    localStorage.getItem('email') ||
+    localStorage.getItem('userEmail') ||
+    localStorage.getItem('institutionEmail')
+  if (stored) return stored
+
+  const token = localStorage.getItem('token')
+  const payload = decodeJwtPayload(token)
+  return payload?.email || ''
+}
+
 function normalizeStatus(value) {
   return (value || '').toString().trim().toUpperCase()
 }
@@ -84,12 +107,7 @@ export default function SubmissionHistory() {
   const [error, setError] = useState('')
   const [pdfStatus, setPdfStatus] = useState('idle')
   const [activePdfId, setActivePdfId] = useState(null)
-  const [kpiCounts, setKpiCounts] = useState({
-    total: 0,
-    approved: 0,
-    pending: 0,
-    requiresCorrection: 0,
-  })
+  const [kpiCounts, setKpiCounts] = useState({ total: 0 })
 
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(0)
@@ -99,7 +117,6 @@ export default function SubmissionHistory() {
   const [selectedId, setSelectedId] = useState(null)
 
   const [filterSubmittedBy, setFilterSubmittedBy] = useState('')
-  const [filterStatus, setFilterStatus] = useState('')
   const [filterType, setFilterType] = useState('')
   const [filterYear, setFilterYear] = useState('')
 
@@ -125,20 +142,42 @@ export default function SubmissionHistory() {
     return Array.from(years).sort((a, b) => Number(b) - Number(a))
   }, [items])
 
+  const mapStatusForApi = (value) => {
+    if (!value) return undefined
+    if (value === 'UNDER_REVIEW') return 'PENDING_REVIEW'
+    return value
+  }
+
+  
+  const researchTypeApiMap = {
+    FUNDED_PROJECT: 'Funded Project',
+    JOURNAL_ARTICLE: 'Journal Article',
+    CONFERENCE_PAPER: 'Conference Paper',
+    INNOVATION_OUTPUT: 'Innovation Output',
+    COMMUNITY_EXTENSION_RESEARCH: 'Community Extension Research',
+  }
+
+  const mapResearchTypeForApi = (value) => {
+    if (!value) return undefined
+    return researchTypeApiMap[value] || value
+  }
+
   const fetchSubmissions = useCallback(
     async (signal) => {
       setStatus('loading')
       setError('')
 
       try {
+
+        const currentUserEmail = getCurrentUserEmail()
         const response = await apiClient.get('/submissions', {
           params: {
             page,
             size: 5,
             keyword: search || undefined,
-            status: filterStatus || undefined,
-            researchType: filterType || undefined,
+            researchType: mapResearchTypeForApi(filterType),
             year: filterYear || undefined,
+            mine: filterSubmittedBy === 'me' ? true : undefined,
             sort: 'updatedAt,desc',
           },
           signal,
@@ -173,7 +212,7 @@ export default function SubmissionHistory() {
         )
       }
     },
-    [page, search, filterStatus, filterType, filterYear],
+    [page, search, filterType, filterYear, filterSubmittedBy],
   )
 
   useEffect(() => {
@@ -195,32 +234,12 @@ export default function SubmissionHistory() {
 
     const loadKpis = async () => {
       try {
-        const [allRes, approvedRes, underReviewRes, requiresCorrectionRes] =
-          await Promise.all([
-            apiClient.get('/submissions', {
-              params: { page: 0, size: 1 },
-              signal: controller.signal,
-            }),
-            apiClient.get('/submissions', {
-              params: { page: 0, size: 1, status: 'APPROVED' },
-              signal: controller.signal,
-            }),
-            apiClient.get('/submissions', {
-              params: { page: 0, size: 1, status: 'UNDER_REVIEW' },
-              signal: controller.signal,
-            }),
-            apiClient.get('/submissions', {
-              params: { page: 0, size: 1, status: 'REQUIRES_CORRECTION' },
-              signal: controller.signal,
-            }),
-          ])
-
-        setKpiCounts({
-          total: readTotalElements(allRes.data),
-          approved: readTotalElements(approvedRes.data),
-          pending: readTotalElements(underReviewRes.data),
-          requiresCorrection: readTotalElements(requiresCorrectionRes.data),
+        const allRes = await apiClient.get('/submissions', {
+          params: { page: 0, size: 1 },
+          signal: controller.signal,
         })
+
+        setKpiCounts({ total: readTotalElements(allRes.data) })
       } catch (err) {
         if (controller.signal.aborted) return
       }
@@ -247,36 +266,12 @@ export default function SubmissionHistory() {
     const normalizeType = (value) =>
       (value || '').toString().trim().toUpperCase().replace(/\s+/g, '_')
 
-    const currentUserEmail =
-      localStorage.getItem('email') ||
-      localStorage.getItem('userEmail') ||
-      localStorage.getItem('institutionEmail') ||
-      ''
+    const normalizedSearch = search.trim().toLowerCase()
 
-    return items.filter((item) => {
-      if (filterSubmittedBy === 'me' && currentUserEmail) {
-        const submittedBy =
-          item?.submittedByEmail ||
-          item?.submittedBy ||
-          item?.createdByEmail ||
-          item?.createdBy ||
-          ''
-        if (
-          submittedBy &&
-          submittedBy.toString().trim().toLowerCase() !== currentUserEmail.toString().trim().toLowerCase()
-        ) {
-          return false
-        }
-      }
-
-      if (filterStatus) {
-        const statusValue = normalizeStatus(item?.status)
-        const requested = normalizeStatus(filterStatus)
-        if (requested === 'UNDER_REVIEW') {
-          if (!['PENDING_REVIEW', 'PENDING', 'UNDER_REVIEW'].includes(statusValue)) return false
-        } else if (statusValue !== requested) {
-          return false
-        }
+      return items.filter((item) => {
+      if (normalizedSearch) {
+        const title = (item?.title || '').toString().toLowerCase()
+        if (!title.includes(normalizedSearch)) return false
       }
 
       if (filterType && normalizeType(item?.researchType) !== normalizeType(filterType)) return false
@@ -288,7 +283,7 @@ export default function SubmissionHistory() {
       }
       return true
     })
-  }, [items, filterSubmittedBy, filterStatus, filterType, filterYear])
+  }, [items, search, filterSubmittedBy, filterType, filterYear])
 
   const handleViewPdf = useCallback(async (submissionId) => {
     if (!submissionId) return
@@ -358,10 +353,7 @@ export default function SubmissionHistory() {
               </div>
 
               <div className="text-right">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-[#94a3b8]">
-                  ACADEMIC YEAR
-                </p>
-                <p className="text-[13px] font-bold text-[#0d1f3c]">{academicYearLabel}</p>
+
                 <p className="mt-1 text-[12px] text-[#6b7280]">{institutionName}</p>
               </div>
             </div>
@@ -375,24 +367,6 @@ export default function SubmissionHistory() {
             label="Total Submitted"
             accentBorderClass="border-[#e5e7eb]"
             accentTriangleClass="border-b-slate-400/15"
-          />
-          <KpiCard
-            value={kpiCounts.approved}
-            label="Approved"
-            accentBorderClass="border-emerald-300"
-            accentTriangleClass="border-b-emerald-500/15"
-          />
-          <KpiCard
-            value={kpiCounts.pending}
-            label="Under Review"
-            accentBorderClass="border-[#f3d08b]"
-            accentTriangleClass="border-b-[#C9A84C]/18"
-          />
-          <KpiCard
-            value={kpiCounts.requiresCorrection}
-            label="Requires Correction"
-            accentBorderClass="border-rose-300"
-            accentTriangleClass="border-b-rose-500/15"
           />
         </div>
 
@@ -422,7 +396,7 @@ export default function SubmissionHistory() {
             </button>
           </div>
 
-          <div className="grid gap-3 md:grid-cols-4">
+                    <div className="grid gap-3 md:grid-cols-3">
             <select
               value={filterSubmittedBy}
               onChange={(event) => {
@@ -435,20 +409,6 @@ export default function SubmissionHistory() {
               <option value="me">Me</option>
             </select>
             <select
-              value={filterStatus}
-              onChange={(event) => {
-                setFilterStatus(event.target.value)
-                setPage(0)
-              }}
-              className="h-10 w-full rounded-[8px] border border-[#e5e7eb] bg-white px-3 text-sm text-slate-600 outline-none"
-            >
-              <option value="">All Statuses</option>
-              <option value="APPROVED">Approved</option>
-              <option value="UNDER_REVIEW">Under Review</option>
-              <option value="REJECTED">Rejected</option>
-              <option value="DRAFT">Draft</option>
-            </select>
-            <select
               value={filterType}
               onChange={(event) => {
                 setFilterType(event.target.value)
@@ -458,8 +418,10 @@ export default function SubmissionHistory() {
             >
               <option value="">All Types</option>
               <option value="FUNDED_PROJECT">Funded Project</option>
-              <option value="RESEARCH_PROJECT">Research Project</option>
+              <option value="JOURNAL_ARTICLE">Journal Article</option>
+              <option value="CONFERENCE_PAPER">Conference Paper</option>
               <option value="INNOVATION_OUTPUT">Innovation Output</option>
+              <option value="COMMUNITY_EXTENSION_RESEARCH">Community Extension Research</option>
             </select>
             <select
               value={filterYear}
@@ -498,17 +460,14 @@ export default function SubmissionHistory() {
                     Submission Date
                   </th>
                   <th className="w-[10%] whitespace-nowrap border-b border-[#e5e7eb] px-4 py-3 text-left text-[12px] font-semibold text-[#6b7280]">
-                    Status
-                  </th>
-                  <th className="w-[10%] whitespace-nowrap border-b border-[#e5e7eb] px-4 py-3 text-left text-[12px] font-semibold text-[#6b7280]">
                     Actions
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#f1f5f9]">
-                {status === 'loading' ? (
+                  {status === 'loading' ? (
                   <tr>
-                    <td className="px-5 py-6 text-sm text-slate-500" colSpan={5}>
+                    <td className="px-5 py-6 text-sm text-slate-500" colSpan={4}>
                       Loading submissions...
                     </td>
                   </tr>
@@ -532,15 +491,6 @@ export default function SubmissionHistory() {
                       </td>
                       <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-600">
                         {formatDate(item?.updatedAt || item?.submittedAt)}
-                      </td>
-                      <td className="whitespace-nowrap px-4 py-4">
-                        <span
-                          className={`inline-flex items-center justify-center whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold ${getStatusBadgeClasses(
-                            item?.status,
-                          )}`}
-                        >
-                          {formatStatusLabel(item?.status)}
-                        </span>
                       </td>
                       <td className="whitespace-nowrap px-4 py-4 text-sm font-semibold">
                         <div className="inline-flex items-center gap-2">
@@ -572,7 +522,7 @@ export default function SubmissionHistory() {
                   ))
                 ) : (
                   <tr>
-                    <td className="px-5 py-10 text-center text-sm text-slate-500" colSpan={5}>
+                    <td className="px-5 py-10 text-center text-sm text-slate-500" colSpan={4}>
                       No submissions found.
                     </td>
                   </tr>

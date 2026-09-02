@@ -4,8 +4,23 @@ import DashboardLayout from '../admin/DashboardLayout'
 import { heiNavItems } from './HeiDashboard'
 import apiClient from '../../services/apiClient'
 
+function decodeJwtPayload(token) {
+  if (!token || typeof token !== 'string') return null
+  const parts = token.split('.')
+  if (parts.length < 2) return null
+  try {
+    const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/')
+    const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, '=')
+    const json = atob(padded)
+    return JSON.parse(json)
+  } catch {
+    return null
+  }
+}
+
 const RESEARCH_TYPES = ['Journal Article', 'Conference Paper', 'Funded Project', 'Innovation Output', 'IP Registration']
-const YEARS = Array.from({ length: 10 }, (_, i) => 2026 - i)
+const currentYear = new Date().getFullYear()
+const YEARS = Array.from({ length: currentYear - 2026 + 1 }, (_, i) => 2026 + i)
 
 export default function HeiReportsPage() {
   const [yearFrom, setYearFrom] = useState('')
@@ -16,6 +31,7 @@ export default function HeiReportsPage() {
   const [status, setStatus] = useState('idle')
   const [result, setResult] = useState(null)
   const [error, setError] = useState('')
+  const [yearError, setYearError] = useState(false)
   const [preview, setPreview] = useState([])
   const [previewLoading, setPreviewLoading] = useState(true)
 
@@ -24,18 +40,37 @@ export default function HeiReportsPage() {
     localStorage.getItem('userInstitution') ||
     'Higher Education Institution'
 
+  const token = localStorage.getItem('token') || ''
+  const tokenPayload = decodeJwtPayload(token)
+  const institutionId = tokenPayload?.institutionId || null
+
   const academicYearLabel = `${new Date().getFullYear() - 1}-${new Date().getFullYear()}`
+
+  useEffect(() => {
+    if (yearFrom) {
+      setYearTo(yearFrom)
+    }
+  }, [yearFrom])
+
+  useEffect(() => {
+    if (!yearFrom || !yearTo) return
+    handleGenerate()
+  }, [yearFrom, yearTo, selectedTypes, fundingSource, outputFormat])
 
   useEffect(() => {
     const fetchPreview = async () => {
       setPreviewLoading(true)
       try {
-        const res = await apiClient.get('/submissions', {
-        params: { page: 0, size: 20 }
-      })
-      const data = res.data
-      const content = Array.isArray(data) ? data : data?.content || []
-      setPreview(content.filter(item => item.status === 'APPROVED').slice(0, 5))
+        const res = await apiClient.post('/reports/preview', {
+          yearFrom: yearFrom ? parseInt(yearFrom) : null,
+          yearTo: yearTo ? parseInt(yearTo) : null,
+          researchTypes: selectedTypes.length > 0 ? selectedTypes : null,
+          fundingSources: fundingSource ? [fundingSource] : null,
+          outputFormat,
+          institutionId,
+        })
+        const data = res.data
+        setPreview(Array.isArray(data) ? data : [])
       } catch {
         setPreview([])
       } finally {
@@ -43,7 +78,7 @@ export default function HeiReportsPage() {
       }
     }
     fetchPreview()
-  }, [])
+  }, [yearFrom, yearTo, selectedTypes, fundingSource, institutionId])
 
   const toggleType = (type) => {
     setSelectedTypes(prev =>
@@ -51,7 +86,15 @@ export default function HeiReportsPage() {
     )
   }
 
-  const handleGenerate = async () => {
+ const handleGenerate = async () => {
+    if (!yearFrom || !yearTo) {
+      setYearError(true)
+      setError('Year From and Year To are required. Please select a year range before generating a report.')
+      document.querySelector('main')?.scrollTo({ top: 0, behavior: 'smooth' })
+      return
+    }
+    setYearError(false)
+
     setStatus('generating')
     setError('')
     setResult(null)
@@ -63,6 +106,7 @@ export default function HeiReportsPage() {
         researchTypes: selectedTypes.length > 0 ? selectedTypes : null,
         fundingSources: fundingSource ? [fundingSource] : null,
         outputFormat,
+        institutionId,
       })
 
       if (res.status === 200) {
@@ -99,15 +143,34 @@ export default function HeiReportsPage() {
     }, 3000)
   }
 
-  const handleReset = () => {
+    const handleReset = () => {
     setYearFrom('')
     setYearTo('')
     setSelectedTypes([])
     setFundingSource('')
     setOutputFormat('CSV')
+    setYearError(false)
     setStatus('idle')
     setResult(null)
     setError('')
+  }
+
+  const handleDownload = async (url, filename) => {
+    try {
+      const response = await fetch(url)
+      const blob = await response.blob()
+      const objectUrl = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = objectUrl
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(objectUrl)
+    } catch (err) {
+      console.error('Download failed:', err)
+      setError('Failed to download the report. Please try again.')
+    }
   }
 
   return (
@@ -149,8 +212,6 @@ export default function HeiReportsPage() {
                 </p>
               </div>
               <div className="text-right">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-[#94a3b8]">ACADEMIC YEAR</p>
-                <p className="text-[13px] font-bold text-[#0d1f3c]">{academicYearLabel}</p>
                 <p className="mt-1 text-[12px] text-[#6b7280]">{institutionName}</p>
               </div>
             </div>
@@ -196,8 +257,8 @@ export default function HeiReportsPage() {
                   <div className="relative">
                     <select
                       value={yearFrom}
-                      onChange={e => setYearFrom(e.target.value)}
-                      className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-3 pr-8 text-sm text-slate-600 appearance-none focus:outline-none focus:ring-1 focus:ring-[#C9A84C]"
+                      onChange={e => { setYearFrom(e.target.value); setYearError(false) }}
+                      className={`w-full rounded-lg border bg-white py-2.5 pl-3 pr-8 text-sm text-slate-600 appearance-none focus:outline-none focus:ring-1 focus:ring-[#C9A84C] ${yearError ? 'border-red-400 ring-1 ring-red-200' : 'border-slate-200'}`}
                     >
                       <option value="">Select year</option>
                       {YEARS.filter(y => !yearTo || y <= parseInt(yearTo)).map(y => <option key={y} value={y}>{y}</option>)}
@@ -212,8 +273,8 @@ export default function HeiReportsPage() {
                   <div className="relative">
                     <select
                       value={yearTo}
-                      onChange={e => setYearTo(e.target.value)}
-                      className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-3 pr-8 text-sm text-slate-600 appearance-none focus:outline-none focus:ring-1 focus:ring-[#C9A84C]"
+                      onChange={e => { setYearTo(e.target.value); setYearError(false) }}
+                      className={`w-full rounded-lg border bg-white py-2.5 pl-3 pr-8 text-sm text-slate-600 appearance-none focus:outline-none focus:ring-1 focus:ring-[#C9A84C] ${yearError ? 'border-red-400 ring-1 ring-red-200' : 'border-slate-200'}`}
                     >
                       <option value="">Select year</option>
                       {YEARS.filter(y => !yearFrom || y >= parseInt(yearFrom)).map(y => <option key={y} value={y}>{y}</option>)}
@@ -247,25 +308,17 @@ export default function HeiReportsPage() {
                 </div>
               </div>
 
-              <div className="mb-5">
+                            <div className="mb-5">
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
                   Funding Source
                 </p>
-                <div className="relative">
-                  <select
-                    value={fundingSource}
-                    onChange={e => setFundingSource(e.target.value)}
-                    className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-3 pr-8 text-sm text-slate-600 appearance-none focus:outline-none focus:ring-1 focus:ring-[#C9A84C]"
-                  >
-                    <option value="">Select funding source</option>
-                    {['DOST-PCAARRD', 'DOST-PCIEERD', 'DOST-CHED', 'Self-Funded', 'Other'].map(f => (
-                      <option key={f} value={f}>{f}</option>
-                    ))}
-                  </select>
-                  <svg className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                  </svg>
-                </div>
+                <input
+                  type="text"
+                  value={fundingSource}
+                  onChange={e => setFundingSource(e.target.value)}
+                  placeholder="e.g., DOST-PCIEERD"
+                  className="w-full rounded-lg border border-slate-200 bg-white py-2.5 px-3 text-sm text-slate-600 focus:outline-none focus:ring-1 focus:ring-[#C9A84C]"
+                />
               </div>
             </div>
 
@@ -326,14 +379,13 @@ export default function HeiReportsPage() {
                   No approved records found.
                 </div>
               ) : (
-                <table className="min-w-full">
+                  <table className="min-w-full">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-100">
                       <th className="px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-400">Report Title</th>
                       <th className="px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-400">Type</th>
                       <th className="px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-400">Year</th>
                       <th className="px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-400">Funding</th>
-                      <th className="px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-400">Status</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
@@ -349,11 +401,6 @@ export default function HeiReportsPage() {
                         </td>
                         <td className="px-5 py-3 text-sm text-slate-600">{item.completionYear || '—'}</td>
                         <td className="px-5 py-3 text-sm text-slate-600">{item.fundingSource || '—'}</td>
-                        <td className="px-5 py-3">
-                          <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">
-                            Approved
-                          </span>
-                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -399,15 +446,14 @@ export default function HeiReportsPage() {
                 <p className="text-xs text-slate-500">
                   {result.recordCount} records exported successfully.
                 </p>
-                <a
-                  href={result.downloadUrl}
-                  target="_blank"
-                  rel="noreferrer"
+                  <button
+                  type="button"
+                  onClick={() => handleDownload(result.downloadUrl, `report.${outputFormat.toLowerCase()}`)}
                   className="flex items-center justify-center gap-2 w-full rounded-lg bg-emerald-600 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 transition"
                 >
                   <Download className="h-4 w-4" />
                   Download {outputFormat} Report
-                </a>
+                </button>
               </div>
             ) : null}
 
@@ -415,19 +461,10 @@ export default function HeiReportsPage() {
             <div className="space-y-3">
               <button
                 type="button"
-                onClick={handleGenerate}
-                disabled={status === 'generating' || status === 'polling'}
-                className="w-full flex items-center justify-center gap-2 rounded-lg bg-[#1A1A2E] py-3 text-sm font-semibold text-white hover:bg-[#11111f] disabled:opacity-50 disabled:cursor-not-allowed transition"
-              >
-                <Download className="h-4 w-4" />
-                Download All Reports
-              </button>
-              <button
-                type="button"
                 onClick={handleReset}
                 className="w-full flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white py-3 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition"
               >
-                <RefreshCw className="h-4 w-" />
+                <RefreshCw className="h-4 w-4" />
                 Reset
               </button>
             </div>

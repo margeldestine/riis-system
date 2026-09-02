@@ -32,6 +32,12 @@ const tagColors = [
   { bg: '#ccfbf1', color: '#0f766e' },
 ]
 
+function getResearchOutputLabel(count) {
+  if (!count) return 'No research outputs'
+  if (count === 1) return '1 research output'
+  return `${count} research outputs`
+}
+
 function InstitutionCard({ hei, onClick }) {
   const color = getAvatarColor(hei.name)
   const initials = getInitials(hei.name)
@@ -51,8 +57,7 @@ function InstitutionCard({ hei, onClick }) {
           {initials}
         </div>
         <div className="min-w-0">
-          <p className="truncate text-[15px] font-bold text-[#1A1A2E]">{hei.name}</p>
-          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+        <p className="text-[15px] font-bold text-[#1A1A2E] leading-snug">{hei.name}</p>          <div className="mt-1 flex flex-wrap items-center gap-1.5">
             <span className="text-[12px] font-medium uppercase text-slate-500">{typeLabel}</span>
             <span className="text-[12px] text-slate-400">·</span>
             <span className="text-[12px] text-blue-600">{hei.province}</span>
@@ -64,23 +69,29 @@ function InstitutionCard({ hei, onClick }) {
         <svg className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125V5.625A3.375 3.375 0 0 0 10.125 2.25H8.25m2.25 0H6.375A1.125 1.125 0 0 0 5.25 3.375v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
         </svg>
-        {hei.approvedOutputCount ?? 0} research outputs
+        {getResearchOutputLabel(hei.approvedOutputCount)}
       </div>
 
       {keywords.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          {keywords.slice(0, 4).map((kw, i) => (
-            <span key={kw.keyword || kw} className="rounded-full px-3 py-1 text-xs font-medium" style={{ background: tagColors[i % tagColors.length].bg, color: tagColors[i % tagColors.length].color }}>
-              {kw.keyword || kw}
-            </span>
-          ))}
-          {keywords.length > 4 && (
-            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
-              +{keywords.length - 4} more
-            </span>
-          )}
-        </div>
-      )}
+  <div className="flex flex-row flex-wrap content-start items-start gap-x-2 gap-y-2">
+    {keywords.slice(0, 5).map((kw, i) => (
+      <span
+        key={kw.keyword || kw}
+        className="inline-flex w-fit shrink-0 whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-medium"
+        style={{ background: tagColors[i % tagColors.length].bg, color: tagColors[i % tagColors.length].color }}
+      >
+        {kw.keyword || kw}
+      </span>
+    ))}
+    {keywords.length > 5 && (
+      <span className="inline-flex w-fit shrink-0 whitespace-nowrap rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
+        +{keywords.length - 5} more
+      </span>
+    )}
+  </div>
+)}
+
+
     </div>
   )
 }
@@ -108,9 +119,6 @@ export default function HeiDirectoryPage() {
 
   return (
    <div className="min-h-screen bg-[#F4F6F9] flex flex-col" style={{ fontFamily: "'Inter', sans-serif" }}>
-      {/* Nav */}
-      {/* Nav */}
-      {/* Nav */}
       {/* Nav */}
       <nav className="bg-white border-b border-slate-200 px-8 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">

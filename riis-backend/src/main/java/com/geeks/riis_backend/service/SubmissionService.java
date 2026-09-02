@@ -39,6 +39,11 @@ public class SubmissionService {
 
 	private static final String STATUS_PENDING_REVIEW = "PENDING_REVIEW";
 	private static final String STATUS_REQUIRES_CORRECTION = "REQUIRES_CORRECTION";
+	// DAS-043: DOST Admin manual approval gate was removed — only registered,
+	// verified HEI staff accounts can submit, so submissions are trusted at
+	// the account level and publish immediately instead of sitting in
+	// PENDING_REVIEW. See RecordIngestedEvent publish below.
+	private static final String STATUS_APPROVED = "APPROVED";
 	private static final String DEFAULT_RESEARCH_TYPE = "JOURNAL_ARTICLE";
 
 	private final UserRepository userRepository;
@@ -48,6 +53,7 @@ public class SubmissionService {
 	private final EmailNotificationService emailNotificationService;
 	private final AuditLogService auditLogService;
 	private final ValidationLogService validationLogService;
+	private final S3UploadService s3UploadService;
 
 	public SubmissionResponse submit(String userId, SubmissionRequest dto) {
 		User user = userRepository.findById(userId)
@@ -71,6 +77,14 @@ public class SubmissionService {
 			throw new SubmissionValidationException(validationResult.errors());
 		}
 
+		// The client reports an attachmentKey after uploading directly to S3
+		// via a presigned URL -- that upload never touched this application,
+		// so the key can't be trusted until we've actually checked what
+		// landed in the bucket matches what was promised (PDF, under 20MB).
+		if (dto.attachmentKey() != null && !dto.attachmentKey().isBlank()) {
+			s3UploadService.verifyUploadedPdf(dto.attachmentKey());
+		}
+
 		String referenceNumber = generateReferenceNumber();
 		String keywords = dto.keywords() == null ? null : dto.keywords().stream()
 				.filter(value -> value != null && !value.isBlank())
@@ -84,19 +98,23 @@ public class SubmissionService {
 		ResearchOutput output = ResearchOutput.builder()
 				.referenceNumber(referenceNumber)
 				.institution(institution)
+				.submittedBy(user)
 				.title(dto.title().trim())
 				.abstractText(dto.abstractText().trim())
 				.completionYear(dto.completionYear())
 				.keywords(keywords)
 				.doi(dto.doi() == null ? null : dto.doi().trim())
+				.conferenceUrl(dto.conferenceUrl() == null ? null : dto.conferenceUrl().trim())
 				.subjectDc(dto.sAndTTheme())
 				.coverageDc(dto.coverageDc())
 				.rightsDc(dto.rightsDc())
 				.researchType(isBlank(dto.researchType()) ? DEFAULT_RESEARCH_TYPE : dto.researchType().trim())
 				.fundingSource(dto.fundingSource())
 				.publicationVenue(dto.publicationVenue())
+				.principalInvestigator(isBlank(dto.principalInvestigator()) ? null : dto.principalInvestigator().trim())
+				.institutionalAffiliation(isBlank(dto.institutionalAffiliation()) ? null : dto.institutionalAffiliation().trim())
 				.s3PdfKey(dto.attachmentKey())
-				.status(STATUS_PENDING_REVIEW)
+				.status(STATUS_APPROVED)
 				.authors(authors)
 				.build();
 
@@ -106,6 +124,13 @@ public class SubmissionService {
 
 		ResearchOutput saved = researchOutputRepository.save(output);
 
+		eventPublisher.publishEvent(new RecordIngestedEvent(
+				saved.getId(),
+				saved.getReferenceNumber(),
+				institution.getId(),
+				user.getEmail()
+		));
+
 		emailNotificationService.sendSubmissionConfirmation(user.getEmail(), saved.getReferenceNumber());
 
 		return new SubmissionResponse(saved.getReferenceNumber());
@@ -114,6 +139,10 @@ public class SubmissionService {
 	@Transactional(readOnly = true)
 	public Page<SubmissionSummaryDTO> listSubmissions(String userId, SubmissionFilterDTO filter, Pageable pageable, String keyword) {
 		String institutionId = getInstitutionIdForUser(userId);
+
+		if (Boolean.TRUE.equals(filter.getMine())) {
+			filter.setSubmittedByUserId(userId);
+		}
 
 		if (!isBlank(keyword)) {
 			return researchOutputRepository.findByInstitutionIdAndTitleContainingIgnoreCaseOrAuthorsContainingIgnoreCase(
@@ -130,7 +159,14 @@ public class SubmissionService {
 					output.getCompletionYear(),
 					output.getCreatedAt(),
 					output.getUpdatedAt(),
-					output.getStatus()
+					output.getStatus(),
+					institutionId,
+					output.getInstitution() != null ? output.getInstitution().getName() : null,
+					output.getAuthors() == null ? null
+							: output.getAuthors().stream()
+							.map(com.geeks.riis_backend.model.Author::getFullName)
+							.filter(name -> name != null && !name.isBlank())
+							.collect(java.util.stream.Collectors.joining(", "))
 			));
 		}
 
@@ -147,7 +183,14 @@ public class SubmissionService {
 						output.getCompletionYear(),
 						output.getCreatedAt(),
 						output.getUpdatedAt(),
-						output.getStatus()
+						output.getStatus(),
+						institutionId,
+						output.getInstitution() != null ? output.getInstitution().getName() : null,
+						output.getAuthors() == null ? null
+								: output.getAuthors().stream()
+								.map(com.geeks.riis_backend.model.Author::getFullName)
+								.filter(name -> name != null && !name.isBlank())
+								.collect(java.util.stream.Collectors.joining(", "))
 				));
 	}
 
@@ -186,7 +229,10 @@ public class SubmissionService {
 				output.getAbstractText(),
 				authors,
 				keywords,
+				output.getPrincipalInvestigator(),
+				output.getInstitutionalAffiliation(),
 				output.getDoi(),
+				output.getConferenceUrl(),
 				output.getSubjectDc(),
 				output.getCoverageDc(),
 				output.getRightsDc(),
@@ -239,12 +285,19 @@ public class SubmissionService {
 		output.setCompletionYear(dto.completionYear());
 		output.setAbstractText(dto.abstractText().trim());
 		output.setDoi(dto.doi() == null ? null : dto.doi().trim());
+		output.setConferenceUrl(dto.conferenceUrl() == null ? null : dto.conferenceUrl().trim());
 		output.setSubjectDc(dto.sAndTTheme());
 		output.setCoverageDc(dto.coverageDc());
 		output.setRightsDc(dto.rightsDc());
 		output.setResearchType(isBlank(dto.researchType()) ? DEFAULT_RESEARCH_TYPE : dto.researchType().trim());
 		output.setFundingSource(dto.fundingSource());
 		output.setPublicationVenue(dto.publicationVenue());
+
+		output.setPrincipalInvestigator(
+				isBlank(dto.principalInvestigator()) ? null : dto.principalInvestigator().trim());
+		output.setInstitutionalAffiliation(
+				isBlank(dto.institutionalAffiliation()) ? null : dto.institutionalAffiliation().trim());
+
 		output.setS3PdfKey(dto.attachmentKey());
 		output.setKeywords(dto.keywords() == null ? null : dto.keywords().stream()
 				.filter(value -> value != null && !value.isBlank())
@@ -313,12 +366,20 @@ public class SubmissionService {
 		output.setCompletionYear(dto.completionYear());
 		output.setAbstractText(dto.abstractText().trim());
 		output.setDoi(dto.doi() == null ? null : dto.doi().trim());
+		output.setConferenceUrl(dto.conferenceUrl() == null ? null : dto.conferenceUrl().trim());
 		output.setSubjectDc(dto.sAndTTheme());
 		output.setCoverageDc(dto.coverageDc());
 		output.setRightsDc(dto.rightsDc());
 		output.setResearchType(isBlank(dto.researchType()) ? DEFAULT_RESEARCH_TYPE : dto.researchType().trim());
 		output.setFundingSource(dto.fundingSource());
 		output.setPublicationVenue(dto.publicationVenue());
+
+		output.setPrincipalInvestigator(
+				isBlank(dto.principalInvestigator()) ? null : dto.principalInvestigator().trim());
+
+		output.setInstitutionalAffiliation(
+				isBlank(dto.institutionalAffiliation()) ? null : dto.institutionalAffiliation().trim());
+
 		output.setS3PdfKey(dto.attachmentKey());
 		output.setKeywords(dto.keywords() == null ? null : dto.keywords().stream()
 				.filter(value -> value != null && !value.isBlank())
@@ -405,16 +466,18 @@ public class SubmissionService {
 	}
 
 	private List<String> parseKeywords(String keywords) {
-		if (keywords == null || keywords.isBlank()) {
-			return List.of();
-		}
+		if (isBlank(keywords)) return List.of();
 		return Arrays.stream(keywords.split(","))
 				.map(String::trim)
-				.filter(v -> !v.isBlank())
+				.filter(value -> !value.isBlank())
 				.toList();
 	}
 
 	private boolean isBlank(String value) {
 		return value == null || value.isBlank();
+	}
+
+	public long countAllApproved() {
+		return researchOutputRepository.count();
 	}
 }

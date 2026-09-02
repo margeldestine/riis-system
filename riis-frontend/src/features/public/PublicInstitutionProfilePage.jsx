@@ -45,7 +45,6 @@ function getTypeBadge(type) {
 function OutputCard({ output, isOwnInstitution }) {
   const navigate = useNavigate()
   const statusColors = {
-    APPROVED: 'bg-emerald-100 text-emerald-700',
     PENDING_REVIEW: 'bg-blue-100 text-blue-700',
     REQUIRES_CORRECTION: 'bg-red-100 text-red-700',
     REJECTED: 'bg-red-100 text-red-700',
@@ -208,7 +207,7 @@ function OtherHEIsPanel({ currentId }) {
               <div className="mt-2 flex items-center gap-1.5 text-xs">
                 <FileText className="h-3.5 w-3.5 text-slate-400" />
                 <span className="font-semibold text-emerald-600">
-                  {hei.approvedOutputCount ?? 0} research outputs
+                  {hei.approvedOutputCount ?? 0} research output{(hei.approvedOutputCount ?? 0) === 1 ? '' : 's'}
                 </span>
               </div>
             </div>
@@ -226,10 +225,34 @@ export default function PublicInstitutionProfilePage() {
   const [status, setStatus] = useState('loading')
   const [page, setPage] = useState(0)
   const [searchKeyword, setSearchKeyword] = useState('')
+  const [debouncedSearchKeyword, setDebouncedSearchKeyword] = useState('')
   const [selectedTypes, setSelectedTypes] = useState([])
   const [selectedClusters, setSelectedClusters] = useState([])
   const [yearRange, setYearRange] = useState(0)
   const [isFiltering, setIsFiltering] = useState(false)
+  const [isExporting, setIsExporting] = useState(null) // 'pdf' | 'csv' | null
+  const [exportError, setExportError] = useState('')
+
+  useEffect(() => {
+    setYearRange(0)
+  }, [id])
+
+  // Debounce the keyword the same way the HEI Staff view does — wait
+  // 350ms after the user stops typing before it feeds into the actual
+  // fetch. Firing a request on every keystroke (no debounce) caused
+  // rapid overlapping requests that could resolve out of order and
+  // make filtering look broken.
+  useEffect(() => {
+    setIsFiltering(true)
+    const handle = setTimeout(() => {
+      setDebouncedSearchKeyword(searchKeyword)
+    }, 350)
+    return () => clearTimeout(handle)
+  }, [searchKeyword])
+
+  useEffect(() => {
+    setIsFiltering(true)
+  }, [selectedTypes, selectedClusters, yearRange])
 
   useEffect(() => {
     if (!id) return
@@ -243,7 +266,7 @@ export default function PublicInstitutionProfilePage() {
       params: {
         page,
         size: 5,
-        keyword: searchKeyword || undefined,
+        keyword: debouncedSearchKeyword || undefined,
         researchTypes: selectedTypes.length > 0 ? selectedTypes.join(',') : undefined,
         subjects: selectedClusters.length > 0 ? selectedClusters.join(',') : undefined,
         yearTo: yearRange || undefined,
@@ -252,9 +275,15 @@ export default function PublicInstitutionProfilePage() {
     })
       .then(res => { setProfile(res.data); setStatus('success') })
       .catch(err => { if (!controller.signal.aborted) setStatus('error') })
-      .finally(() => { setIsFiltering(false) })
+      .finally(() => {
+        // Guard against a stale, aborted request's finally() firing after
+        // it's been superseded by a newer request — otherwise the spinner
+        // turns off early (from the aborted request) while old results
+        // still show, before the real final response has arrived.
+        if (!controller.signal.aborted) setIsFiltering(false)
+      })
     return () => controller.abort()
-  }, [id, page, searchKeyword, selectedTypes, selectedClusters, yearRange])
+  }, [id, page, debouncedSearchKeyword, selectedTypes, selectedClusters, yearRange])
 
   const outputs = profile?.outputs?.content || []
   const totalPages = profile?.outputs?.totalPages || 1
@@ -266,6 +295,40 @@ export default function PublicInstitutionProfilePage() {
     { label: 'Education & Social', value: 'Education & Social' },
     { label: 'Tech, Engr & Innovation', value: 'Tech & Innovation' },
   ]
+
+  const handleExport = async (format) => {
+    setIsExporting(format)
+    setExportError('')
+    try {
+      const response = await apiClient.get(`/institutions/${id}/export`, {
+        params: {
+          format,
+          keyword: debouncedSearchKeyword || undefined,
+          researchTypes: selectedTypes.length > 0 ? selectedTypes.join(',') : undefined,
+          subjects: selectedClusters.length > 0 ? selectedClusters.join(',') : undefined,
+          yearTo: yearRange || undefined,
+        },
+        responseType: 'blob',
+      })
+
+      const disposition = response.headers['content-disposition']
+      const match = disposition && disposition.match(/filename="?([^"]+)"?/)
+      const filename = match ? match[1] : `institution-report.${format}`
+
+      const url = window.URL.createObjectURL(new Blob([response.data]))
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', filename)
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+    } catch (err) {
+      setExportError('Unable to generate report. Please try again.')
+    } finally {
+      setIsExporting(null)
+    }
+  }
 
   return (
     <div style={{ minHeight: '100vh', background: '#f8fafc', fontFamily: 'system-ui, sans-serif', display: 'flex', flexDirection: 'column' }}>
@@ -318,14 +381,14 @@ export default function PublicInstitutionProfilePage() {
                 </div>
                 <div className="mt-2 flex flex-wrap items-center gap-2">
                   <span className="inline-flex items-center gap-1 rounded-full bg-purple-500 px-2.5 py-0.5 text-xs font-semibold text-white"><Globe className="h-3.5 w-3.5" />Public Access</span>
-                  <span className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-0.5 text-xs font-semibold text-white"><Calendar className="h-3.5 w-3.5 text-white/80" />2016–2025</span>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-white/15 px-2.5 py-0.5 text-xs font-semibold text-white"><Calendar className="h-3.5 w-3.5 text-white/80" />2015 – 2026</span>
                 </div>
               </div>
             </div>
-            <div className="mt-6 grid grid-cols-4 gap-4">
+
+            <div className="mt-6 grid grid-cols-3 gap-4">
               {[
                 { value: profile.stats?.totalApprovedOutputs ?? 0, label: 'Total Outputs' },
-                { value: profile.stats?.totalApprovedOutputs ?? 0, label: 'Approved' },
                 { value: Object.entries(profile.stats?.researchTypeDistribution || {}).find(([k]) => k.toLowerCase().includes('funded'))?.[1] ?? 0, label: 'Funded Projects' },
                 { value: profile.stats?.totalUniqueAuthors ?? 0, label: 'Unique Authors' },
               ].map((s, i) => (
@@ -335,6 +398,7 @@ export default function PublicInstitutionProfilePage() {
                 </div>
               ))}
             </div>
+            
           </div>
 
           <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
@@ -353,6 +417,7 @@ export default function PublicInstitutionProfilePage() {
                 {profile.themeKeywords?.length > 0 ? (
                   <div className="mt-4 space-y-4">
                     <div className="flex flex-wrap gap-2">
+
                       {profile.themeKeywords.slice(0, 6).map((tag, i) => {
                         const tagColors = [
                           'bg-emerald-50 text-emerald-700',
@@ -400,6 +465,7 @@ export default function PublicInstitutionProfilePage() {
                     </p>
                   </div>
                 )}
+                
               </div>
 
               <div className="space-y-3">
@@ -425,7 +491,7 @@ export default function PublicInstitutionProfilePage() {
                   />
                 </div>
                 <p className="text-xs text-slate-500">
-                  Showing {outputs.length} of {profile.stats?.totalApprovedOutputs ?? 0} approved results
+                  Showing {outputs.length} of {profile.stats?.totalApprovedOutputs ?? 0}  results
                 </p>
               </div>
 
@@ -438,7 +504,7 @@ export default function PublicInstitutionProfilePage() {
                   Searching...
                 </div>
               ) : outputs.length === 0 ? (
-                <p className="text-sm text-slate-500">No approved outputs yet.</p>
+                <p className="text-sm text-slate-500">No outputs yet.</p>
               ) : (
                 <div className="space-y-4">
                   {outputs.map((output) => (
@@ -505,19 +571,20 @@ export default function PublicInstitutionProfilePage() {
                       Year Range
                     </p>
                     <input
-                      type="range"
-                      min="2015"
-                      max="2025"
-                      className="w-full accent-[#C9A84C]"
-                      onChange={(event) => {
-                        setYearRange(Number(event.target.value))
-                        setPage(0)
-                      }}
-                    />
-                    <div className="mt-1 flex justify-between text-[10px] text-slate-400">
-                      <span>2015</span>
-                      <span>2025</span>
-                    </div>
+  type="range"
+  min="2015"
+  max="2026"
+  value={yearRange || 2026}
+  className="w-full accent-[#C9A84C]"
+  onChange={(event) => {
+    setYearRange(Number(event.target.value))
+    setPage(0)
+  }}
+/>
+<div className="mt-1 flex items-center justify-between text-[10px] text-slate-400">
+  <span>2015</span>
+  <span>2026</span>
+</div>
                   </div>
                   <div>
                     <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
@@ -570,13 +637,31 @@ export default function PublicInstitutionProfilePage() {
                     </p>
                   ) : null}
                 </div>
-                <button
-                  type="button"
-                  className="mt-4 flex w-full items-center justify-center gap-1 rounded-md border border-slate-200 bg-white py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
-                >
-                  <FileText className="h-4 w-4 text-slate-500" />
-                  Export Report
-                </button>
+                <div className="mt-4 space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleExport('pdf')}
+                      disabled={isExporting !== null}
+                      className="flex items-center justify-center gap-1.5 rounded-md border border-slate-200 bg-white py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <FileText className="h-4 w-4 text-slate-500" />
+                      {isExporting === 'pdf' ? 'Exporting…' : 'Export PDF'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleExport('csv')}
+                      disabled={isExporting !== null}
+                      className="flex items-center justify-center gap-1.5 rounded-md border border-slate-200 bg-white py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <FileText className="h-4 w-4 text-slate-500" />
+                      {isExporting === 'csv' ? 'Exporting…' : 'Export CSV'}
+                    </button>
+                  </div>
+                  {exportError ? (
+                    <p className="text-xs text-red-600">{exportError}</p>
+                  ) : null}
+                </div>
               </div>
 
               <OtherHEIsPanel currentId={id} />

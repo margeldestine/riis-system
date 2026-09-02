@@ -2,7 +2,6 @@ import { useEffect, useState, useRef } from 'react'
 import * as d3 from 'd3'
 import {
   ChevronDown,
-  ChevronRight,
   Download,
   Flame,
   Loader2,
@@ -30,24 +29,74 @@ const heiColors = [
   '#123B72', '#2563EB', '#7C3AED', '#F59E0B', '#EF4444', '#10B981',
 ]
 
-function FilterField({ label, value }) {
+function FilterField({ label, value, onChange, options, placeholder }) {
   return (
     <div className="min-w-[176px]">
       <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-[#9CA3AF]">
         {label}
       </p>
       <div className="relative">
-        <button
-          type="button"
-          className="flex h-10 w-full items-center justify-between rounded-[8px] border border-[#D1D5DB] bg-white px-3 py-2 text-sm text-[#6B7280]"
+        <select
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="h-10 w-full appearance-none rounded-[8px] border border-[#D1D5DB] bg-white px-3 py-2 pr-8 text-sm text-[#374151]"
         >
-          <span>{value}</span>
-          <ChevronDown className="h-4 w-4 text-[#9CA3AF]" />
-        </button>
+          <option value="">{placeholder}</option>
+          {options.map((opt) => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+        <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#9CA3AF]" />
       </div>
     </div>
   )
 }
+
+// DAS-038: Year-From / Year-To range control, styled to match FilterField.
+function YearRangeField({ label, from, to, onFromChange, onToChange, options }) {
+  return (
+    <div className="min-w-[176px]">
+      <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.22em] text-[#9CA3AF]">
+        {label}
+      </p>
+      <div className="flex items-center gap-1.5">
+        <div className="relative flex-1">
+          <select
+            value={from}
+            onChange={(e) => onFromChange(e.target.value)}
+            className="h-10 w-full appearance-none rounded-[8px] border border-[#D1D5DB] bg-white px-2 py-2 pr-6 text-sm text-[#374151]"
+          >
+            <option value="">From</option>
+            {options.map((y) => (<option key={y} value={y}>{y}</option>))}
+          </select>
+          <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#9CA3AF]" />
+        </div>
+        <span className="text-xs text-[#9CA3AF]">to</span>
+        <div className="relative flex-1">
+          <select
+            value={to}
+            onChange={(e) => onToChange(e.target.value)}
+            className="h-10 w-full appearance-none rounded-[8px] border border-[#D1D5DB] bg-white px-2 py-2 pr-6 text-sm text-[#374151]"
+          >
+            <option value="">To</option>
+            {options.map((y) => (<option key={y} value={y}>{y}</option>))}
+          </select>
+          <ChevronDown className="pointer-events-none absolute right-1.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#9CA3AF]" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// Same list used on the HEI-side submission form (SubmissionPortal.jsx),
+// duplicated here so the Type filter's options match what admins actually see.
+const RESEARCH_TYPES = [
+  'Funded Project',
+  'Journal Article',
+  'Conference Paper',
+  'Innovation Output',
+  'Community Extension Research',
+]
 
 function LoadingCard() {
   return (
@@ -97,17 +146,15 @@ function exportCSV({ summary, trendData, typeDistribution, heiComparison, provin
   const row = (cols) => cols.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(',')
 
   // Summary
-  sections.push('SUMMARY')
+    sections.push('SUMMARY')
   sections.push(row(['Metric', 'Value']))
-  sections.push(row(['Total Approved Outputs', summary?.totalApprovedOutputs ?? 0]))
+  sections.push(row(['Total Outputs', summary?.totalApprovedOutputs ?? 0]))
   sections.push(row(['Registered HEIs', summary?.totalRegisteredHeis ?? 0]))
-  sections.push(row(['Completeness Rate (%)', summary?.completenessRate ?? 0]))
-  sections.push(row(['Incomplete Rate (%)', summary?.incompleteRate ?? 0]))
   sections.push('')
 
-  // Research Outputs by Year
+    // Research Outputs by Year
   if (trendData.length > 0) {
-    sections.push('RESEARCH OUTPUTS BY YEAR & DISCIPLINE')
+    sections.push('RESEARCH OUTPUTS BY YEAR')
     const types = Object.keys(trendData[0]).filter(k => k !== 'year')
     sections.push(row(['Year', ...types]))
     trendData.forEach(d => sections.push(row([d.year, ...types.map(t => d[t] ?? 0)])))
@@ -122,20 +169,20 @@ function exportCSV({ summary, trendData, typeDistribution, heiComparison, provin
     sections.push('')
   }
 
-  // HEI Comparison
+    // HEI Comparison
   if (heiComparison.length > 0) {
     sections.push('HEI SUBMISSION OVERVIEW')
-    sections.push(row(['Rank', 'Institution', 'Approved Outputs', 'Progress (%)']))
+    sections.push(row(['Rank', 'Institution', 'Outputs']))
     heiComparison
       .filter(item => item.count > 0)
-      .forEach((item, i) => sections.push(row([i + 1, item.name, item.count, item.progress])))
+      .forEach((item, i) => sections.push(row([i + 1, item.name, item.count])))
     sections.push('')
   }
 
   // Province Summary
   if (provinceSummary.length > 0) {
     sections.push('PROVINCE-LEVEL SUMMARY')
-    sections.push(row(['Province', 'Approved Outputs']))
+    sections.push(row(['Province', 'Outputs']))
     provinceSummary
       .filter(item => !['Negros Oriental', 'Siquijor'].includes(item.name))
       .forEach(item => sections.push(row([item.name, item.value])))
@@ -196,20 +243,17 @@ function exportPDF({ summary, trendData, typeDistribution, heiComparison, provin
       ${content}
     </div>`
 
-  // Summary section
-  const summaryHTML = section('Summary', table(
+    const summaryHTML = section('Summary', table(
     ['Metric', 'Value'],
     [
-      ['Total Approved Outputs', summary?.totalApprovedOutputs ?? 0],
+      ['Total Outputs', summary?.totalApprovedOutputs ?? 0],
       ['Registered HEIs', summary?.totalRegisteredHeis ?? 0],
-      ['Completeness Rate', `${summary?.completenessRate ?? 0}%`],
-      ['Incomplete Rate', `${summary?.incompleteRate ?? 0}%`],
     ]
   ))
 
   // Trend section
   const trendTypes = trendData.length > 0 ? Object.keys(trendData[0]).filter(k => k !== 'year') : []
-  const trendHTML = trendData.length > 0 ? section('Research Outputs by Year & Discipline', table(
+    const trendHTML = trendData.length > 0 ? section('Research Outputs by Year', table(
     ['Year', ...trendTypes],
     trendData.map(d => [d.year, ...trendTypes.map(t => d[t] ?? 0)])
   )) : ''
@@ -222,15 +266,15 @@ function exportPDF({ summary, trendData, typeDistribution, heiComparison, provin
 
   // HEI comparison
   const heiFiltered = heiComparison.filter(item => item.count > 0)
-  const heiHTML = heiFiltered.length > 0 ? section('HEI Submission Overview', table(
-    ['Rank', 'Institution', 'Approved Outputs', 'Progress (%)'],
-    heiFiltered.map((item, i) => [i + 1, item.name, item.count, item.progress])
+    const heiHTML = heiFiltered.length > 0 ? section('HEI Submission Overview', table(
+    ['Rank', 'Institution', 'Outputs'],
+    heiFiltered.map((item, i) => [i + 1, item.name, item.count])
   )) : ''
 
   // Province summary
   const provFiltered = provinceSummary.filter(item => !['Negros Oriental', 'Siquijor'].includes(item.name))
   const provHTML = provFiltered.length > 0 ? section('Province-Level Summary', table(
-    ['Province', 'Approved Outputs'],
+    ['Province', 'Outputs'],
     provFiltered.map(item => [item.name, item.value])
   )) : ''
 
@@ -305,17 +349,13 @@ function exportPDF({ summary, trendData, typeDistribution, heiComparison, provin
 </body>
 </html>`
 
-  const blob = new Blob([html], { type: 'text/html;charset=utf-8;' })
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8;' })
   const url = URL.createObjectURL(blob)
-  const win = window.open(url, '_blank')
-  if (win) {
-    win.onload = () => {
-      setTimeout(() => {
-        win.print()
-        URL.revokeObjectURL(url)
-      }, 500)
-    }
-  }
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `DOST_Region7_Analytics_${new Date().toISOString().slice(0, 10)}.html`
+  a.click()
+  URL.revokeObjectURL(url)
 }
 
 // ---- D3-powered Thematic Density Heatmap ----------------------------------
@@ -442,20 +482,94 @@ export default function AnalyticsDashboard({
   const [showExportMenu, setShowExportMenu] = useState(false)
   const exportRef = useRef(null)
 
+  // DAS-036/037/038: filter state. `pendingFilters` tracks what's currently
+  // selected in the dropdowns; `appliedFilters` only updates when "Apply
+  // Filters" is clicked, and it's what actually drives the data fetch below.
+  const emptyFilters = { yearFrom: '', yearTo: '', province: '', institutionId: '', type: '' }
+  const [pendingFilters, setPendingFilters] = useState(emptyFilters)
+  const [appliedFilters, setAppliedFilters] = useState(emptyFilters)
+
+  // Dropdown option sources: institutions (for HEI + Province options) and
+  // year range (for the Year-From/Year-To control) are each fetched once,
+  // independent of whatever filters are currently applied, so the dropdowns
+  // don't shrink to only the currently-filtered subset.
+  const [institutionOptions, setInstitutionOptions] = useState([])
+  const [provinceOptions, setProvinceOptions] = useState([])
+  const [yearOptions, setYearOptions] = useState([])
+
+    useEffect(() => {
+    const controller = new AbortController()
+    apiClient.get('/institutions', { signal: controller.signal })
+      .then((res) => {
+        const list = res.data || []
+        setInstitutionOptions(list.map((i) => ({ value: i.id, label: i.name, province: i.province })))
+        setProvinceOptions([...new Set(list.map((i) => i.province).filter(Boolean))].sort())
+      })
+      .catch((err) => { if (!controller.signal.aborted) console.error('Institutions fetch error:', err) })
+
+    apiClient.get('/analytics/trend', { signal: controller.signal })
+      .then((res) => {
+        const years = (res.data || []).map((d) => d.year).sort()
+        setYearOptions(years)
+      })
+      .catch((err) => { if (!controller.signal.aborted) console.error('Year options fetch error:', err) })
+
+    return () => controller.abort()
+  }, [])
+
+  // Clear the selected HEI if it doesn't belong to the newly selected province.
+  useEffect(() => {
+    if (!pendingFilters.province || !pendingFilters.institutionId) return
+    const stillValid = institutionOptions.some(
+      (opt) => opt.value === pendingFilters.institutionId && opt.province === pendingFilters.province,
+    )
+    if (!stillValid) {
+      setPendingFilters((f) => ({ ...f, institutionId: '' }))
+    }
+  }, [pendingFilters.province, institutionOptions])
+
   useEffect(() => {
     const controller = new AbortController()
 
     const fetchAll = async () => {
       setLoading(true)
       try {
+        const params = {
+          yearFrom: appliedFilters.yearFrom || undefined,
+          yearTo: appliedFilters.yearTo || undefined,
+          province: appliedFilters.province || undefined,
+          institutionId: appliedFilters.institutionId || undefined,
+          type: appliedFilters.type || undefined,
+        }
+        const provinceParams = {
+          yearFrom: params.yearFrom,
+          yearTo: params.yearTo,
+          province: params.province,
+          institutionId: params.institutionId,
+          type: params.type,
+        }
+        // DAS-039-filters: Concentration Heatmap gets Year/Province/HEI, no Type.
+        const clusterHeatmapParams = {
+          yearFrom: params.yearFrom,
+          yearTo: params.yearTo,
+          province: params.province,
+          institutionId: params.institutionId,
+        }
+        // DAS-039-filters: Niche Landscape gets Province/HEI only — theme
+        // profiles are aggregated per-institution across all time, with no
+        // per-output year/type data to filter on.
+        const nicheParams = {
+          province: params.province,
+          institutionId: params.institutionId,
+        }
         const [summaryRes, trendRes, typeRes, heiRes, provinceRes, heatmapRes, clusterHeatmapRes] = await Promise.all([
-          apiClient.get('/analytics/summary', { signal: controller.signal }),
-          apiClient.get('/analytics/trend', { signal: controller.signal }),
-          apiClient.get('/analytics/type-distribution', { signal: controller.signal }),
-          apiClient.get('/analytics/hei-comparison', { signal: controller.signal }),
-          apiClient.get('/analytics/province-summary', { signal: controller.signal }),
-          apiClient.get('/analytics/heatmap', { signal: controller.signal }),
-          apiClient.get('/analytics/cluster-heatmap', { signal: controller.signal }),
+          apiClient.get('/analytics/summary', { params, signal: controller.signal }),
+          apiClient.get('/analytics/trend', { params, signal: controller.signal }),
+          apiClient.get('/analytics/type-distribution', { params, signal: controller.signal }),
+          apiClient.get('/analytics/hei-comparison', { params, signal: controller.signal }),
+          apiClient.get('/analytics/province-summary', { params: provinceParams, signal: controller.signal }),
+          apiClient.get('/analytics/heatmap', { params: nicheParams, signal: controller.signal }),
+          apiClient.get('/analytics/cluster-heatmap', { params: clusterHeatmapParams, signal: controller.signal }),
         ])
         setSummary(summaryRes.data)
         setTrendData(trendRes.data || [])
@@ -473,7 +587,7 @@ export default function AnalyticsDashboard({
 
     fetchAll()
     return () => controller.abort()
-  }, [])
+  }, [appliedFilters])
 
   // Close export dropdown when clicking outside
   useEffect(() => {
@@ -506,40 +620,73 @@ export default function AnalyticsDashboard({
 
   return (
     <div className="space-y-4 font-sans">
-      <div className="flex items-center gap-2 text-[11px] uppercase tracking-[0.22em]">
-        <span className="text-[#9CA3AF]">Dashboard</span>
-        <ChevronRight className="h-3.5 w-3.5 text-[#9CA3AF]" />
-        <span className="text-[#C9A84C]">Analytics Dashboard</span>
-      </div>
-
-      <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-        <div>
-          <h2 className="text-[30px] font-bold tracking-tight text-[#1A1A2E]">
-            Regional Research Analytics Dashboard
-          </h2>
-          <p className="mt-2 text-sm text-[#6B7280]">
-            DOST Administrator View · Region VII · AY 2025-2026
-          </p>
+      {/* Header */}
+      <div className="-mx-[32px] -mt-[32px] w-[calc(100%+64px)]">
+        <div className="relative overflow-hidden bg-[#f8fafc] px-8 py-8">
+          <div className="pointer-events-none absolute inset-0" style={{ backgroundImage: 'url(/DOST_Building.png)', backgroundSize: 'cover', backgroundPosition: '78% 32%', opacity: 0.18 }} />
+          <div className="pointer-events-none absolute inset-0" style={{ background: 'rgba(13, 31, 60, 0.08)' }} />
+          <div className="relative z-10 flex items-start justify-between gap-6">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-[#94a3b8]">
+                DASHBOARD &gt; <span className="text-[#c9a84c]">ANALYTICS DASHBOARD</span>
+              </p>
+              <h1 className="mt-2 text-[30px] font-bold tracking-tight text-[#0d1f3c]" style={{ fontFamily: "'Libre Baskerville', serif" }}>
+                Regional Research Analytics Dashboard
+              </h1>
+              <p className="mt-2 text-[13px] text-[#6b7280]">
+                DOST Administrator View · Region VII
+              </p>
+            </div>
+            <div className="text-right shrink-0">
+              <p className="mt-1 text-[12px] text-[#6b7280]">DOST Region VII</p>
+            </div>
+          </div>
         </div>
-        <div className={`${cardClass} min-w-[160px] px-4 py-3 text-right`}>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-[#9CA3AF]">Academic Year</p>
-          <p className="mt-1 text-lg font-semibold text-[#1A1A2E]">2025-2026</p>
-          <p className="mt-1 text-xs text-[#6B7280]">DOST Region VII</p>
-        </div>
+        <div className="h-px w-full bg-[#c9a84c]" />
       </div>
 
       {/* Filters */}
       <section className={cardClass}>
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <FilterField label="All Years" value="All Years" />
-            <FilterField label="All Provinces" value="All Provinces" />
-            <FilterField label="All HEIs" value="All HEIs" />
-            <FilterField label="All Types" value="All Types" />
+            <YearRangeField
+              label="Year Range"
+              from={pendingFilters.yearFrom}
+              to={pendingFilters.yearTo}
+              onFromChange={(v) => setPendingFilters((f) => ({ ...f, yearFrom: v }))}
+              onToChange={(v) => setPendingFilters((f) => ({ ...f, yearTo: v }))}
+              options={yearOptions}
+            />
+            <FilterField
+              label="All Provinces"
+              placeholder="All Provinces"
+              value={pendingFilters.province}
+              onChange={(v) => setPendingFilters((f) => ({ ...f, province: v }))}
+              options={provinceOptions.map((p) => ({ value: p, label: p }))}
+            />
+                        <FilterField
+              label="All HEIs"
+              placeholder="All HEIs"
+              value={pendingFilters.institutionId}
+              onChange={(v) => setPendingFilters((f) => ({ ...f, institutionId: v }))}
+              options={
+                pendingFilters.province
+                  ? institutionOptions.filter((opt) => opt.province === pendingFilters.province)
+                  : institutionOptions
+              }
+            />
+            <FilterField
+              label="All Types"
+              placeholder="All Types"
+              value={pendingFilters.type}
+              onChange={(v) => setPendingFilters((f) => ({ ...f, type: v }))}
+              options={RESEARCH_TYPES.map((t) => ({ value: t, label: t }))}
+            />
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <button
               type="button"
+              onClick={() => setAppliedFilters(pendingFilters)}
               className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#1A1A2E] px-[20px] py-[10px] text-sm font-semibold text-white transition hover:bg-[#11111f]"
             >
               <SlidersHorizontal className="h-4 w-4" />
@@ -593,12 +740,16 @@ export default function AnalyticsDashboard({
       {/* Trend + Donut */}
       <section style={{ display: 'grid', gridTemplateColumns: '1.55fr 0.85fr', gap: '16px' }}>
         <div className="rounded-[12px] bg-white p-[20px] shadow-[0_2px_8px_rgba(0,0,0,0.08)]">
-          <h3 className="text-[17px] font-semibold text-[#1A1A2E]">Research Outputs by Year & Discipline</h3>
-          <p className="mt-1 text-xs text-[#6B7280]">Approved outputs grouped by research type</p>
+          <h3 className="text-[17px] font-semibold text-[#1A1A2E]">Research Outputs by Year</h3>
+          <p className="mt-1 text-xs text-[#6B7280]">Outputs grouped by research type</p>
           <div className="mt-5 h-[260px]">
-            {loading ? (
+                        {loading ? (
               <div className="flex h-full items-center justify-center">
-                <Loader2 className="h-6 w-6 animate-spin text-white/40" />
+                <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
+              </div>
+            ) : trendData.length === 0 ? (
+              <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
+                <p className="text-xs text-slate-400 italic">No outputs found for the selected filters.</p>
               </div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
@@ -629,11 +780,11 @@ export default function AnalyticsDashboard({
 
         <div className="rounded-[12px] bg-white p-[20px] shadow-[0_2px_8px_rgba(0,0,0,0.08)]">
           <h3 className="text-[17px] font-semibold text-[#1A1A2E]">Research Type Distribution</h3>
-          <p className="mt-1 text-xs text-[#6B7280]">All approved outputs</p>
+          <p className="mt-1 text-xs text-[#6B7280]">All outputs</p>
           <div className="mt-5 grid gap-4 lg:grid-cols-[150px,1fr] xl:grid-cols-1 2xl:grid-cols-[150px,1fr]">
-            <div className="relative mx-auto flex h-[150px] w-[150px] items-center justify-center">
+              <div className="relative mx-auto flex h-[150px] w-[150px] items-center justify-center">
               {loading ? (
-                <Loader2 className="h-6 w-6 animate-spin text-white/40" />
+                <Loader2 className="h-6 w-6 animate-spin text-slate-400" />
               ) : (
                 <>
                   <ResponsiveContainer width="100%" height="100%">
@@ -667,23 +818,27 @@ export default function AnalyticsDashboard({
       </section>
 
       {/* HEI Comparison + Province Summary */}
-      <section style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '16px' }}>
+      <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_0.8fr]">
         <div className={cardClass}>
           <h3 className="text-[17px] font-semibold text-[#1A1A2E]">HEI Submission Overview</h3>
-          <p className="mt-1 text-xs text-[#6B7280]">Ranked by total approved outputs</p>
+          <p className="mt-1 text-xs text-[#6B7280]">Ranked by total outputs</p>
           <div className="mt-5 space-y-4">
             {loading ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
               </div>
+            ) : heiComparison.filter((item) => item.count > 0).length === 0 ? (
+              <div className="flex items-center justify-center py-8">
+                <p className="text-xs text-slate-400 italic">No outputs found for the selected filters.</p>
+              </div>
             ) : heiComparison
                 .filter((item) => item.count > 0)
                 .map((item, index) => (
-                  <div key={item.institutionId} className="grid grid-cols-[28px,minmax(0,1fr),110px,34px] items-center gap-3">
-                    <div className="flex h-7 w-7 items-center justify-center rounded-[8px] text-[10px] font-bold text-white" style={{ backgroundColor: heiColors[index % heiColors.length] }}>
-                      {getInstitutionInitials(item.name, 4)}
-                    </div>
-                    <div className="min-w-0">
+                  <div key={item.institutionId} className="grid grid-cols-[minmax(0,1fr),110px,34px] items-center gap-3">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] text-[10px] font-bold text-white" style={{ backgroundColor: heiColors[index % heiColors.length] }}>
+                        {getInstitutionInitials(item.name, 4)}
+                      </div>
                       <p className="truncate text-sm font-semibold text-[#1A1A2E]">{index + 1}. {item.name}</p>
                     </div>
                     <div className="h-[7px] overflow-hidden rounded-full bg-[#E5E7EB]">
@@ -697,26 +852,39 @@ export default function AnalyticsDashboard({
 
         <div className={cardClass}>
           <h3 className="text-[17px] font-semibold text-[#1A1A2E]">Province-Level Summary</h3>
-          <p className="mt-1 text-xs text-[#6B7280]">Approved outputs by province</p>
+          <p className="mt-1 text-xs text-[#6B7280]">Outputs by province</p>
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
             {loading ? (
               <div className="col-span-2 flex items-center justify-center py-8">
                 <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
               </div>
-            ) : provinceSummary
-                .filter((item) => !['Negros Oriental', 'Siquijor'].includes(item.name))
-                .map((item) => (
-                  <div key={item.name} className="rounded-[12px] border border-[#E5E7EB] bg-[#F9FAFB] p-4">
-                    <div className="flex items-center gap-2">
-                      <div className="rounded-full bg-[#FEF3C7] p-1.5 text-[#C9A84C]">
-                        <MapPinned className="h-3.5 w-3.5" />
+            ) : (() => {
+                    const filteredProvinces = provinceSummary
+                      .filter((item) => !['Negros Oriental', 'Siquijor'].includes(item.name))
+                      .filter((item) => appliedFilters.institutionId ? item.value > 0 : true)
+
+                    if (filteredProvinces.length === 0) {
+                      return (
+                        <div className="col-span-2 flex flex-col items-center justify-center gap-2 py-8 text-center">
+                          <MapPinned className="h-5 w-5 text-slate-300" />
+                          <p className="text-xs text-slate-400 italic">No outputs found for the selected filters.</p>
+                        </div>
+                      )
+                    }
+
+                    return filteredProvinces.map((item) => (
+                      <div key={item.name} className="rounded-[12px] border border-[#E5E7EB] bg-[#F9FAFB] p-4">
+                        <div className="flex items-center gap-2">
+                          <div className="rounded-full bg-[#FEF3C7] p-1.5 text-[#C9A84C]">
+                            <MapPinned className="h-3.5 w-3.5" />
+                          </div>
+                          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#6B7280]">{item.name}</p>
+                        </div>
+                        <p className="mt-4 text-[38px] font-bold leading-none text-[#1A1A2E]">{item.value}</p>
+                        <p className="mt-2 text-[11px] text-[#6B7280]">Outputs</p>
                       </div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#6B7280]">{item.name}</p>
-                    </div>
-                    <p className="mt-4 text-[38px] font-bold leading-none text-[#1A1A2E]">{item.value}</p>
-                    <p className="mt-2 text-[11px] text-[#6B7280]">Approved outputs</p>
-                  </div>
-                ))}
+                    ))
+                  })()}
           </div>
         </div>
       </section>
@@ -737,15 +905,15 @@ export default function AnalyticsDashboard({
           <div className="mt-5 flex items-center justify-center py-10">
             <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
           </div>
-        ) : heiComparison.length > 0 && clusterColumns.length > 0 ? (
+        ) : heiComparison.some((item) => item.count > 0) && clusterColumns.length > 0 ? (
           <>
             <ThematicDensityHeatmap
-              institutions={heiComparison.slice(0, 6)}
+              institutions={heiComparison.filter((item) => item.count > 0).slice(0, 6)}
               clusters={clusterColumns}
               getCell={getClusterCell}
               maxCellCount={maxClusterCellCount}
             />
-            <p className="mt-3 text-[11px] text-[#9CA3AF]">Approved research outputs per S&T priority cluster, by institution.</p>
+            <p className="mt-3 text-[11px] text-[#9CA3AF]">Research outputs per S&T priority cluster, by institution.</p>
           </>
         ) : (
           <p className="mt-5 text-xs text-slate-400 italic">No cluster data available yet.</p>
@@ -760,12 +928,13 @@ export default function AnalyticsDashboard({
           </div>
           <div>
             <h3 className="text-[17px] font-semibold text-[#1A1A2E]">Regional Research Niche Landscape</h3>
+            <p className="mt-1 text-xs text-[#6B7280]">Filtered by Province &amp; HEI · reflects all-time theme data (not limited by Year)</p>
           </div>
         </div>
 
         <div className="mt-5 rounded-[12px] bg-[#1A2744] p-5">
           <p className="text-sm font-semibold text-white">DOST Region VII — Aggregated Research Themes</p>
-          <p className="mt-1 text-xs text-white/50">Weighted frequency of subject tags across all HEI submissions · AY 2025-2026</p>
+          <p className="mt-1 text-xs text-white/50">Weighted frequency of subject tags across all HEI submissions</p>
           <div className="mt-4 flex flex-wrap gap-2">
             {heatmapData.length === 0 ? (
               <p className="text-xs text-white/40 italic">No research themes available yet.</p>
@@ -787,7 +956,7 @@ export default function AnalyticsDashboard({
 
         <div className="mt-5">
           <div className="grid gap-4 xl:grid-cols-3">
-            {heiComparison.slice(0, 6).map((hei, index) => (
+            {heiComparison.filter((hei) => hei.count > 0).slice(0, 6).map((hei, index) => (
               <div key={hei.institutionId} className="rounded-[12px] border border-[#E5E7EB] bg-[#F9FAFB] p-4">
                 <div className="flex items-center gap-2">
                   <div className="flex h-7 w-7 items-center justify-center rounded-[8px] text-[10px] font-bold text-white" style={{ backgroundColor: heiColors[index % heiColors.length] }}>

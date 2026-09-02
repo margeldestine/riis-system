@@ -1,6 +1,7 @@
 package com.geeks.riis_backend.controller;
 
-import com.geeks.riis_backend.dto.OverlapAlertDTO;
+import com.geeks.riis_backend.dto.OverlapAlertGroupDTO;
+import com.geeks.riis_backend.dto.OverlapMatchDTO;
 import com.geeks.riis_backend.model.Institution;
 import com.geeks.riis_backend.model.OverlapAlert;
 import com.geeks.riis_backend.model.ValidationLog;
@@ -32,28 +33,42 @@ public class QualityController {
 
     @GetMapping("/overlaps")
     @PreAuthorize("hasRole('DOST_ADMIN')")
-    public ResponseEntity<List<OverlapAlertDTO>> getOverlapAlerts(
+    public ResponseEntity<List<OverlapAlertGroupDTO>> getOverlapAlerts(
             @RequestParam(defaultValue = "0.80") double minScore) {
 
-        List<OverlapAlert> alerts = overlapAlertRepository.findAll();
-
-        List<OverlapAlertDTO> result = alerts.stream()
+        List<OverlapAlert> alerts = overlapAlertRepository.findAll().stream()
                 .filter(a -> a.getSimilarityScore() >= minScore)
-                .map(a -> new OverlapAlertDTO(
-                        a.getId(),
-                        a.getNewRecord().getId(),
-                        a.getNewRecord().getReferenceNumber(),
-                        a.getNewRecord().getTitle(),
-                        a.getNewRecord().getInstitution() != null ?
-                                a.getNewRecord().getInstitution().getName() : "Unknown",
-                        a.getExistingRecord().getId(),
-                        a.getExistingRecord().getTitle(),
-                        a.getExistingRecord().getInstitution() != null ?
-                                a.getExistingRecord().getInstitution().getName() : "Unknown",
-                        a.getSimilarityScore(),
-                        a.getDetectedAt(),
-                        a.isNotificationSent()
-                ))
+                .collect(Collectors.toList());
+
+        Map<String, List<OverlapAlert>> groupedByNewRecord = alerts.stream()
+                .collect(Collectors.groupingBy(a -> a.getNewRecord().getId()));
+
+        List<OverlapAlertGroupDTO> result = groupedByNewRecord.values().stream()
+                .map(group -> {
+                    OverlapAlert first = group.get(0);
+
+                    List<OverlapMatchDTO> matches = group.stream()
+                            .map(a -> new OverlapMatchDTO(
+                                    a.getId(),
+                                    a.getExistingRecord().getId(),
+                                    a.getExistingRecord().getTitle(),
+                                    a.getExistingRecord().getInstitution() != null ?
+                                            a.getExistingRecord().getInstitution().getName() : "Unknown",
+                                    a.getSimilarityScore(),
+                                    a.isNotificationSent()
+                            ))
+                            .collect(Collectors.toList());
+
+                    return new OverlapAlertGroupDTO(
+                            first.getNewRecord().getId(),
+                            first.getNewRecord().getReferenceNumber(),
+                            first.getNewRecord().getTitle(),
+                            first.getNewRecord().getInstitution() != null ?
+                                    first.getNewRecord().getInstitution().getName() : "Unknown",
+                            first.getDetectedAt(),
+                            matches
+                    );
+                })
                 .collect(Collectors.toList());
 
         return ResponseEntity.ok(result);

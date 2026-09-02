@@ -21,6 +21,10 @@ public class SearchService {
     private final ResearchOutputRepository researchOutputRepository;
     private final AIProxyService aiProxyService;
 
+    private float[] computeQueryEmbedding(String query) {
+        return aiProxyService.computeSPECTEREmbedding(query, "");
+    }
+
     public Map<String, Object> search(String query, String mode, Map<String, Object> filters) {
         String normalizedMode = mode == null ? "KEYWORD" : mode.trim().toUpperCase();
 
@@ -28,7 +32,7 @@ public class SearchService {
         boolean fallback = false;
 
         if ("SEMANTIC".equals(normalizedMode)) {
-            float[] embedding = aiProxyService.computeSPECTEREmbedding(query);
+            float[] embedding = computeQueryEmbedding(query);
             if (embedding.length == 0) {
                 results = executeKeywordSearch(query, filters);
                 fallback = true;
@@ -37,18 +41,14 @@ public class SearchService {
                 fallback = false;
             }
         } else if ("BOTH".equals(normalizedMode)) {
-            float[] embedding = aiProxyService.computeSPECTEREmbedding(query);
+            float[] embedding = computeQueryEmbedding(query);
             if (embedding.length == 0) {
                 results = executeKeywordSearch(query, filters);
                 fallback = true;
             } else {
-                final float[] finalEmbedding = embedding;
-                CompletableFuture<List<Map<String, Object>>> keywordFuture =
-                        CompletableFuture.supplyAsync(() -> executeKeywordSearch(query, filters));
-                CompletableFuture<List<Map<String, Object>>> semanticFuture =
-                        CompletableFuture.supplyAsync(() -> executeSemanticSearch(finalEmbedding, filters));
-                CompletableFuture.allOf(keywordFuture, semanticFuture).join();
-                results = mergeAndRankResults(keywordFuture.join(), semanticFuture.join());
+                List<Map<String, Object>> keywordResults = executeKeywordSearch(query, filters);
+                List<Map<String, Object>> semanticResults = executeSemanticSearch(embedding, filters);
+                results = mergeAndRankResults(keywordResults, semanticResults);
                 fallback = false;
             }
         } else {

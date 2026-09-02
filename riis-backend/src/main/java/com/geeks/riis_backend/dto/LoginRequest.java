@@ -2,5 +2,6 @@ package com.geeks.riis_backend.dto;
 
 public record LoginRequest(
 		String email,
-		String password
+		String password,
+		Boolean rememberMe
 ) {}

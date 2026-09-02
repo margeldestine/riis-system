@@ -9,7 +9,6 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
-import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import java.time.LocalDateTime;
@@ -53,6 +52,10 @@ public class ResearchOutput {
 	@JoinColumn(name = "institution_id", nullable = false)
 	private Institution institution;
 
+	@ManyToOne(fetch = FetchType.LAZY)
+	@JoinColumn(name = "submitted_by")
+	private User submittedBy;
+
 	@Column(name = "title", nullable = false, columnDefinition = "text")
 	private String title;
 
@@ -67,6 +70,12 @@ public class ResearchOutput {
 
 	@Column(name = "completion_year")
 	private Integer completionYear;
+
+	@Column(name = "principal_investigator", length = 255)
+	private String principalInvestigator;
+
+	@Column(name = "institutional_affiliation", length = 255)
+	private String institutionalAffiliation;
 
 	@Column(name = "abstract_text", columnDefinition = "text")
 	private String abstractText;
@@ -107,6 +116,9 @@ public class ResearchOutput {
 	@Column(name = "doi", length = 255)
 	private String doi;
 
+	@Column(name = "conference_url", length = 1024)
+	private String conferenceUrl;
+
 	@Column(name = "s3_pdf_key", length = 1024)
 	private String s3PdfKey;
 
@@ -133,13 +145,6 @@ public class ResearchOutput {
 	@Array(length = 768)
 	private float[] sbertEmbedding;
 
-	@ManyToOne(fetch = FetchType.LAZY)
-	@JoinColumn(name = "cluster_id")
-	private Cluster cluster;
-
-	@Column(name = "cluster_assigned_at")
-	private LocalDateTime clusterAssignedAt;
-
 	@CreationTimestamp
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private LocalDateTime createdAt;
@@ -153,12 +158,6 @@ public class ResearchOutput {
 
 	@OneToMany(mappedBy = "researchOutput", fetch = FetchType.LAZY)
 	private Set<ValidationLog> validationLogs;
-
-	@OneToOne(mappedBy = "researchOutput", fetch = FetchType.LAZY)
-	private ResearchOutputCluster researchOutputCluster;
-
-	@OneToOne(mappedBy = "researchOutput", fetch = FetchType.LAZY)
-	private UnclassifiedRecord unclassifiedRecord;
 
 	@OneToMany(mappedBy = "record", fetch = FetchType.LAZY)
 	private Set<AiProcessingQueueItem> aiProcessingQueueItems;

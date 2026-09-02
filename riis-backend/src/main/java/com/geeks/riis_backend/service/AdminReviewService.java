@@ -3,26 +3,22 @@ package com.geeks.riis_backend.service;
 import com.geeks.riis_backend.dto.SubmissionAuthorRequest;
 import com.geeks.riis_backend.dto.SubmissionDetailDTO;
 import com.geeks.riis_backend.dto.SubmissionSummaryDTO;
+import com.geeks.riis_backend.exception.BadRequestException;
 import com.geeks.riis_backend.exception.ResourceNotFoundException;
+import com.geeks.riis_backend.model.Author;
 import com.geeks.riis_backend.model.ResearchOutput;
-import com.geeks.riis_backend.model.User;
 import com.geeks.riis_backend.repository.ResearchOutputRepository;
-import com.geeks.riis_backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.server.ResponseStatusException;
-import com.geeks.riis_backend.event.RecordIngestedEvent;
-import org.springframework.context.ApplicationEventPublisher;
 
-import java.time.LocalDateTime;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.LinkedHashMap;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -30,10 +26,7 @@ import java.util.LinkedHashMap;
 public class AdminReviewService {
 
     private final ResearchOutputRepository researchOutputRepository;
-    private final UserRepository userRepository;
-    private final EmailNotificationService emailNotificationService;
-    private final AuditLogService auditLogService;
-    private final ApplicationEventPublisher eventPublisher;
+    private final S3UploadService s3UploadService;
 
     @Transactional(readOnly = true)
     public Page<SubmissionSummaryDTO> listSubmissions(String status, String institutionId,
@@ -47,7 +40,14 @@ public class AdminReviewService {
                         o.getFundingSource(),
                         o.getCompletionYear(),
                         o.getCreatedAt(),
-                        o.getStatus()
+                        o.getStatus(),
+                        o.getInstitution() != null ? o.getInstitution().getId() : null,
+                        o.getInstitution() != null ? o.getInstitution().getName() : null,
+                        o.getAuthors() == null ? null
+                                : o.getAuthors().stream()
+                                .map(Author::getFullName)
+                                .filter(name -> name != null && !name.isBlank())
+                                .collect(Collectors.joining(", "))
                 ));
     }
 
@@ -65,10 +65,15 @@ public class AdminReviewService {
         List<String> keywords = output.getKeywords() == null || output.getKeywords().isBlank()
                 ? List.of()
                 : Arrays.stream(output.getKeywords().split(","))
-                .map(String::trim).filter(v -> !v.isBlank()).toList();
+                .map(String::trim)
+                .filter(v -> !v.isBlank())
+                .toList();
 
-        int validationErrorCount = output.getValidationLogs() == null ? 0
-                : output.getValidationLogs().stream().mapToInt(vl -> vl == null ? 0 : vl.getErrorCount()).sum();
+        int validationErrorCount = output.getValidationLogs() == null
+                ? 0
+                : output.getValidationLogs().stream()
+                .mapToInt(vl -> vl == null ? 0 : vl.getErrorCount())
+                .sum();
 
         return new SubmissionDetailDTO(
                 output.getId(),
@@ -83,7 +88,10 @@ public class AdminReviewService {
                 output.getAbstractText(),
                 authors,
                 keywords,
+                output.getPrincipalInvestigator(),
+                output.getInstitutionalAffiliation(),
                 output.getDoi(),
+                output.getConferenceUrl(),
                 output.getSubjectDc(),
                 output.getCoverageDc(),
                 output.getRightsDc(),
@@ -100,6 +108,25 @@ public class AdminReviewService {
         );
     }
 
+    // DAS-047: Review screen previously had no way to view/download the
+    // HEI's uploaded PDF, even though every submission stores an s3PdfKey.
+    @Transactional(readOnly = true)
+    public String getFileDownloadUrl(String submissionId) {
+        ResearchOutput output = researchOutputRepository.findById(submissionId)
+                .orElseThrow(() -> new ResourceNotFoundException("Submission not found: " + submissionId));
+
+        String s3PdfKey = output.getS3PdfKey();
+        if (s3PdfKey == null || s3PdfKey.isBlank()) {
+            return null;
+        }
+
+        try {
+            return s3UploadService.generateDownloadUrl(s3PdfKey);
+        } catch (BadRequestException e) {
+            return null;
+        }
+    }
+
     @Transactional(readOnly = true)
     public Map<String, Long> getStatusStats() {
         Map<String, Long> stats = new LinkedHashMap<>();
@@ -110,65 +137,6 @@ public class AdminReviewService {
         return stats;
     }
 
-    public void actionSubmission(String submissionId, String action, String comment, String adminUserId) {
-        if (action == null || action.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Action is required.");
-        }
-
-        String normalizedAction = action.trim().toUpperCase();
-        boolean requiresComment = normalizedAction.equals("REJECTED") || normalizedAction.equals("REQUIRES_CORRECTION");
-
-        if (requiresComment && (comment == null || comment.isBlank())) {
-            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
-                    "Comment is required for " + normalizedAction + " action.");
-        }
-
-        ResearchOutput output = researchOutputRepository.findById(submissionId)
-                .orElseThrow(() -> new ResourceNotFoundException("Submission not found: " + submissionId));
-
-        User admin = userRepository.findById(adminUserId).orElse(null);
-
-        output.setStatus(normalizedAction);
-        output.setCorrectionNotes(requiresComment ? comment.trim() : null);
-        output.setReviewedBy(admin);
-        output.setReviewedAt(LocalDateTime.now());
-
-        researchOutputRepository.save(output);
-
-        auditLogService.logReviewAction(submissionId, adminUserId, normalizedAction, comment);
-
-        if (normalizedAction.equals("APPROVED")) {
-            eventPublisher.publishEvent(new RecordIngestedEvent(
-                    output.getId(),
-                    output.getReferenceNumber(),
-                    output.getInstitution().getId()
-            ));
-        }
-
-        String submitterEmail = output.getInstitution() != null
-                ? getUserEmailForInstitution(output)
-                : null;
-
-        if (submitterEmail != null) {
-            emailNotificationService.sendReviewStatusEmail(
-                    submitterEmail,
-                    output.getReferenceNumber(),
-                    normalizedAction,
-                    comment
-            );
-        }
-    }
-
-    private String getUserEmailForInstitution(ResearchOutput output) {
-        try {
-            return userRepository.findAll().stream()
-                    .filter(u -> u.getInstitution() != null &&
-                            u.getInstitution().getId().equals(output.getInstitution().getId()))
-                    .map(User::getEmail)
-                    .findFirst()
-                    .orElse(null);
-        } catch (Exception e) {
-            return null;
-        }
-    }
+    // DAS-043: the manual Approve / Requires Correction / Reject action was removed.
+    // This service is now read-only for DOST Admin monitoring.
 }

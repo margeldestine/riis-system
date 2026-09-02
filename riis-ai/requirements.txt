@@ -4,3 +4,4 @@ keybert
 sentence-transformers
 numpy
 scikit-learn
+anthropic

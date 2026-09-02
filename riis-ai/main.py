@@ -16,3 +16,6 @@ def health_check():
 
 from routers import specter_router
 app.include_router(specter_router.router)
+
+from routers import claude_review_router
+app.include_router(claude_review_router.router)

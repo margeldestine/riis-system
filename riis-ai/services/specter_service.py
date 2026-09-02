@@ -1,5 +1,4 @@
 from sentence_transformers import SentenceTransformer
-import numpy as np
 
 _model = None
 
@@ -9,42 +8,27 @@ def get_model():
         _model = SentenceTransformer("allenai/specter")
     return _model
 
-def encode_text(text: str) -> list[float]:
+def _encode(text: str) -> list[float]:
     model = get_model()
     embedding = model.encode(text, normalize_embeddings=True)
     return embedding.tolist()
 
-def compute_centroid_similarities(embedding: list[float], centroids: dict[str, list[float]]) -> dict[str, float]:
+def encode_pair(title: str, abstract: str | None = "") -> list[float]:
     """
-    Computes cosine similarity between a query embedding and each named
-    centroid vector. Stateless: centroids are supplied by the caller on every
-    request (read fresh from clusters.centroid_vector in Postgres) rather
-    than cached here, so the nightly CentroidRecomputationScheduler + Postgres
-    remain the single source of truth for centroids.
- 
-    True cosine similarity is used (not a raw dot product) because query
-    embeddings from encode_text() are unit-normalized, but centroid vectors
-    are a mean of multiple embeddings and are NOT guaranteed unit-norm.
+    Encodes (title, abstract) per SPECTER's (allenai/specter) official
+    training/fine-tuning convention: "{title} [SEP] {abstract}". Plain
+    string concatenation (title + " " + abstract + " " + keywords, as
+    used elsewhere for SBERT/KeyBERT) does not match what SPECTER was
+    fine-tuned on and degrades embedding quality for this model
+    specifically -- this formatting is intentionally SPECTER-only.
+
+    A missing/blank abstract still produces a well-formed
+    "{title} [SEP]" input (via the trailing .strip()) rather than
+    raising or silently omitting the separator, since callers may not
+    always have an abstract available (e.g. a raw search query passed
+    in the title slot with no abstract).
     """
-    if not embedding or not centroids:
-        return {}
- 
-    query_vec = np.array(embedding, dtype=np.float64)
-    query_norm = np.linalg.norm(query_vec)
-    if query_norm == 0:
-        return {cluster_id: 0.0 for cluster_id in centroids}
- 
-    similarities: dict[str, float] = {}
-    for cluster_id, centroid in centroids.items():
-        if not centroid:
-            similarities[cluster_id] = 0.0
-            continue
-        centroid_vec = np.array(centroid, dtype=np.float64)
-        centroid_norm = np.linalg.norm(centroid_vec)
-        if centroid_norm == 0:
-            similarities[cluster_id] = 0.0
-            continue
-        cosine = float(np.dot(query_vec, centroid_vec) / (query_norm * centroid_norm))
-        similarities[cluster_id] = cosine
- 
-    return similarities
+    safe_title = title or ""
+    safe_abstract = abstract or ""
+    text = f"{safe_title} [SEP] {safe_abstract}".strip()
+    return _encode(text)

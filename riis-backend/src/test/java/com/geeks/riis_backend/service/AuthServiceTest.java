@@ -12,6 +12,7 @@ import com.geeks.riis_backend.exception.ResourceNotFoundException;
 import com.geeks.riis_backend.model.Institution;
 import com.geeks.riis_backend.model.User;
 import com.geeks.riis_backend.repository.InstitutionRepository;
+import com.geeks.riis_backend.repository.PasswordResetTokenRepository;
 import com.geeks.riis_backend.repository.UserRepository;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -24,8 +25,11 @@ class AuthServiceTest {
 	void login_blocksPendingUserStatus() {
 		UserRepository userRepository = mock(UserRepository.class);
 		InstitutionRepository institutionRepository = mock(InstitutionRepository.class);
-		JwtService jwtService = new JwtService("test-secret", "test-issuer", 3600);
-		AuthService authService = new AuthService(userRepository, institutionRepository, jwtService);
+		PasswordResetTokenRepository passwordResetTokenRepository = mock(PasswordResetTokenRepository.class);
+		JwtService jwtService = new JwtService("test-secret", "test-issuer", 3600, 2592000);
+		EmailNotificationService emailNotificationService = mock(EmailNotificationService.class);
+		AuthService authService = new AuthService(
+				userRepository, institutionRepository, passwordResetTokenRepository, jwtService, emailNotificationService);
 
 		User pendingUser = User.builder()
 				.email("pending@cit.edu")
@@ -36,7 +40,7 @@ class AuthServiceTest {
 		when(userRepository.findByEmail("pending@cit.edu")).thenReturn(Optional.of(pendingUser));
 
 		ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
-				authService.login(new LoginRequest("pending@cit.edu", "any-password"))
+				authService.login(new LoginRequest("pending@cit.edu", "any-password", false))
 		);
 
 		assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
@@ -47,8 +51,11 @@ class AuthServiceTest {
 	void login_blocksPendingWhitelistStatus() {
 		UserRepository userRepository = mock(UserRepository.class);
 		InstitutionRepository institutionRepository = mock(InstitutionRepository.class);
-		JwtService jwtService = new JwtService("test-secret", "test-issuer", 3600);
-		AuthService authService = new AuthService(userRepository, institutionRepository, jwtService);
+		PasswordResetTokenRepository passwordResetTokenRepository = mock(PasswordResetTokenRepository.class);
+		JwtService jwtService = new JwtService("test-secret", "test-issuer", 3600, 2592000);
+		EmailNotificationService emailNotificationService = mock(EmailNotificationService.class);
+		AuthService authService = new AuthService(
+				userRepository, institutionRepository, passwordResetTokenRepository, jwtService, emailNotificationService);
 
 		Institution institution = Institution.builder()
 				.id("CITU")
@@ -66,7 +73,7 @@ class AuthServiceTest {
 		when(userRepository.findByEmail("active@cit.edu")).thenReturn(Optional.of(user));
 
 		ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
-				authService.login(new LoginRequest("active@cit.edu", "any-password"))
+				authService.login(new LoginRequest("active@cit.edu", "any-password", false))
 		);
 
 		assertEquals(HttpStatus.FORBIDDEN, ex.getStatusCode());
@@ -77,13 +84,16 @@ class AuthServiceTest {
 	void login_throwsWhenUserNotFound() {
 		UserRepository userRepository = mock(UserRepository.class);
 		InstitutionRepository institutionRepository = mock(InstitutionRepository.class);
-		JwtService jwtService = new JwtService("test-secret", "test-issuer", 3600);
-		AuthService authService = new AuthService(userRepository, institutionRepository, jwtService);
+		PasswordResetTokenRepository passwordResetTokenRepository = mock(PasswordResetTokenRepository.class);
+		JwtService jwtService = new JwtService("test-secret", "test-issuer", 3600, 2592000);
+		EmailNotificationService emailNotificationService = mock(EmailNotificationService.class);
+		AuthService authService = new AuthService(
+				userRepository, institutionRepository, passwordResetTokenRepository, jwtService, emailNotificationService);
 
 		when(userRepository.findByEmail("missing@cit.edu")).thenReturn(Optional.empty());
 
 		assertThrows(ResourceNotFoundException.class, () ->
-				authService.login(new LoginRequest("missing@cit.edu", "any-password"))
+				authService.login(new LoginRequest("missing@cit.edu", "any-password", false))
 		);
 	}
 
@@ -91,8 +101,11 @@ class AuthServiceTest {
 	void login_returnsJwtTokenForActiveUsers() {
 		UserRepository userRepository = mock(UserRepository.class);
 		InstitutionRepository institutionRepository = mock(InstitutionRepository.class);
-		JwtService jwtService = new JwtService("test-secret", "test-issuer", 3600);
-		AuthService authService = new AuthService(userRepository, institutionRepository, jwtService);
+		PasswordResetTokenRepository passwordResetTokenRepository = mock(PasswordResetTokenRepository.class);
+		JwtService jwtService = new JwtService("test-secret", "test-issuer", 3600, 2592000);
+		EmailNotificationService emailNotificationService = mock(EmailNotificationService.class);
+		AuthService authService = new AuthService(
+				userRepository, institutionRepository, passwordResetTokenRepository, jwtService, emailNotificationService);
 
 		String passwordHash = new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder().encode("password");
 
@@ -108,7 +121,7 @@ class AuthServiceTest {
 		when(userRepository.findByEmail("admin@dost.gov.ph")).thenReturn(Optional.of(user));
 		when(userRepository.save(user)).thenReturn(user);
 
-		LoginResponse response = authService.login(new LoginRequest("admin@dost.gov.ph", "password"));
+		LoginResponse response = authService.login(new LoginRequest("admin@dost.gov.ph", "password", false));
 		assertEquals("admin@dost.gov.ph", response.email());
 		assertNotNull(response.token());
 	}

@@ -48,6 +48,12 @@ function getTypeBadge(type) {
   return <span className="text-xs text-slate-500">{type}</span>
 }
 
+function getResearchOutputLabel(count) {
+  if (!count) return 'No research outputs'
+  if (count === 1) return '1 research output'
+  return `${count} research outputs`
+}
+
 function InstitutionCard({ institution, onClick }) {
   const initials = getInitials(institution.name)
   const avatarColor = getAvatarColor(institution.name)
@@ -80,7 +86,7 @@ function InstitutionCard({ institution, onClick }) {
           <div className="mt-2 flex items-center gap-1.5 text-xs">
             <FileText className="h-3.5 w-3.5 text-slate-400" />
             <span className="font-semibold text-emerald-600">
-              {institution.approvedOutputCount} research outputs
+              {getResearchOutputLabel(institution.approvedOutputCount)}
             </span>
           </div>
         </div>
@@ -188,8 +194,6 @@ export default function HeiResearchProfiles() {
                 </p>
               </div>
               <div className="text-right">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-[#94a3b8]">ACADEMIC YEAR</p>
-                <p className="text-[13px] font-bold text-[#0d1f3c]">{academicYearLabel}</p>
                 <p className="mt-1 text-[12px] text-[#6b7280]">{institutionName}</p>
               </div>
             </div>

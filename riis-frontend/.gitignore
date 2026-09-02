@@ -12,6 +12,11 @@ dist
 dist-ssr
 *.local
 
+# Environment files -- .env.local / .env.*.local were already covered by
+# *.local above, but a bare .env file was not. Adding it explicitly so a
+# real .env created per the new .env.example never gets committed.
+.env
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

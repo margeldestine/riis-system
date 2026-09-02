@@ -1,8 +1,9 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+from dependencies import verify_internal_caller
 from models.schemas import KeyBERTRequest, KeyBERTResponse
 from services.keybert_service import extract_keywords
 
-router = APIRouter()
+router = APIRouter(dependencies=[Depends(verify_internal_caller)])
 
 @router.post("/ai/keybert/extract", response_model=KeyBERTResponse)
 def keybert_extract(request: KeyBERTRequest):
