@@ -25,26 +25,6 @@ function extractApiErrorMessage(error, fallback) {
   return fallback
 }
 
-function StatusBadge({ status }) {
-  const map = {
-    PENDING_REVIEW: 'bg-amber-100 text-amber-700',
-    APPROVED: 'bg-emerald-100 text-emerald-700',
-    REQUIRES_CORRECTION: 'bg-orange-100 text-orange-700',
-    REJECTED: 'bg-red-100 text-red-700',
-  }
-  const labels = {
-    PENDING_REVIEW: 'Pending',
-    APPROVED: 'Approved',
-    REQUIRES_CORRECTION: 'Requires Correction',
-    REJECTED: 'Rejected',
-  }
-  return (
-    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${map[status] || 'bg-slate-100 text-slate-600'}`}>
-      <span className={`h-1.5 w-1.5 rounded-full ${status === 'APPROVED' ? 'bg-emerald-500' : status === 'PENDING_REVIEW' ? 'bg-amber-500' : status === 'REQUIRES_CORRECTION' ? 'bg-orange-500' : 'bg-red-500'}`} />
-      {labels[status] || status}
-    </span>
-  )
-}
 
 function TypeBadge({ type }) {
   const colors = {
@@ -111,9 +91,13 @@ function SubmissionFileAction({ submissionId }) {
 function SubmissionMetadataPanel({ submission }) {
   if (!submission) return null
 
-  const formatDate = (val) => {
+    const formatDate = (val) => {
     if (!val) return '—'
-    return new Intl.DateTimeFormat('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(val))
+    const d = new Date(val)
+    const yy = String(d.getFullYear()).slice(-2)
+    const mm = String(d.getMonth() + 1).padStart(2, '0')
+    const dd = String(d.getDate()).padStart(2, '0')
+    return `${yy}-${mm}-${dd}`
   }
 
   const authors = Array.isArray(submission.authors)
@@ -220,10 +204,14 @@ function SubmissionMetadataPanel({ submission }) {
 // creation — there's no DOST Admin action to take here anymore. This is
 // read-only context for the audit/monitoring view.
 function PublicationStatusPanel({ submission }) {
-  const formatDate = (val) => {
+    const formatDate = (val) => {
     if (!val) return '—'
-    return new Intl.DateTimeFormat('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(val))
-  }
+    const d = new Date(val)
+    const yyyy = d.getFullYear()
+    const mm = String(d.getMonth() + 1).padStart(2, '0')
+    const dd = String(d.getDate()).padStart(2, '0')
+    return `${yyyy}-${mm}-${dd}`
+    }
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
@@ -243,15 +231,12 @@ function PublicationStatusPanel({ submission }) {
         </div>
 
         <div className="text-xs text-slate-500 space-y-1">
-          <div className="flex justify-between">
+            <div className="flex justify-between">
             <span>Submitted</span>
             <span className="font-medium text-slate-600">{formatDate(submission?.submittedAt || submission?.createdAt)}</span>
           </div>
-          <div className="flex justify-between">
-            <span>Status</span>
-            <StatusBadge status={submission?.status || 'APPROVED'} />
-          </div>
         </div>
+            
 
         <div className="border-t border-slate-100 pt-3 text-xs text-slate-500">
           <p>
@@ -342,10 +327,13 @@ export default function PendingSubmissionsPage() {
     return matchSearch && matchType && matchHei
   })
 
-  const formatDate = (val) => {
+    const formatDate = (val) => {
     if (!val) return '—'
-    return new Intl.DateTimeFormat('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(val))
-  }
+    const d = new Date(val)
+    const yyyy = d.getFullYear()
+    const mm = String(d.getMonth() + 1).padStart(2, '0')
+    const dd = String(d.getDate()).padStart(2, '0')
+    return `${yyyy}-${mm}-${dd}`}
 
   return (
     <DashboardLayout
@@ -368,10 +356,6 @@ export default function PendingSubmissionsPage() {
               <div>
                 <h1 className="text-3xl font-bold text-[#1A1A2E]">Submission Details</h1>
                 <p className="mt-1 text-sm text-slate-500">Inspect the full record. No action needed — submissions publish automatically.</p>
-              </div>
-              <div className="text-right">
-                <p className="text-[10px] uppercase tracking-wider text-slate-400">ACADEMIC YEAR</p>
-                <p className="text-sm font-bold text-[#1A1A2E]">2025-2026</p>
               </div>
             </div>
 
@@ -413,8 +397,6 @@ export default function PendingSubmissionsPage() {
                     </p>
                   </div>
                   <div className="text-right shrink-0">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-[#94a3b8]">ACADEMIC YEAR</p>
-                    <p className="text-[13px] font-bold text-[#0d1f3c]">2025-2026</p>
                     <p className="mt-1 text-[12px] text-[#6b7280]">DOST Region VII</p>
                   </div>
                 </div>
@@ -425,10 +407,7 @@ export default function PendingSubmissionsPage() {
             {/* Stats strip */}
             <div className="grid grid-cols-4 gap-4">
               {[
-                { label: 'Approved', key: 'APPROVED', color: 'border-b-emerald-400', detail: 'Published' },
-                { label: 'Pending Review', key: 'PENDING_REVIEW', color: 'border-b-amber-400', detail: 'Legacy, pre-auto-publish' },
-                { label: 'Requiring Correction', key: 'REQUIRES_CORRECTION', color: 'border-b-orange-400', detail: 'Legacy, pre-auto-publish' },
-                { label: 'Rejected', key: 'REJECTED', color: 'border-b-red-400', detail: 'Legacy, pre-auto-publish' },
+                { label: 'Total Outputs', key: 'APPROVED', color: 'border-b-emerald-400', detail: 'Published' },
               ].map(({ label, key, color, detail }) => (
                 <div key={key} className={`rounded-xl border border-slate-200 bg-white p-5 shadow-sm border-b-2 ${color}`}>
                   <p className="text-3xl font-bold text-[#1A1A2E]">{stats[key] ?? 0}</p>
@@ -498,7 +477,7 @@ export default function PendingSubmissionsPage() {
               <table className="min-w-full">
                 <thead>
                   <tr className="border-b border-slate-100">
-                    {['Reference No.', 'Research Title', 'Submitting HEI', 'Type', 'Submitted', 'Status', ''].map(h => (
+                    {['Reference No.', 'Research Title', 'Submitting HEI', 'Type', 'Submitted', ''].map(h => (
                       <th key={h} className="px-6 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-400">
                         {h}
                       </th>
@@ -506,15 +485,15 @@ export default function PendingSubmissionsPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
-                  {status === 'loading' ? (
+                    {status === 'loading' ? (
                     <tr>
-                      <td colSpan={7} className="px-6 py-10 text-center">
+                      <td colSpan={6} className="px-6 py-10 text-center">
                         <Loader2 className="h-5 w-5 animate-spin text-slate-400 mx-auto" />
                       </td>
                     </tr>
                   ) : filteredItems.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="px-6 py-10 text-center text-sm text-slate-500">
+                      <td colSpan={6} className="px-6 py-10 text-center text-sm text-slate-500">
                         No submissions found.
                       </td>
                     </tr>
@@ -537,11 +516,8 @@ export default function PendingSubmissionsPage() {
                       <td className="px-6 py-4">
                         <TypeBadge type={item.researchType} />
                       </td>
-                      <td className="px-6 py-4 text-sm text-slate-500">
+                        <td className="px-6 py-4 text-sm text-slate-500">
                         {formatDate(item.submittedAt)}
-                      </td>
-                      <td className="px-6 py-4">
-                        <StatusBadge status={item.status} />
                       </td>
                       <td className="px-6 py-4">
                         <button

@@ -189,19 +189,22 @@ public class AnalyticsService {
     }
 
     // GET /api/v1/analytics/province-summary
-    public List<Map<String, Object>> getProvinceSummary(Integer yearFrom, Integer yearTo, String institutionId, String type) {
+    // GET /api/v1/analytics/province-summary
+    public List<Map<String, Object>> getProvinceSummary(Integer yearFrom, Integer yearTo, String province, String institutionId, String type) {
         List<com.geeks.riis_backend.model.ResearchOutput> filtered =
-                getFilteredApprovedOutputs(yearFrom, yearTo, null, institutionId, type);
-        List<String> provinces = List.of("Cebu", "Bohol", "Negros Oriental", "Siquijor");
+                getFilteredApprovedOutputs(yearFrom, yearTo, province, institutionId, type);
+        List<String> provinces = (province == null || province.isBlank())
+                ? List.of("Cebu", "Bohol", "Negros Oriental", "Siquijor")
+                : List.of(province);
 
-        return provinces.stream().map(province -> {
+        return provinces.stream().map(p -> {
             long count = filtered.stream()
                     .filter(o -> o.getInstitution() != null &&
-                            province.equalsIgnoreCase(o.getInstitution().getProvince()))
+                            p.equalsIgnoreCase(o.getInstitution().getProvince()))
                     .count();
 
             Map<String, Object> card = new LinkedHashMap<>();
-            card.put("name", province);
+            card.put("name", p);
             card.put("value", count);
             return card;
         }).collect(Collectors.toList());

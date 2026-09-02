@@ -155,8 +155,6 @@ function QueueScreen({ users, onReview, approvedCount, rejectedCount, countsLoad
               </p>
             </div>
             <div style={{ textAlign: 'right', flexShrink: 0 }}>
-              <p style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.26em', color: '#94a3b8', margin: 0 }}>ACADEMIC YEAR</p>
-              <p style={{ fontSize: 13, fontWeight: 700, color: '#0d1f3c', margin: '4px 0 0' }}>2025-2026</p>
               <p style={{ fontSize: 12, color: '#6b7280', margin: '4px 0 0' }}>DOST Region VII</p>
             </div>
           </div>
@@ -431,10 +429,6 @@ function ReviewScreen({ user, onBack, onApprove, onReject, loading }) {
           <p style={{ margin: '4px 0 0', color: '#6b7280', fontSize: 14 }}>
             Review and approve pending HEI Research Office staff registrations
           </p>
-        </div>
-        <div style={{ fontSize: 13, textAlign: 'right', color: '#6b7280' }}>
-          ACADEMIC YEAR<br />
-          <strong style={{ fontSize: 15, color: '#111827' }}>2025 – 2026</strong>
         </div>
       </div>
 

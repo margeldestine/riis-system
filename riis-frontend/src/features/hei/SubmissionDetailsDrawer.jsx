@@ -97,14 +97,13 @@ function getCommentBoxConfig(status) {
 }
 
 function formatDate(value) {
-  if (!value) return ''
+  if (!value) return 'N/A'
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return String(value)
-  return new Intl.DateTimeFormat('en-PH', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  }).format(date)
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
 }
 
 function DetailField({ label, value, valueClassName, span }) {
@@ -235,15 +234,8 @@ export default function SubmissionDetailsDrawer({
               >
                 {details?.title || 'Submission Details'}
               </h3>
-              {details ? (
+                {details ? (
                 <div className="mt-3 flex flex-wrap items-center gap-3">
-                  <span
-                    className={`inline-flex w-fit items-center justify-center rounded-full px-3 py-1 text-xs font-semibold ${getStatusBadgeClasses(
-                      details.status,
-                    )}`}
-                  >
-                    {formatStatusLabel(details.status)}
-                  </span>
                   {referenceNumber ? (
                     <span className="text-[12px] font-bold text-[#6b7280]">Ref. {referenceNumber}</span>
                   ) : null}

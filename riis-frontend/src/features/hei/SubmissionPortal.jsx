@@ -41,8 +41,7 @@ function isValidRightsOrCoverage(value) {
 }
 
 function isValidKeyword(word) {
-  if (!keywordPattern.test(word) || !alphabeticContentPattern.test(word)) return false
-  return !tokenizeForGibberishCheck(word).some((w) => isGibberishWord(w))
+  return keywordPattern.test(word)
 }
 
 const vowelPattern = /[aeiouAEIOU]/
@@ -368,15 +367,12 @@ function countWords(value) {
 }
 
 const authorSchema = z.object({
-  fullName: z
+    fullName: z
     .string()
     .trim()
     .min(1, 'Author full name is required.')
     .regex(namePattern, {
       message: 'Full name can only contain letters, spaces, hyphens, and apostrophes.',
-    })
-    .refine((value) => !tokenizeForGibberishCheck(value).some((w) => isGibberishWord(w)), {
-      message: 'Please Enter a name.',
     }),
   orcidId: z
     .string()
@@ -389,17 +385,11 @@ const authorSchema = z.object({
 
 const submissionSchema = z
   .object({
-      title: z
+  title: z
   .string()
   .trim()
   .min(1, 'Research title is required.')
-  .max(500, 'Research title must be 500 characters or fewer.')
-  .refine((value) => alphabeticContentPattern.test(value), {
-    message: 'Research title must contain words, not just numbers or symbols.',
-  })
-  .refine((value) => !containsGibberishWord(value), {
-    message: 'Please enter a valid research title.',
-  }),
+  .max(500, 'Research title must be 500 characters or fewer.'),
     researchType: z.string().trim().min(1, 'Research type is required.'),
     completionYear: z.coerce
       .number({
@@ -411,23 +401,11 @@ const submissionSchema = z
       fundingSource: z
       .string()
       .trim()
-      .min(1, 'Funding source is required.')
-      .refine((value) => alphabeticContentPattern.test(value), {
-        message: 'Funding source must contain words, not just numbers or symbols.',
-      })
-      .refine((value) => !containsGibberishWord(value), {
-        message: 'Please enter a valid Funding Source',
-      }),
+      .min(1, 'Funding source is required.'),
       publicationVenue: z
-      .string()
-      .trim()
-      .min(1, 'Publication venue or status is required.')
-      .refine((value) => alphabeticContentPattern.test(value), {
-        message: 'Publication venue must contain words, not just numbers or symbols.',
-      })
-      .refine((value) => !containsGibberishWord(value), {
-        message: 'Please enter a valid Publication Venue',
-      }),
+    .string()
+    .trim()
+    .min(1, 'Publication venue or status is required.'),
     authors: z.array(authorSchema).min(1, 'Add at least one author.'),
     principalInvestigator: z
       .string()
@@ -449,18 +427,6 @@ const submissionSchema = z
           message: 'Abstract must be between 100 and 500 words.',
         })
       }
-            if (!alphabeticContentPattern.test(value)) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'Abstract must contain words, not just numbers or symbols.',
-        })
-      }
-        if (isGibberishText(value)) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'Please enter a valid abstract.',
-        })
-      }
     }),
         keywords: z
       .array(
@@ -468,11 +434,8 @@ const submissionSchema = z
         .string()
         .trim()
         .min(1)
-        .refine((value) => keywordPattern.test(value) && alphabeticContentPattern.test(value), {
-          message: 'A keyword cannot consist only of numbers or symbols.',
-        })
-        .refine((value) => !tokenizeForGibberishCheck(value).some((w) => isGibberishWord(w)), {
-          message: 'Please enter a valid keyword.',
+          .refine((value) => keywordPattern.test(value), {
+          message: 'Invalid keyword format.',
         }),
       )
       .min(3, 'Add at least 3 keywords.')
@@ -481,23 +444,11 @@ const submissionSchema = z
       coverageDc: z
       .string()
       .trim()
-      .min(1, 'Coverage is required.')
-      .refine((value) => isValidRightsOrCoverage(value), {
-        message: 'Coverage must contain words',
-      })
-      .refine((value) => !containsGibberishWord(value), {
-        message: 'Please provide a valid coverage/scope.',
-      }),
-               rightsDc: z
+      .min(1, 'Coverage is required.'),
+      rightsDc: z
       .string()
       .trim()
-      .min(1, 'Rights is required.')
-      .refine((value) => isValidRightsOrCoverage(value), {
-        message: 'Rights must contain words',
-      })
-      .refine((value) => !containsGibberishWord(value), {
-        message: 'Please provide a valid rights/access info.',
-      }),
+      .min(1, 'Rights is required.'),
     doi: z
       .string()
       .trim()
@@ -1569,7 +1520,6 @@ export default function SubmissionPortal({ onSubmitted }) {
     localStorage.getItem('userInstitution') ||
     'Higher Education Institution'
 
-  const academicYearLabel = `${currentYear - 1}-${currentYear}`
 
   const {
     control,
@@ -1618,13 +1568,17 @@ export default function SubmissionPortal({ onSubmitted }) {
   const watchedPi = useWatch({ control, name: 'principalInvestigator' }) || ''
   const allValues = useWatch({ control })
 
-  const authorOptions = useMemo(
-    () =>
-      watchedAuthors
-        .map((author) => author?.fullName?.trim())
-        .filter(Boolean),
-    [watchedAuthors],
-  )
+const authorOptions = useMemo(
+  () =>
+    Array.from(
+      new Set(
+        watchedAuthors
+          .map((author) => author?.fullName?.trim())
+          .filter(Boolean),
+      ),
+    ),
+  [watchedAuthors],
+)
 
   useEffect(() => {
     if (!watchedPi) return
@@ -2198,10 +2152,6 @@ const addKeyword = () => {
             </div>
 
             <div className="text-right">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-[#94a3b8]">
-                ACADEMIC YEAR
-              </p>
-              <p className="text-[13px] font-bold text-[#0d1f3c]">{academicYearLabel}</p>
               <p className="mt-1 text-[12px] text-[#6b7280]">{institutionName}</p>
             </div>
           </div>
@@ -2237,11 +2187,10 @@ const addKeyword = () => {
               <div className="mt-6 flex w-full items-center gap-3 rounded-[2px] border border-[#bfdbfe] bg-[#eff6ff] px-4 py-3 text-[13px] text-[#0d1f3c]">
                 <Info className="h-4 w-4 shrink-0 text-[#3b82f6]" />
                 <p>
-                  Institution{' '}
-                  <span className="font-semibold text-[#1d4ed8]">{institutionName}</span>
-                  , is pre-linked. Submission period:{' '}
-                  <span className="font-semibold text-[#1d4ed8]">AY {academicYearLabel}</span>
-                </p>
+                Institution{' '}
+                <span className="font-semibold text-[#1d4ed8]">{institutionName}</span>
+                {' '}is pre-linked.
+              </p>
               </div>
             ) : null}
 

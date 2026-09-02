@@ -57,11 +57,11 @@ export default function ReportGeneratorPage() {
     }
   }, [yearFrom])
 
-  useEffect(() => {
-  if (status === 'complete') {
+   useEffect(() => {
+    if (!yearFrom || !yearTo) return
     handleGenerate()
-  }
-}, [outputFormat])
+  }, [yearFrom, yearTo, selectedTypes, fundingSource, outputFormat, scopeType, institutionId, province])
+
 
   useEffect(() => {
     const fetchInstitutions = async () => {
@@ -183,8 +183,6 @@ const handleGenerate = async () => {
                 </p>
               </div>
               <div className="text-right shrink-0">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-[#94a3b8]">ACADEMIC YEAR</p>
-                <p className="text-[13px] font-bold text-[#0d1f3c]">2025-2026</p>
                 <p className="mt-1 text-[12px] text-[#6b7280]">DOST Region VII</p>
               </div>
             </div>
@@ -410,14 +408,13 @@ const handleGenerate = async () => {
                   No approved records found.
                 </div>
               ) : (
-                <table className="min-w-full">
+                  <table className="min-w-full">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-100">
                       <th className="px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-400">Report Title</th>
                       <th className="px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-400">Type</th>
                       <th className="px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-400">Year</th>
                       <th className="px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-400">Funding</th>
-                      <th className="px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-400">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
@@ -433,11 +430,6 @@ const handleGenerate = async () => {
                         </td>
                         <td className="px-5 py-3 text-sm text-slate-600">{item.completionYear || '—'}</td>
                         <td className="px-5 py-3 text-sm text-slate-600">{item.fundingSource || '—'}</td>
-                        <td className="px-5 py-3">
-                          <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">
-                            Approved
-                          </span>
-                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -503,15 +495,6 @@ const handleGenerate = async () => {
 
             {/* Action buttons */}
             <div className="space-y-3">
-              <button
-                type="button"
-                onClick={handleGenerate}
-                disabled={status === 'generating' || status === 'polling'}
-                className="w-full flex items-center justify-center gap-2 rounded-lg bg-[#1A1A2E] py-3 text-sm font-semibold text-white hover:bg-[#11111f] disabled:opacity-50 disabled:cursor-not-allowed transition"
-              >
-                <Download className="h-4 w-4" />
-                Download All Reports
-              </button>
               <button
                 type="button"
                 onClick={handleReset}

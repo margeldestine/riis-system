@@ -100,8 +100,6 @@ export default function DataQualityDashboard() {
                 </p>
               </div>
               <div className="text-right shrink-0">
-                <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-[#94a3b8]">ACADEMIC YEAR</p>
-                <p className="text-[13px] font-bold text-[#0d1f3c]">2025-2026</p>
                 <p className="mt-1 text-[12px] text-[#6b7280]">DOST Region VII</p>
               </div>
             </div>

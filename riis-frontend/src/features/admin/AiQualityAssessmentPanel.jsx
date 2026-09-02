@@ -81,8 +81,8 @@ function AdvisoryBanner() {
       <Sparkles className="h-4 w-4 shrink-0 text-indigo-500 mt-0.5" />
       <p className="text-xs text-indigo-700">
         <span className="font-bold">Automated advisory assessment.</span>{' '}
-        Claude's output here is a research aid for human DOST_ADMIN reviewers — it does not
-        approve, reject, or award this submission. Final determination rests with DOST review staff.
+        This output is a research aid for DOST reviewers only — it does not approve, reject, or award submissions. 
+        Final decisions rest with DOST review staff.
       </p>
     </div>
   )

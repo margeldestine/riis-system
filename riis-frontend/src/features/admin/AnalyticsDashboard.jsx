@@ -184,7 +184,7 @@ function exportCSV({ summary, trendData, typeDistribution, heiComparison, provin
   // Province Summary
   if (provinceSummary.length > 0) {
     sections.push('PROVINCE-LEVEL SUMMARY')
-    sections.push(row(['Province', 'Approved Outputs']))
+    sections.push(row(['Province', 'Outputs']))
     provinceSummary
       .filter(item => !['Negros Oriental', 'Siquijor'].includes(item.name))
       .forEach(item => sections.push(row([item.name, item.value])))
@@ -279,7 +279,7 @@ function exportPDF({ summary, trendData, typeDistribution, heiComparison, provin
   // Province summary
   const provFiltered = provinceSummary.filter(item => !['Negros Oriental', 'Siquijor'].includes(item.name))
   const provHTML = provFiltered.length > 0 ? section('Province-Level Summary', table(
-    ['Province', 'Approved Outputs'],
+    ['Province', 'Outputs'],
     provFiltered.map(item => [item.name, item.value])
   )) : ''
 
@@ -542,6 +542,7 @@ export default function AnalyticsDashboard({
         const provinceParams = {
           yearFrom: params.yearFrom,
           yearTo: params.yearTo,
+          province: params.province,
           institutionId: params.institutionId,
           type: params.type,
         }
@@ -635,8 +636,6 @@ export default function AnalyticsDashboard({
               </p>
             </div>
             <div className="text-right shrink-0">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-[#94a3b8]">ACADEMIC YEAR</p>
-              <p className="text-[13px] font-bold text-[#0d1f3c]">2025-2026</p>
               <p className="mt-1 text-[12px] text-[#6b7280]">DOST Region VII</p>
             </div>
           </div>
@@ -742,6 +741,10 @@ export default function AnalyticsDashboard({
               <div className="flex h-full items-center justify-center">
                 <Loader2 className="h-6 w-6 animate-spin text-white/40" />
               </div>
+            ) : trendData.length === 0 ? (
+              <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
+                <p className="text-xs text-slate-400 italic">No outputs found for the selected filters.</p>
+              </div>
             ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={trendData} barGap={4} barCategoryGap="40%" style={{ cursor: 'default' }} onMouseLeave={() => {}}>
@@ -771,7 +774,7 @@ export default function AnalyticsDashboard({
 
         <div className="rounded-[12px] bg-white p-[20px] shadow-[0_2px_8px_rgba(0,0,0,0.08)]">
           <h3 className="text-[17px] font-semibold text-[#1A1A2E]">Research Type Distribution</h3>
-          <p className="mt-1 text-xs text-[#6B7280]">All approved outputs</p>
+          <p className="mt-1 text-xs text-[#6B7280]">All outputs</p>
           <div className="mt-5 grid gap-4 lg:grid-cols-[150px,1fr] xl:grid-cols-1 2xl:grid-cols-[150px,1fr]">
             <div className="relative mx-auto flex h-[150px] w-[150px] items-center justify-center">
               {loading ? (
@@ -812,11 +815,15 @@ export default function AnalyticsDashboard({
       <section className="grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_0.8fr]">
         <div className={cardClass}>
           <h3 className="text-[17px] font-semibold text-[#1A1A2E]">HEI Submission Overview</h3>
-          <p className="mt-1 text-xs text-[#6B7280]">Ranked by total approved outputs</p>
+          <p className="mt-1 text-xs text-[#6B7280]">Ranked by total outputs</p>
           <div className="mt-5 space-y-4">
             {loading ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
+              </div>
+            ) : heiComparison.filter((item) => item.count > 0).length === 0 ? (
+              <div className="flex items-center justify-center py-8">
+                <p className="text-xs text-slate-400 italic">No outputs found for the selected filters.</p>
               </div>
             ) : heiComparison
                 .filter((item) => item.count > 0)
@@ -845,20 +852,33 @@ export default function AnalyticsDashboard({
               <div className="col-span-2 flex items-center justify-center py-8">
                 <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
               </div>
-            ) : provinceSummary
-                .filter((item) => !['Negros Oriental', 'Siquijor'].includes(item.name))
-                .map((item) => (
-                  <div key={item.name} className="rounded-[12px] border border-[#E5E7EB] bg-[#F9FAFB] p-4">
-                    <div className="flex items-center gap-2">
-                      <div className="rounded-full bg-[#FEF3C7] p-1.5 text-[#C9A84C]">
-                        <MapPinned className="h-3.5 w-3.5" />
+            ) : (() => {
+                    const filteredProvinces = provinceSummary
+                      .filter((item) => !['Negros Oriental', 'Siquijor'].includes(item.name))
+                      .filter((item) => appliedFilters.institutionId ? item.value > 0 : true)
+
+                    if (filteredProvinces.length === 0) {
+                      return (
+                        <div className="col-span-2 flex flex-col items-center justify-center gap-2 py-8 text-center">
+                          <MapPinned className="h-5 w-5 text-slate-300" />
+                          <p className="text-xs text-slate-400 italic">No outputs found for the selected filters.</p>
+                        </div>
+                      )
+                    }
+
+                    return filteredProvinces.map((item) => (
+                      <div key={item.name} className="rounded-[12px] border border-[#E5E7EB] bg-[#F9FAFB] p-4">
+                        <div className="flex items-center gap-2">
+                          <div className="rounded-full bg-[#FEF3C7] p-1.5 text-[#C9A84C]">
+                            <MapPinned className="h-3.5 w-3.5" />
+                          </div>
+                          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#6B7280]">{item.name}</p>
+                        </div>
+                        <p className="mt-4 text-[38px] font-bold leading-none text-[#1A1A2E]">{item.value}</p>
+                        <p className="mt-2 text-[11px] text-[#6B7280]">Outputs</p>
                       </div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#6B7280]">{item.name}</p>
-                    </div>
-                    <p className="mt-4 text-[38px] font-bold leading-none text-[#1A1A2E]">{item.value}</p>
-                    <p className="mt-2 text-[11px] text-[#6B7280]">Approved outputs</p>
-                  </div>
-                ))}
+                    ))
+                  })()}
           </div>
         </div>
       </section>

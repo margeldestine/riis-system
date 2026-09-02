@@ -90,6 +90,15 @@ public class AuthService {
 			throw new BadRequestException("Email is already registered.");
 		}
 
+		if (request.employeeId() != null && !request.employeeId().isBlank()) {
+			boolean previouslyRejected = userRepository.findByEmployeeId(request.employeeId()).stream()
+					.anyMatch(u -> STATUS_REJECTED.equalsIgnoreCase(u.getStatus()));
+			if (previouslyRejected) {
+				throw new BadRequestException(
+						"This Employee ID was previously rejected and cannot be used to register again. Please contact your DOST Region VII administrator.");
+			}
+		}
+
 		Institution institution = institutionRepository
 				.findById(request.institutionId())
 				.orElseThrow(() -> new ResourceNotFoundException("Institution not found: " + request.institutionId()));

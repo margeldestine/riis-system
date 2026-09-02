@@ -47,6 +47,8 @@ public class ReportService {
     private final S3Presigner s3Presigner;
     private final AuditLogService auditLogService;
     private final ObjectMapper objectMapper;
+    private final ReportExportService reportExportService;
+
 
         @Value("${app.s3.bucket}")
         private String BUCKET;
@@ -195,7 +197,7 @@ public class ReportService {
                         "Funding Source", "Publication Venue/Status", "Institution", "Province",
                         "Authors", "ORCID iDs", "Abstract", "Keywords",
                         "Dublin Core Subject", "Dublin Core Coverage", "Dublin Core Rights",
-                        "DOI", "Status"
+                        "DOI"
                 ).build()
         );
         for (ResearchOutput o : data) {
@@ -213,7 +215,7 @@ public class ReportService {
                     o.getInstitution() != null ? o.getInstitution().getProvince() : "",
                     authors, orcids, o.getAbstractText(), o.getKeywords(),
                     o.getSubjectDc(), o.getCoverageDc(), o.getRightsDc(),
-                    o.getDoi(), o.getStatus()
+                    o.getDoi()
             );
         }
         printer.flush();
@@ -309,9 +311,7 @@ public class ReportService {
                     {"Dublin Core Coverage", o.getCoverageDc()},
                     {"Dublin Core Rights", o.getRightsDc()},
                     {"DOI", o.getDoi()},
-                    {"Status", o.getStatus()},
             };
-
             for (String[] field : fields) {
                 PdfPCell labelCell = new PdfPCell(new Phrase(field[0], labelFont));
                 labelCell.setBorder(Rectangle.NO_BORDER);

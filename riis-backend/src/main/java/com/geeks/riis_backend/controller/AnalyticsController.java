@@ -69,9 +69,10 @@ public class AnalyticsController {
     public ResponseEntity<List<Map<String, Object>>> getProvinceSummary(
             @RequestParam(required = false) Integer yearFrom,
             @RequestParam(required = false) Integer yearTo,
+            @RequestParam(required = false) String province,
             @RequestParam(required = false) String institutionId,
             @RequestParam(required = false) String type) {
-        return ResponseEntity.ok(analyticsService.getProvinceSummary(yearFrom, yearTo, institutionId, type));
+        return ResponseEntity.ok(analyticsService.getProvinceSummary(yearFrom, yearTo, province, institutionId, type));
     }
 
     // DAS-039-filters: Province/HEI only — Year and Type don't apply here

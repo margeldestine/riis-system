@@ -568,9 +568,9 @@ export default function DiscoveryPortalPage({ embedded = false }) {
                       className="w-full rounded-lg border border-slate-200 bg-white py-1.5 pl-2 pr-6 text-xs text-slate-600 appearance-none focus:outline-none focus:ring-1 focus:ring-[#C9A84C]"
                     >
                       <option value="">Select year</option>
-                      {Array.from({ length: 10 }, (_, i) => 2026 - i).map(y => (
-                        <option key={y} value={y}>{y}</option>
-                      ))}
+                      {Array.from({ length: new Date().getFullYear() - 2026 + 1 }, (_, i) => 2026 + i).map(y => (
+                      <option key={y} value={y}>{y}</option>
+                    ))}
                     </select>
                     <ChevronDown className="absolute right-2 top-2 h-3 w-3 text-slate-400 pointer-events-none" />
                   </div>
