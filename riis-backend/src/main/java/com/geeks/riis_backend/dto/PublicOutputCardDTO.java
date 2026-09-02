@@ -10,5 +10,6 @@ public record PublicOutputCardDTO(
         Integer completionYear,
         String fundingSource,
         String abstractExcerpt,
-        List<PublicAuthorDTO> authors
+        List<PublicAuthorDTO> authors,
+        String status
 ) {}

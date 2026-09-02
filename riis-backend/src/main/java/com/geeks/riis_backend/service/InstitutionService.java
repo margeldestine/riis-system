@@ -1,16 +1,19 @@
 package com.geeks.riis_backend.service;
 
 import com.geeks.riis_backend.dto.InstitutionDropdownItem;
+import com.geeks.riis_backend.dto.InstitutionExportDataDTO;
 import com.geeks.riis_backend.dto.InstitutionProfileDTO;
 import com.geeks.riis_backend.dto.InstitutionStatsDTO;
 import com.geeks.riis_backend.dto.InstitutionSummaryDTO;
 import com.geeks.riis_backend.dto.PublicAuthorDTO;
 import com.geeks.riis_backend.dto.PublicOutputCardDTO;
 import com.geeks.riis_backend.dto.RegisterHEIDTO;
+import com.geeks.riis_backend.dto.ResearchOutputExportRowDTO;
 import com.geeks.riis_backend.dto.ThemeKeywordDTO;
 import com.geeks.riis_backend.exception.BadRequestException;
 import com.geeks.riis_backend.exception.ResourceNotFoundException;
 import com.geeks.riis_backend.model.AuditLogEntry;
+import com.geeks.riis_backend.model.Author;
 import com.geeks.riis_backend.model.Institution;
 import com.geeks.riis_backend.model.ResearchOutput;
 import com.geeks.riis_backend.model.ThemeProfile;
@@ -30,6 +33,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -71,11 +75,23 @@ public class InstitutionService {
                 : institutionRepository.findAll();
 
         return list.stream()
-                .map(i -> new InstitutionSummaryDTO(
-                        i.getId(), i.getName(), i.getType(),
-                        i.getProvince(), i.getEmailDomain(), i.getWhitelistStatus(),
-                        institutionRepository.countApprovedOutputs(i.getId())
-                ))
+                .map(i -> {
+                    List<ThemeKeywordDTO> keywords = themeProfileRepository
+                            .findByInstitutionId(i.getId())
+                            .map(ThemeProfile::getKeywords)
+                            .map(kwds -> kwds.stream()
+                                    .map(k -> new ThemeKeywordDTO(k.getKeyword(), k.getWeight()))
+                                    .sorted((a, b) -> Double.compare(b.weight(), a.weight()))
+                                    .limit(5)
+                                    .collect(Collectors.toList()))
+                            .orElse(List.of());
+                    return new InstitutionSummaryDTO(
+                            i.getId(), i.getName(), i.getType(),
+                            i.getProvince(), i.getEmailDomain(), i.getWhitelistStatus(),
+                            institutionRepository.countApprovedOutputs(i.getId()),
+                            keywords
+                    );
+                })
                 .collect(Collectors.toList());
     }
 
@@ -87,13 +103,36 @@ public class InstitutionService {
 
 
     @Transactional(readOnly = true)
-    public InstitutionProfileDTO buildProfileDTO(String institutionId, Pageable pageable) {
+    public InstitutionProfileDTO buildProfileDTO(String institutionId, Pageable pageable, String keyword, String researchTypes, String subjects, Integer yearTo) {
         Institution inst = institutionRepository.findById(institutionId)
                 .orElseThrow(() -> new ResourceNotFoundException("Institution not found: " + institutionId));
 
 
-        Page<ResearchOutput> outputPage = researchOutputRepository
-                .findByInstitutionIdAndStatus(institutionId, STATUS_APPROVED, pageable);
+        List<String> typeList = (researchTypes != null && !researchTypes.isBlank())
+                ? java.util.Arrays.asList(researchTypes.split(","))
+                : null;
+
+        List<String> subjectList = (subjects != null && !subjects.isBlank())
+                ? java.util.Arrays.asList(subjects.split(","))
+                : null;
+
+        Page<ResearchOutput> outputPage = researchOutputRepository.findAll(
+                com.geeks.riis_backend.service.SubmissionSpecifications.forInstitution(institutionId)
+                        .and((root, query, cb) -> cb.equal(root.get("status"), STATUS_APPROVED))
+                        .and((root, query, cb) -> keyword != null && !keyword.isBlank()
+                                ? cb.like(cb.lower(root.get("title")), "%" + keyword.toLowerCase().trim() + "%")
+                                : cb.conjunction())
+                        .and((root, query, cb) -> typeList != null
+                                ? root.get("researchType").in(typeList)
+                                : cb.conjunction())
+                        .and((root, query, cb) -> subjectList != null
+                                ? root.get("subjectDc").in(subjectList)
+                                : cb.conjunction())
+                        .and((root, query, cb) -> yearTo != null && yearTo > 0
+                                ? cb.lessThanOrEqualTo(root.get("completionYear"), yearTo)
+                                : cb.conjunction()),
+                pageable
+        );
 
 
         Page<PublicOutputCardDTO> outputDTOs = outputPage.map(ro -> {
@@ -114,7 +153,8 @@ public class InstitutionService {
                     ro.getCompletionYear(),
                     ro.getFundingSource(),
                     excerpt,
-                    authors
+                    authors,
+                    ro.getStatus()
             );
         });
 
@@ -171,12 +211,94 @@ public class InstitutionService {
     }
 
 
+    /**
+     * Builds the full filtered dataset for a "Export Report" download.
+     * Uses the exact same specification chain as buildProfileDTO (same
+     * status/keyword/type/subject/year filters) so the export always
+     * matches what the user sees on screen — just unpaginated, sorted
+     * newest-first.
+     *
+     * Everything is materialized into plain DTOs (including author names)
+     * before this method returns, so the result is safe to hand to
+     * ReportExportService outside of this transaction — no lazy-loaded
+     * entity fields leak past the Hibernate session.
+     */
+    @Transactional(readOnly = true)
+    public InstitutionExportDataDTO buildExportData(String institutionId, String keyword, String researchTypes, String subjects, Integer yearTo) {
+        Institution inst = institutionRepository.findById(institutionId)
+                .orElseThrow(() -> new ResourceNotFoundException("Institution not found: " + institutionId));
+
+        List<String> typeList = (researchTypes != null && !researchTypes.isBlank())
+                ? java.util.Arrays.asList(researchTypes.split(","))
+                : null;
+
+        List<String> subjectList = (subjects != null && !subjects.isBlank())
+                ? java.util.Arrays.asList(subjects.split(","))
+                : null;
+
+        List<ResearchOutput> outputs = researchOutputRepository.findAll(
+                com.geeks.riis_backend.service.SubmissionSpecifications.forInstitution(institutionId)
+                        .and((root, query, cb) -> cb.equal(root.get("status"), STATUS_APPROVED))
+                        .and((root, query, cb) -> keyword != null && !keyword.isBlank()
+                                ? cb.like(cb.lower(root.get("title")), "%" + keyword.toLowerCase().trim() + "%")
+                                : cb.conjunction())
+                        .and((root, query, cb) -> typeList != null
+                                ? root.get("researchType").in(typeList)
+                                : cb.conjunction())
+                        .and((root, query, cb) -> subjectList != null
+                                ? root.get("subjectDc").in(subjectList)
+                                : cb.conjunction())
+                        .and((root, query, cb) -> yearTo != null && yearTo > 0
+                                ? cb.lessThanOrEqualTo(root.get("completionYear"), yearTo)
+                                : cb.conjunction()),
+                Sort.by(Sort.Direction.DESC, "completionYear")
+        );
+
+        List<ResearchOutputExportRowDTO> rows = outputs.stream()
+                .map(ro -> new ResearchOutputExportRowDTO(
+                        ro.getTitle(),
+                        ro.getResearchType(),
+                        ro.getCompletionYear(),
+                        ro.getFundingSource(),
+                        ro.getPublicationVenue(),
+                        ro.getPrincipalInvestigator(),
+                        ro.getDoi(),
+                        ro.getAuthors() == null ? List.of() :
+                                ro.getAuthors().stream()
+                                        .map(Author::getFullName)
+                                        .filter(name -> name != null && !name.isBlank())
+                                        .collect(Collectors.toList())
+                ))
+                .collect(Collectors.toList());
+
+        return new InstitutionExportDataDTO(
+                inst.getName(),
+                inst.getType(),
+                inst.getProvince(),
+                rows
+        );
+    }
+
+
     public Institution registerHEI(RegisterHEIDTO dto, String adminEmail) {
         String domain = dto.emailDomain().trim().toLowerCase();
+
+        if (!dto.name().trim().matches("^[a-zA-Z0-9 .-]+$")) {
+            throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
+                    "Institution name can only contain letters, numbers, spaces, hyphens, and periods.");
+        }
 
         if (!DOMAIN_PATTERN.matcher(domain).matches()) {
             throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
                     "Invalid email domain format. Must be like @domain.edu.ph");
+        }
+
+        boolean nameAlreadyExists = institutionRepository.findAll().stream()
+                .anyMatch(i -> i.getName() != null && i.getName().equalsIgnoreCase(dto.name().trim()));
+
+        if (nameAlreadyExists) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "An institution with this name is already registered.");
         }
 
         if (institutionRepository.findByEmailDomain(domain).isPresent()) {
@@ -192,7 +314,7 @@ public class InstitutionService {
 
         Institution institution = Institution.builder()
                 .name(dto.name().trim())
-                .type(dto.type())
+                .type(dto.type().trim().toUpperCase())
                 .province(dto.province())
                 .emailDomain(cleanDomain)
                 .contactEmail(cleanDomain)
@@ -201,7 +323,7 @@ public class InstitutionService {
                 .build();
 
         try {
-            Institution saved = institutionRepository.save(institution);
+            Institution saved = institutionRepository.saveAndFlush(institution);
             writeAuditLog("REGISTER_HEI", saved.getId(), adminEmail, null);
             return saved;
         } catch (DataIntegrityViolationException ex) {
@@ -224,6 +346,35 @@ public class InstitutionService {
         writeAuditLog("UPDATE_HEI_STATUS", inst.getId(), adminEmail, newStatus);
     }
 
+    public Institution updateInstitutionDetails(UUID id, String type, String province, String emailDomain, String status, String adminEmail) {
+        Institution inst = institutionRepository.findById(id.toString())
+                .orElseThrow(() -> new ResourceNotFoundException("Institution not found: " + id));
+
+        if (type != null && !type.isBlank()) {
+            inst.setType(type.trim().toUpperCase());
+        }
+        if (province != null && !province.isBlank()) {
+            inst.setProvince(province.trim());
+        }
+        if (emailDomain != null && !emailDomain.isBlank()) {
+            String domain = emailDomain.trim().toLowerCase();
+            if (!DOMAIN_PATTERN.matcher(domain).matches()) {
+                throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
+                        "Invalid email domain format. Must be like @domain.edu.ph");
+            }
+            String cleanDomain = domain.startsWith("@") ? domain.substring(1) : domain;
+            inst.setEmailDomain(cleanDomain);
+            inst.setContactEmail(cleanDomain);
+        }
+        if (status != null && !status.isBlank()) {
+            inst.setWhitelistStatus(status.trim().toUpperCase());
+        }
+
+        Institution saved = institutionRepository.save(inst);
+        writeAuditLog("UPDATE_HEI_DETAILS", saved.getId(), adminEmail, null);
+        return saved;
+    }
+
 
     private void writeAuditLog(String actionType, String targetId, String adminEmail, String comment) {
         User admin = adminEmail != null
@@ -240,5 +391,9 @@ public class InstitutionService {
                 .build();
 
         auditLogEntryRepository.save(entry);
+    }
+
+    public long countAll() {
+        return institutionRepository.count();
     }
 }

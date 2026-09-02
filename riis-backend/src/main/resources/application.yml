@@ -7,10 +7,38 @@ spring:
     hibernate:
       ddl-auto: validate
     show-sql: true
-
+  mail:
+    username: ${MAIL_USERNAME}
+    password: ${MAIL_PASSWORD}
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+internal:
+  service:
+    token: ${INTERNAL_SERVICE_TOKEN}
 app:
+  s3:
+    bucket: ${S3_BUCKET}
+    region: ${S3_REGION}
+    endpoint: ${S3_ENDPOINT}
+    access-key: ${S3_ACCESS_KEY}
+    secret-key: ${S3_SECRET_KEY}
   security:
     jwt:
       secret: ${jwt.secret:PLEASE_SET_JWT_SECRET}
       issuer: ${JWT_ISSUER:riis-backend}
       access-token-ttl-seconds: ${JWT_ACCESS_TOKEN_TTL_SECONDS:3600}
+      remember-me-ttl-seconds: 2592000   # 30 days
+    password-reset-token-ttl-minutes: 30
+  frontend:
+    base-url: ${FRONTEND_BASE_URL:http://localhost:5173}
+    allowed-origins: ${FRONTEND_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:5174,http://localhost:5175}
+
+---
+
+spring:
+  config:
+    activate:
+      on-profile: prod
+  jpa:
+    show-sql: false

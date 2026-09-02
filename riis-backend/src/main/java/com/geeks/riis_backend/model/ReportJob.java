@@ -19,6 +19,7 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UuidGenerator;
 import org.hibernate.type.SqlTypes;
+import java.time.Instant;
 
 @Entity
 @Table(name = "report_jobs")
@@ -66,5 +67,5 @@ public class ReportJob {
 	private LocalDateTime createdAt;
 
 	@Column(name = "completed_at")
-	private LocalDateTime completedAt;
+	private Instant completedAt;
 }

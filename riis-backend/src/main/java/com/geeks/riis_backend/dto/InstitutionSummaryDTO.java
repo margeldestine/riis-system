@@ -1,5 +1,7 @@
 package com.geeks.riis_backend.dto;
 
+import java.util.List;
+
 public record InstitutionSummaryDTO(
         String id,
         String name,
@@ -7,5 +9,6 @@ public record InstitutionSummaryDTO(
         String province,
         String emailDomain,
         String whitelistStatus,
-        long approvedOutputCount
+        long approvedOutputCount,
+        List<ThemeKeywordDTO> themeKeywords
 ) {}

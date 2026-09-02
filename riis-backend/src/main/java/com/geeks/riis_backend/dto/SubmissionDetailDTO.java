@@ -16,7 +16,11 @@ public record SubmissionDetailDTO(
 		String abstractText,
 		List<SubmissionAuthorRequest> authors,
 		List<String> keywords,
+		String principalInvestigator,
+		String institutionalAffiliation,
 		String doi,
+
+		String conferenceUrl,
 		String subjectDc,
 		String coverageDc,
 		String rightsDc,
@@ -28,5 +32,6 @@ public record SubmissionDetailDTO(
 		String publisherDc,
 		String identifierDc,
 		String correctionNotes,
+		String s3PdfKey,
 		int validationErrorCount
 ) {}

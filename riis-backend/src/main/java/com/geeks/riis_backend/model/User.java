@@ -95,9 +95,6 @@ public class User {
 	@OneToMany(mappedBy = "reviewedBy", fetch = FetchType.LAZY)
 	private Set<ResearchOutput> reviewedResearchOutputs;
 
-	@OneToMany(mappedBy = "resolvedBy", fetch = FetchType.LAZY)
-	private Set<UnclassifiedRecord> resolvedUnclassifiedRecords;
-
 	@OneToMany(mappedBy = "adminUser", fetch = FetchType.LAZY)
 	private Set<AdminAction> adminActions;
 

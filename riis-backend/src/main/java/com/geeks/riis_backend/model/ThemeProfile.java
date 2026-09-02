@@ -18,7 +18,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UuidGenerator;
+import org.hibernate.annotations.UuidGenerator;import jakarta.persistence.CascadeType;
 
 @Entity
 @Table(
@@ -51,6 +51,6 @@ public class ThemeProfile {
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private LocalDateTime createdAt;
 
-	@OneToMany(mappedBy = "themeProfile", fetch = FetchType.LAZY)
+	@OneToMany(mappedBy = "themeProfile", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
 	private Set<ThemeKeyword> keywords;
 }

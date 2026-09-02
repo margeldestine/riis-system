@@ -8,6 +8,8 @@ public class SubmissionFilterDTO {
 	private Integer completionYearFrom;
 	private Integer completionYearTo;
 	private List<String> researchTypes;
+	private Boolean mine;
+	private String submittedByUserId;
 
 	public List<String> getStatuses() {
 		return statuses;
@@ -39,5 +41,21 @@ public class SubmissionFilterDTO {
 
 	public void setResearchTypes(List<String> researchTypes) {
 		this.researchTypes = researchTypes;
+	}
+
+	public Boolean getMine() {
+		return mine;
+	}
+
+	public void setMine(Boolean mine) {
+		this.mine = mine;
+	}
+
+	public String getSubmittedByUserId() {
+		return submittedByUserId;
+	}
+
+	public void setSubmittedByUserId(String submittedByUserId) {
+		this.submittedByUserId = submittedByUserId;
 	}
 }

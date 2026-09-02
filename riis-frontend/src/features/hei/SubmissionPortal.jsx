@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import {
   Check,
@@ -9,20 +9,185 @@ import {
   ChevronRight,
   Info
 } from 'lucide-react'
+import '@fontsource/inter'
+import '@fontsource/libre-baskerville'
 import { Controller, useFieldArray, useForm, useWatch } from 'react-hook-form'
 import { z } from 'zod'
 import { useLocation, useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import apiClient from '../../services/apiClient'
 
+// Same env-var pattern as apiClient.js -- this file makes several raw
+// axios/fetch calls (token refresh, file upload, submit/resubmit) that
+// bypass the shared apiClient instance entirely (each attaches its own
+// Bearer token manually), so they need their own base URL reference
+// rather than silently staying hardcoded to localhost after apiClient.js
+// gets fixed.
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1'
+
 const currentYear = new Date().getFullYear()
 const doiPattern = /^10\.\d{4,9}\/[-._;()/:A-Z0-9]+$/i
 const orcidPattern = /^(\d{4}-){3}\d{3}[\dX]$/i
 const conferenceUrlPattern = /^https?:\/\/.+/i
+const alphabeticContentPattern = /[a-zA-Z]/
+const keywordPattern = /^[A-Za-z0-9./'()-]+(?:\s[A-Za-z0-9./'()-]+){0,5}$/
+
+
+function isValidRightsOrCoverage(value) {
+  const trimmed = (value ?? '').trim()
+  if (alphabeticContentPattern.test(trimmed)) return true
+  if (/^\d+$/.test(trimmed)) return trimmed.length <= 5
+  return false
+}
+
+function isValidKeyword(word) {
+  return keywordPattern.test(word)
+}
+
+const vowelPattern = /[aeiouAEIOU]/
+
+const QWERTY_ADJACENCY = {
+  q: 'wa', w: 'qeas', e: 'wrsd', r: 'etdf', t: 'ryfg', y: 'tugh', u: 'yihj',
+  i: 'uojk', o: 'ipkl', p: 'ol',
+  a: 'qwsz', s: 'awedxz', d: 'serfcx', f: 'drtgvc', g: 'ftyhbv', h: 'gyujnb',
+  j: 'huikmn', k: 'jiolm', l: 'kop',
+  z: 'asx', x: 'zsdc', c: 'xdfv', v: 'cfgb', b: 'vghn', n: 'bhjm', m: 'njk',
+}
+
+function isKeyboardAdjacent(a, b) {
+  const neighbors = QWERTY_ADJACENCY[a]
+  return Boolean(neighbors && neighbors.includes(b))
+}
+
+function keyboardAdjacencyRatio(word) {
+  const letters = word.toLowerCase().replace(/[^a-z]/g, '')
+  if (letters.length < 4) return 0
+  let adjacentPairs = 0
+  for (let i = 1; i < letters.length; i++) {
+    if (isKeyboardAdjacent(letters[i - 1], letters[i])) adjacentPairs++
+  }
+  return adjacentPairs / (letters.length - 1)
+}
+
+function hasExcessiveConsonantRun(word, maxRun = 5) {
+  let run = 0
+  for (const ch of word) {
+    if (/[a-zA-Z]/.test(ch) && !vowelPattern.test(ch)) {
+      run += 1
+      if (run > maxRun) return true
+    } else {
+      run = 0
+    }
+  }
+  return false
+}
+
+function hasExcessiveRepeatedChar(word, maxRun = 3) {
+  let run = 1
+  for (let i = 1; i < word.length; i++) {
+    if (word[i].toLowerCase() === word[i - 1].toLowerCase()) {
+      run += 1
+      if (run > maxRun) return true
+    } else {
+      run = 1
+    }
+  }
+  return false
+}
+
+function isRepeatedSubstring(word) {
+  return /^(.+)\1+$/.test(word.toLowerCase())
+}
+
+const COMMON_ENGLISH_BIGRAMS = new Set([
+  'th','he','in','er','an','re','on','at','en','nd','ti','es','or','te',
+  'of','ed','is','it','al','ar','st','to','nt','ng','se','ha','as','ou',
+  'io','le','ve','co','me','de','hi','ri','ro','ic','ne','ea','ra','ce',
+  'li','ch','ll','be','ma','si','om','ur','ca','el','ta','la','ns','di',
+  'fo','ho','pe','ec','pr','no','ct','us','ac','ot','il','tr','ly','nc',
+  'ex','so','ss','wi','wa','sh','ee','id','oo','oc','fi','ai','ea','ow',
+  'ne','ge','ki','sa','av','pa','au','ni','gh','ir','ph','sc','wo','fr',
+])
+
+function bigramPlausibilityRatio(word) {
+  const letters = word.toLowerCase().replace(/[^a-z]/g, '')
+  if (letters.length < 5) return 1 // too short to judge reliably; don't penalize
+  let commonCount = 0
+  const total = letters.length - 1
+  for (let i = 0; i < total; i++) {
+    if (COMMON_ENGLISH_BIGRAMS.has(letters.slice(i, i + 2))) commonCount++
+  }
+  return commonCount / total
+}
+
+function isGibberishWord(rawWord) {
+  const clean = (rawWord ?? '').replace(/[^A-Za-z]/g, '')
+  if (clean.length < 3) return false
+  if (isRepeatedSubstring(clean)) return true
+  if (!vowelPattern.test(clean)) return true
+  if (hasExcessiveConsonantRun(clean, 5) && bigramPlausibilityRatio(clean) < 0.3) return true
+  if (hasExcessiveRepeatedChar(clean)) return true
+  if (keyboardAdjacencyRatio(clean) > 0.5) return true
+  if (bigramPlausibilityRatio(clean) < 0.15) return true
+  return false
+}
+
+const ENGLISH_STOPWORDS = new Set([
+  'the','and','of','to','in','is','was','for','with','this','that','are',
+  'on','as','by','an','be','from','at','it','we','our','which','these',
+  'their','has','have','were','can','also','may','been','not','its',
+  'such','other','than','into','more','used','based','study','research',
+  'data','analysis','method','methods','results','findings','a','or',
+  'between','among','using','showed','found','significant','both',
+])
+
+function commonWordRatio(text) {
+  const words = (text ?? '')
+    .toLowerCase()
+    .replace(/[^a-z\s]/g, ' ')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+  if (words.length === 0) return 0
+  return words.filter((w) => ENGLISH_STOPWORDS.has(w)).length / words.length
+}
+
+function isGibberishText(value, { maxGibberishRatio = 0.34, minWordsToCheck = 3, minCommonWordRatio = 0.08 } = {}) {
+  const words = (value ?? '').trim().split(/\s+/).filter(Boolean)
+  if (words.length < minWordsToCheck) return false
+
+  const tokens = tokenizeForGibberishCheck(value)
+  const gibberishCount = tokens.filter(isGibberishWord).length
+  const tooManyGibberishWords = tokens.length > 0 && gibberishCount / tokens.length > maxGibberishRatio
+
+  const tooFewCommonWords = words.length >= 15 && commonWordRatio(value) < minCommonWordRatio
+
+  return tooManyGibberishWords || tooFewCommonWords
+}
+
+function tokenizeForGibberishCheck(value) {
+  return (value ?? '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .flatMap((word) => word.split(/[/-]+/).filter(Boolean))
+}
+
+function findFirstGibberishWord(value) {
+  return tokenizeForGibberishCheck(value).find((w) => isGibberishWord(w)) || null
+}
+
+function containsGibberishWord(text) {
+  return tokenizeForGibberishCheck(text).some((word) => isGibberishWord(word))
+}
 
 function formatOrcidInput(value) {
-  const digits = (value ?? '').toString().replace(/\D/g, '').slice(0, 16)
-  const chunks = digits.match(/.{1,4}/g) || []
+  const cleaned = (value ?? '')
+    .toString()
+    .toUpperCase()
+    .replace(/[^0-9X]/g, '')
+    .slice(0, 16)
+  const chunks = cleaned.match(/.{1,4}/g) || []
   return chunks.join('-')
 }
 
@@ -42,14 +207,35 @@ function formatDoiInput(value) {
   return withoutPrefix
 }
 
+const CONFERENCE_URL_PREFIX = 'https://'
+
 function formatConferenceUrlInput(value) {
-  const trimmed = (value ?? '').toString().trim()
-  if (!trimmed) return ''
+  const raw = (value ?? '').toString()
 
-  if (/^[a-zA-Z][a-zA-Z\d+.-]*:\/\//.test(trimmed)) return trimmed
-  if (!/[./]/.test(trimmed)) return trimmed
+  if (!raw.startsWith(CONFERENCE_URL_PREFIX)) {
+    const withoutPrefix = raw.replace(/^https?:?\/{0,2}/i, '')
+    return `${CONFERENCE_URL_PREFIX}${withoutPrefix}`
+  }
 
-  return `https://${trimmed.replace(/^\/+/, '')}`
+  return raw
+}
+
+const namePattern = /^[A-Za-z]+(?:[ '-][A-Za-z]+)*$/
+
+function sanitizeFullNameInput(value) {
+  return (value ?? '').replace(/[^A-Za-z\s'-]/g, '')
+}
+
+function sanitizeKeywordInput(value) {
+  return (value ?? '').replace(/[^A-Za-z0-9\s./'()-]/g, '')
+}
+
+function sanitizeRightsInput(value) {
+  return (value ?? '').replace(/[^A-Za-z0-9\s\-',.()/&]/g, '')
+}
+
+function sanitizeCoverageInput(value) {
+  return (value ?? '').replace(/[^A-Za-z0-9\s\-',.()/&]/g, '')
 }
 
 function decodeBase64Url(value) {
@@ -102,7 +288,7 @@ async function ensureFreshToken() {
 
   if (!isTokenExpiringSoon(token, 5 * 60 * 1000)) return token
 
-  const response = await fetch('http://localhost:8080/api/v1/auth/refresh', {
+  const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${token}`,
@@ -184,7 +370,13 @@ function countWords(value) {
 }
 
 const authorSchema = z.object({
-  fullName: z.string().trim().min(1, 'Author full name is required.'),
+    fullName: z
+    .string()
+    .trim()
+    .min(1, 'Author full name is required.')
+    .regex(namePattern, {
+      message: 'Full name can only contain letters, spaces, hyphens, and apostrophes.',
+    }),
   orcidId: z
     .string()
     .trim()
@@ -196,11 +388,11 @@ const authorSchema = z.object({
 
 const submissionSchema = z
   .object({
-    title: z
-      .string()
-      .trim()
-      .min(1, 'Research title is required.')
-      .max(500, 'Research title must be 500 characters or fewer.'),
+  title: z
+  .string()
+  .trim()
+  .min(1, 'Research title is required.')
+  .max(500, 'Research title must be 500 characters or fewer.'),
     researchType: z.string().trim().min(1, 'Research type is required.'),
     completionYear: z.coerce
       .number({
@@ -209,11 +401,14 @@ const submissionSchema = z
       .int('Completion year must be a whole number.')
       .min(1900, 'Completion year must be valid.')
       .max(currentYear, `Completion year cannot exceed ${currentYear}.`),
-    fundingSource: z.string().trim().min(1, 'Funding source is required.'),
-    publicationVenue: z
+      fundingSource: z
       .string()
       .trim()
-      .min(1, 'Publication venue or status is required.'),
+      .min(1, 'Funding source is required.'),
+      publicationVenue: z
+    .string()
+    .trim()
+    .min(1, 'Publication venue or status is required.'),
     authors: z.array(authorSchema).min(1, 'Add at least one author.'),
     principalInvestigator: z
       .string()
@@ -224,25 +419,39 @@ const submissionSchema = z
       .trim()
       .min(1, 'Institutional affiliation is required.'),
     abstractText: z
-      .string()
-      .trim()
-      .min(1, 'Abstract is required.')
-      .superRefine((value, ctx) => {
-        const words = countWords(value)
-        if (words < 100 || words > 500) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: 'Abstract must be between 100 and 500 words.',
-          })
-        }
-      }),
-    keywords: z
-      .array(z.string().trim().min(1))
+    .string()
+    .trim()
+    .min(1, 'Abstract is required.')
+    .superRefine((value, ctx) => {
+      const words = countWords(value)
+      if (words < 100 || words > 500) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Abstract must be between 100 and 500 words.',
+        })
+      }
+    }),
+        keywords: z
+      .array(
+        z
+        .string()
+        .trim()
+        .min(1)
+          .refine((value) => keywordPattern.test(value), {
+          message: 'Invalid keyword format.',
+        }),
+      )
       .min(3, 'Add at least 3 keywords.')
       .max(10, 'You can add up to 10 keywords only.'),
-    subjectDc: z.string().trim().min(1, 'Subject (DC) is required.'),
-    coverageDc: z.string().trim().min(1, 'Coverage (DC) is required.'),
-    rightsDc: z.string().trim().min(1, 'Rights (DC) is required.'),
+    subjectDc: z.string().trim().min(1, 'Subject is required.'),
+      coverageDc: z
+      .string()
+      .trim()
+      .min(1, 'Coverage is required.'),
+      rightsDc: z
+      .string()
+      .trim()
+      .min(1, 'Rights is required.'),
     doi: z
       .string()
       .trim()
@@ -265,6 +474,35 @@ const submissionSchema = z
       .optional(),
   })
   .superRefine((values, ctx) => {
+    const seenNames = new Set()
+    const seenOrcids = new Set()
+    values.authors.forEach((author, index) => {
+      const normalizedName = author.fullName.trim().toLowerCase()
+      if (normalizedName) {
+        if (seenNames.has(normalizedName)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['authors', index, 'fullName'],
+            message: 'This author has already been added.',
+          })
+        } else {
+          seenNames.add(normalizedName)
+        }
+      }
+
+      const normalizedOrcid = (author.orcidId || '').trim().toLowerCase()
+      if (normalizedOrcid) {
+        if (seenOrcids.has(normalizedOrcid)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['authors', index, 'orcidId'],
+            message: 'This ORCID iD is already used by another author.',
+          })
+        } else {
+          seenOrcids.add(normalizedOrcid)
+        }
+      }
+    })
     const authorNames = values.authors
       .map((author) => author.fullName.trim())
       .filter(Boolean)
@@ -305,7 +543,7 @@ function extractApiErrorMessage(error, fallbackMessage) {
 
 function FieldMessage({ message }) {
   if (!message) return null
-  return <p className="mt-2 text-sm text-red-600">{message}</p>
+  return <p className="mt-1 text-[11px] font-medium text-[#dc2626]">{message}</p>
 }
 
 function ErrorSummaryBanner({ errors, onDismiss }) {
@@ -320,17 +558,20 @@ function ErrorSummaryBanner({ errors, onDismiss }) {
   }
 
   return (
-    <div className="mt-5 rounded-md border border-red-200 bg-red-50 px-4 py-4 text-sm text-red-700">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="font-bold">Submission blocked — correct the following:</p>
-          <ul className="mt-2 list-disc pl-5 space-y-1">
+    <div className="mt-5 rounded-[2px] border border-[#f87171] bg-[#fee2e2] px-4 py-4 text-[13px] text-[#991b1b]">
+      <div className="flex items-start gap-3">
+        <Info className="mt-0.5 h-5 w-5 shrink-0 text-[#b91c1c]" />
+        <div className="min-w-0 flex-1">
+          <p className="font-semibold text-[#b91c1c]">
+            Submission blocked - correct the following:
+          </p>
+          <ul className="mt-2 list-disc pl-5 space-y-1 text-[12px] text-[#b91c1c]">
             {errors.map((err, index) => (
               <li key={index}>
                 <button
                   type="button"
                   onClick={() => scrollToField(err.field)}
-                  className="text-left text-red-700 hover:text-red-900"
+                  className="text-left hover:underline"
                 >
                   {err.message}
                 </button>
@@ -341,7 +582,8 @@ function ErrorSummaryBanner({ errors, onDismiss }) {
         <button
           type="button"
           onClick={onDismiss}
-          className="shrink-0 text-red-400 hover:text-red-600"
+          className="shrink-0 text-[#b91c1c]/60 hover:text-[#b91c1c]"
+          aria-label="Dismiss"
         >
           ✕
         </button>
@@ -352,41 +594,45 @@ function ErrorSummaryBanner({ errors, onDismiss }) {
 
 function StepProgress({ currentStep }) {
   return (
-    <div className="relative mb-10 mt-4 flex items-center justify-center">
-      <div className="absolute top-5 left-0 -z-10 h-[2px] w-full px-16">
-        <div className="h-full w-full bg-slate-200"></div>
-      </div>
-      <div className="flex w-full max-w-4xl justify-between px-8">
-        {stepDefinitions.map((step) => {
+    <div className="w-full">
+      <div className="mx-auto flex w-full max-w-5xl items-center justify-between">
+        {stepDefinitions.map((step, index) => {
           const isCompleted = currentStep > step.id
           const isCurrent = currentStep === step.id
+          const connectorCompleted = currentStep > step.id
 
           return (
-            <div key={step.id} className="relative z-10 flex flex-col items-center bg-white px-2">
-              <div
-                className={`flex h-10 w-10 items-center justify-center font-bold ${
-                  isCompleted
-                    ? 'bg-[#C9A84C] text-white'
-                    : isCurrent
-                      ? 'bg-[#1A1A2E] text-white'
-                      : 'border border-slate-300 bg-white text-slate-400'
-                }`}
-              >
-                {isCompleted ? <Check className="h-5 w-5" /> : step.id}
-              </div>
-              <div className="mt-3 w-28 text-center">
-                <p
-                  className={`text-xs ${
+            <div key={step.id} className="flex flex-1 items-center">
+              <div className="flex flex-col items-center">
+                <div
+                  className={`flex h-9 w-9 items-center justify-center rounded-[6px] text-[13px] font-bold ${
                     isCompleted
-                      ? 'font-bold text-[#C9A84C]'
+                      ? 'bg-[#c9a84c] text-white'
                       : isCurrent
-                        ? 'font-bold text-[#1A1A2E]'
-                        : 'text-slate-400'
+                        ? 'bg-[#0d1f3c] text-white'
+                        : 'border border-[#d1d5db] bg-white text-[#9ca3af]'
                   }`}
                 >
-                  {step.label}
-                </p>
+                  {isCompleted ? <Check className="h-4 w-4" /> : step.id}
+                </div>
+                <div className="mt-2 w-[108px] text-center">
+                  <p
+                    className={`text-[10px] font-semibold uppercase tracking-[0.18em] ${
+                      isCompleted || isCurrent ? 'text-[#0d1f3c]' : 'text-[#9ca3af]'
+                    }`}
+                  >
+                    {step.label}
+                  </p>
+                </div>
               </div>
+
+              {index < stepDefinitions.length - 1 ? (
+                <div
+                  className={`mx-2 h-px flex-1 ${
+                    connectorCompleted ? 'bg-[#c9a84c]' : 'bg-[#e5e7eb]'
+                  }`}
+                />
+              ) : null}
             </div>
           )
         })}
@@ -397,42 +643,65 @@ function StepProgress({ currentStep }) {
 
 function StepHeader({ stepId, title }) {
   return (
-    <div className="mb-6">
-      <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-[#C9A84C]">
-        STEP {stepId} OF 5
-      </p>
-      <h3 className="border-l-4 border-[#C9A84C] pl-3 text-2xl font-serif text-[#1A1A2E]">
+    <div className="relative mb-6">
+      <div className="absolute bottom-0 left-[-32px] top-[-32px] w-1 bg-[#c9a84c]" />
+      {stepId <= 4 ? (
+        <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-[#c9a84c]">
+          STEP {stepId} OF 4
+        </p>
+      ) : null}
+      <h3
+        className="text-[22px] font-bold tracking-tight text-[#0d1f3c]"
+        style={{ fontFamily: "'Libre Baskerville', serif" }}
+      >
         {title}
       </h3>
+      <div className="mt-4 h-px w-full bg-[#e5e7eb]" />
     </div>
   )
 }
 
-function BasicInfoStep({ register, errors }) {
+
+const fieldLabelClass =
+  'mb-2 block text-[11px] font-semibold uppercase tracking-[0.22em] text-[#374151]'
+
+const helperTextClass = 'mt-2 text-[12px] italic text-[#9ca3af]'
+
+const fieldBaseClass =
+  'w-full rounded-[6px] border border-[#e5e7eb] bg-[#f8fafc] px-3 py-2 text-[0.875rem] text-[#111827] placeholder:text-[#cbd5e1] outline-none transition'
+
+const fieldOkClass =
+  'focus:border-[#0d1f3c] focus:ring-2 focus:ring-[#0d1f3c]/10'
+
+const fieldErrorClass =
+  'border-[#f87171] focus:border-[#f87171] focus:ring-2 focus:ring-[#f87171]/15'
+
+function BasicInfoStep({ register, errors, watchedTitle }) {
   return (
     <div>
       <StepHeader stepId={1} title="Research Identification" />
       <div className="grid gap-5 md:grid-cols-2">
         <div className="space-y-2 md:col-span-2">
-          <label className="mb-2 block text-[11px] font-bold uppercase tracking-wider text-slate-500">
+          <label className={fieldLabelClass}>
             Research Title <span className="text-[#C9A84C]">*</span>
           </label>
           <input
             {...register('title')}
             id="field-title"
-            placeholder="Enter the full research title"
-            className={`w-full rounded-md border p-3 text-sm placeholder:text-slate-400 outline-none transition focus:ring-1 ${errors.title ? 'border-red-400 focus:border-red-400 focus:ring-red-400' : 'border-slate-200 bg-[#FFFFFF] focus:border-[#1A1A2E] focus:ring-[#1A1A2E]'}`}
+            placeholder="e.g., Flood Risk Assessment in Bohol Using SAR imagery and GIS"
+            className={`${fieldBaseClass} ${errors.title ? fieldErrorClass : fieldOkClass}`}
           />
+          <p className="text-[11px] text-[#94a3b8]">{(watchedTitle || '').length} / 500</p>
           <FieldMessage message={errors.title?.message} />
         </div>
 
         <div className="space-y-2">
-          <label className="mb-2 block text-[11px] font-bold uppercase tracking-wider text-slate-500">
+          <label className={fieldLabelClass}>
             Research Type <span className="text-[#C9A84C]">*</span>
           </label>
           <select
             {...register('researchType')}
-            className={`w-full rounded-md border p-3 text-sm outline-none transition focus:ring-1 ${errors.researchType ? 'border-red-400 focus:border-red-400 focus:ring-red-400' : 'border-slate-200 bg-[#FFFFFF] focus:border-[#1A1A2E] focus:ring-[#1A1A2E]'}`}
+            className={`${fieldBaseClass} ${errors.researchType ? fieldErrorClass : fieldOkClass}`}
           >
             <option value="">Select research type</option>
             {researchTypes.map((option) => (
@@ -445,49 +714,45 @@ function BasicInfoStep({ register, errors }) {
         </div>
 
         <div className="space-y-2">
-          <label className="mb-2 block text-[11px] font-bold uppercase tracking-wider text-slate-500">
+          <label className={fieldLabelClass}>
             Completion Year <span className="text-[#C9A84C]">*</span>
           </label>
           <input
             {...register('completionYear', { valueAsNumber: true })}
             type="number"
             max={currentYear}
-            placeholder={`Up to ${currentYear}`}
-            className={`w-full rounded-md border p-3 text-sm placeholder:text-slate-400 outline-none transition focus:ring-1 ${errors.completionYear ? 'border-red-400 focus:border-red-400 focus:ring-red-400' : 'border-slate-200 bg-[#FFFFFF] focus:border-[#1A1A2E] focus:ring-[#1A1A2E]'}`}
+            placeholder="e.g., 2024"
+            className={`${fieldBaseClass} ${errors.completionYear ? fieldErrorClass : fieldOkClass}`}
           />
+          <p className="text-[11px] text-[#94a3b8]">
+            Must be ≤ {currentYear} (current year)
+          </p>
           <FieldMessage message={errors.completionYear?.message} />
         </div>
 
         <div className="space-y-2">
-          <label className="mb-2 block text-[11px] font-bold uppercase tracking-wider text-slate-500">
+          <label className={fieldLabelClass}>
             Funding Source <span className="text-[#C9A84C]">*</span>
           </label>
           <input
             {...register('fundingSource')}
-            placeholder="Funding agency or grant source"
-            className={`w-full rounded-md border p-3 text-sm placeholder:text-slate-400 outline-none transition focus:ring-1 ${errors.fundingSource ? 'border-red-400 focus:border-red-400 focus:ring-red-400' : 'border-slate-200 bg-[#FFFFFF] focus:border-[#1A1A2E] focus:ring-[#1A1A2E]'}`}
+            placeholder="e.g., DOST-PCIEERD"
+            className={`${fieldBaseClass} ${errors.fundingSource ? fieldErrorClass : fieldOkClass}`}
           />
           <FieldMessage message={errors.fundingSource?.message} />
         </div>
 
         <div className="space-y-2">
-          <label className="mb-2 block text-[11px] font-bold uppercase tracking-wider text-slate-500">
+          <label className={fieldLabelClass}>
             Publication Venue / Status <span className="text-[#C9A84C]">*</span>
           </label>
           <input
             {...register('publicationVenue')}
-            placeholder="Journal, conference, repository, or current status"
-            className={`w-full rounded-md border p-3 text-sm placeholder:text-slate-400 outline-none transition focus:ring-1 ${errors.publicationVenue ? 'border-red-400 focus:border-red-400 focus:ring-red-400' : 'border-slate-200 bg-[#FFFFFF] focus:border-[#1A1A2E] focus:ring-[#1A1A2E]'}`}
+            placeholder="e.g., Published in Philippine Journal of Science, 2024"
+            className={`${fieldBaseClass} ${errors.publicationVenue ? fieldErrorClass : fieldOkClass}`}
           />
           <FieldMessage message={errors.publicationVenue?.message} />
         </div>
-      </div>
-
-      <div className="mt-8 flex items-center gap-3 rounded-md border border-blue-100 bg-blue-50/50 p-4 text-sm text-[#1A1A2E]">
-        <Info className="h-5 w-5 flex-shrink-0 text-blue-500" />
-        <p>
-          Ensure all information provided is accurate and matches the official documentation of your research output.
-        </p>
       </div>
     </div>
   )
@@ -497,11 +762,16 @@ function TeamAffiliationStep({
   control,
   register,
   errors,
+  touchedFields,
   authorFields,
   appendAuthor,
   removeAuthor,
   authorOptions,
+  authorNameWarnings,
+  onBlockedNameChar,
 }) {
+  const hasAuthorGroupError = Boolean(errors?.authors?.message)
+
   return (
     <div>
       <StepHeader stepId={2} title="Team & Authors" />
@@ -509,17 +779,14 @@ function TeamAffiliationStep({
         <div className="space-y-3">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="mb-2 block text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                Authors <span className="text-[#C9A84C]">*</span>
-              </p>
-              <p className="text-sm text-slate-500">
-                Add every author included in the submission.
+              <p className={fieldLabelClass}>
+                Author(s) <span className="text-[#C9A84C]">*</span>
               </p>
             </div>
             <button
               type="button"
               onClick={appendAuthor}
-              className="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+              className="inline-flex items-center gap-2 rounded-[6px] border border-[#d1d5db] bg-white px-4 py-2 text-sm font-semibold text-[#0d1f3c] transition hover:bg-[#0d1f3c]/5"
             >
               <Plus className="h-4 w-4" />
               Add Author
@@ -530,53 +797,92 @@ function TeamAffiliationStep({
             {authorFields.map((field, index) => (
               <div
                 key={field.id}
-                className="rounded-md border border-slate-200 bg-[#F9FAFB] p-4"
+                className="rounded-[10px] border border-[#e5e7eb] bg-[#f9fafb] p-4"
               >
                 <div className="grid gap-4 md:grid-cols-[minmax(0,1fr),minmax(0,1fr),auto]">
                   <div className="space-y-2">
-                    <label className="mb-2 block text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                    <label className={fieldLabelClass}>
                       Full Name <span className="text-[#C9A84C]">*</span>
-                    </label>
-                    <input
-                      {...register(`authors.${index}.fullName`)}
-                      placeholder="Author full name"
-                      className={`w-full rounded-md border p-3 text-sm placeholder:text-slate-400 outline-none transition focus:ring-1 ${errors.authors?.[index]?.fullName ? 'border-red-400 focus:border-red-400 focus:ring-red-400' : 'border-slate-200 bg-[#FFFFFF] focus:border-[#1A1A2E] focus:ring-[#1A1A2E]'}`}
-                    />
-                    <FieldMessage message={errors.authors?.[index]?.fullName?.message} />
-                  </div>
-
-                  <div className="space-y-2">
-                    <label className="mb-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                      ORCID iD
-                      <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium normal-case tracking-normal text-slate-400">optional</span>
                     </label>
                     <Controller
                       control={control}
-                      name={`authors.${index}.orcidId`}
+                      name={`authors.${index}.fullName`}
                       render={({ field: controllerField }) => (
                         <input
                           {...controllerField}
                           value={controllerField.value ?? ''}
                           onChange={(event) => {
-                            controllerField.onChange(
-                              formatOrcidInput(event.target.value),
-                            )
+                            const raw = event.target.value
+                            const sanitized = sanitizeFullNameInput(raw)
+                            if (sanitized !== raw) {
+                              onBlockedNameChar(index)
+                            }
+                            controllerField.onChange(sanitized)
                           }}
-                          placeholder="0000-0000-0000-0000"
-                          maxLength={19}
-                          className="w-full rounded-md border border-slate-200 bg-[#FFFFFF] p-3 text-sm placeholder:text-slate-400 outline-none transition focus:border-[#1A1A2E] focus:ring-1 focus:ring-[#1A1A2E]"
+                          placeholder="Type author name and press Enter..."
+                          className={`${fieldBaseClass} ${
+                            (index === 0 && hasAuthorGroupError) || errors.authors?.[index]?.fullName
+                              ? fieldErrorClass
+                              : fieldOkClass
+                          }`}
                         />
                       )}
                     />
-                    <FieldMessage message={errors.authors?.[index]?.orcidId?.message} />
+                    <FieldMessage
+                      message={
+                        authorNameWarnings?.[index] ||
+                        errors.authors?.[index]?.fullName?.message ||
+                        (index === 0 && hasAuthorGroupError ? 'Author(s) is required' : undefined)
+                      }
+                    />
                   </div>
 
+                  <div className="space-y-2">
+                    <label className={`mb-2 flex items-center gap-2 ${fieldLabelClass}`}>
+                      ORCID iD
+                      <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium normal-case tracking-normal text-slate-400">
+                        optional
+                      </span>
+                    </label>
+                    <Controller
+                        control={control}
+                        name={`authors.${index}.orcidId`}
+                        render={({ field: controllerField }) => {
+                          const isTouched = Boolean(touchedFields.authors?.[index]?.orcidId)
+                          const showError = isTouched && Boolean(errors.authors?.[index]?.orcidId)
+                          return (
+                    <input
+                      {...controllerField}
+                      value={controllerField.value ?? ''}
+                      onChange={(event) => {
+                        controllerField.onChange(
+                          formatOrcidInput(event.target.value),
+                        )
+                      }}
+                      onBlur={() => {
+                        controllerField.onBlur()
+                      }}
+                      placeholder="0000-0000-0000-0000"
+                      maxLength={19}
+                      className={`${fieldBaseClass} ${showError ? fieldErrorClass : fieldOkClass}`}
+                    />
+                  )
+                }}
+              />
+              <FieldMessage
+                message={
+                  touchedFields.authors?.[index]?.orcidId
+                    ? errors.authors?.[index]?.orcidId?.message
+                    : undefined
+                }
+            />
+            </div>
                   <div className="flex items-end pb-[2px]">
                     <button
                       type="button"
                       onClick={() => removeAuthor(index)}
                       disabled={authorFields.length === 1}
-                      className="inline-flex h-[46px] items-center gap-2 rounded-md border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="inline-flex h-[42px] items-center gap-2 rounded-[6px] border border-[#d1d5db] bg-white px-4 text-sm font-semibold text-[#0d1f3c] transition hover:bg-[#0d1f3c]/5 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <X className="h-4 w-4" />
                       Remove
@@ -586,45 +892,53 @@ function TeamAffiliationStep({
               </div>
             ))}
           </div>
-          <FieldMessage message={errors.authors?.message} />
         </div>
+        
 
         <div className="grid gap-5 md:grid-cols-2">
           <div className="space-y-2">
-            <label className="mb-2 block text-[11px] font-bold uppercase tracking-wider text-slate-500">
+            <label className={fieldLabelClass}>
               Principal Investigator <span className="text-[#C9A84C]">*</span>
             </label>
             <select
               {...register('principalInvestigator')}
-              className={`w-full rounded-md border p-3 text-sm outline-none transition focus:ring-1 ${errors.principalInvestigator ? 'border-red-400 focus:border-red-400 focus:ring-red-400' : 'border-slate-200 bg-[#FFFFFF] focus:border-[#1A1A2E] focus:ring-[#1A1A2E]'}`}
+              className={`${fieldBaseClass} ${errors.principalInvestigator ? fieldErrorClass : fieldOkClass}`}
             >
-              <option value="">Select principal investigator</option>
+              <option value="">Select PI from author list...</option>
               {authorOptions.map((option) => (
                 <option key={option} value={option}>
                   {option}
                 </option>
               ))}
             </select>
-            <FieldMessage message={errors.principalInvestigator?.message} />
+            <FieldMessage
+              message={
+                errors.principalInvestigator ? 'Principal Investigator is required' : undefined
+              }
+            />
           </div>
 
           <div className="space-y-2">
-            <label className="mb-2 block text-[11px] font-bold uppercase tracking-wider text-slate-500">
+            <label className={fieldLabelClass}>
               Institutional Affiliation <span className="text-[#C9A84C]">*</span>
             </label>
             <input
               {...register('institutionalAffiliation')}
               readOnly
-              className={`w-full rounded-md border p-3 text-sm text-[#1A1A2E] outline-none ${errors.institutionalAffiliation ? 'border-red-400' : 'border-slate-200 bg-slate-50'}`}
+              className={`${fieldBaseClass} ${errors.institutionalAffiliation ? fieldErrorClass : 'border-[#d1d5db] bg-[#f9fafb]'}`}
             />
-            <FieldMessage message={errors.institutionalAffiliation?.message} />
+            {errors.institutionalAffiliation ? (
+              <p className="mt-1 text-[11px] font-medium text-[#dc2626]">
+                Institutional Affiliation
+              </p>
+            ) : null}
           </div>
         </div>
 
-        <div className="mt-8 flex items-center gap-3 rounded-md border border-blue-100 bg-blue-50/50 p-4 text-sm text-[#1A1A2E]">
-          <Info className="h-5 w-5 flex-shrink-0 text-blue-500" />
-          <p>
-            By proceeding, you confirm that you have obtained the consent of all authors listed above to share their information in accordance with RA 10173 (Data Privacy Act of 2012).
+        <div className="mt-2 flex w-full items-center gap-3 rounded-[2px] border border-[#bfdbfe] bg-[#eff6ff] px-4 py-3 text-[13px] text-[#0d1f3c]">
+          <Info className="h-4 w-4 shrink-0 text-[#3b82f6]" />
+          <p className="text-[#0d1f3c]">
+            ORCID IDs and author information are processed under RA 10173 (Data Privacy Act of 2012). Only used for institutional research reporting.
           </p>
         </div>
       </div>
@@ -632,14 +946,27 @@ function TeamAffiliationStep({
   )
 }
 
-function KeywordsInput({
-  keywords,
-  onAddKeyword,
-  onRemoveKeyword,
-  keywordInput,
-  setKeywordInput,
-  error,
-}) {
+
+  function KeywordsInput({
+      keywords,
+      onAddKeyword,
+      onRemoveKeyword,
+      keywordInput,
+      setKeywordInput,
+      error,        
+      warning,
+      onBlockedChar,
+      onNumberChar,
+    }) {
+  const hasInvalidKeyword = Array.isArray(error) && error.some(Boolean)
+  const arrayLevelMessage = error?.root?.message || (!Array.isArray(error) ? error?.message : undefined)
+
+  const keywordErrorMessage = hasInvalidKeyword
+    ? 'Please enter a valid keyword.'
+    : arrayLevelMessage
+      ? `Minimum 3 keywords required (${keywords.length} added)`
+      : ''
+
   const handleKeyDown = (event) => {
     if (event.key === 'Enter' || event.key === ',') {
       event.preventDefault()
@@ -649,21 +976,30 @@ function KeywordsInput({
 
   return (
     <div className="space-y-2">
-      <label className="mb-2 block text-[11px] font-bold uppercase tracking-wider text-slate-500">
+      <label className={fieldLabelClass}>
         Keywords <span className="text-[#C9A84C]">*</span>
       </label>
-      <div className={`rounded-md border px-4 py-3 transition focus-within:ring-1 ${error ? 'border-red-400 focus-within:border-red-400 focus-within:ring-red-400' : 'border-slate-200 bg-[#FFFFFF] focus-within:border-[#1A1A2E] focus-within:ring-[#1A1A2E]'}`}>
-        <div className="flex flex-wrap gap-2">
+      <div
+        className={`rounded-[6px] border bg-[#f8fafc] px-3 py-3 transition focus-within:ring-2 ${
+          error
+            ? 'border-[#f87171] focus-within:border-[#f87171] focus-within:ring-[#f87171]/15'
+            : 'border-[#d1d5db] focus-within:border-[#0d1f3c] focus-within:ring-[#0d1f3c]/15'
+        }`}
+      >
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="inline-flex h-10 items-center rounded-[6px] border border-[#a7f3d0] bg-[#d1fae5] px-4 text-[14px] font-semibold text-[#047857]">
+            Keyword
+          </span>
           {keywords.map((keyword) => (
             <span
               key={keyword}
-              className="inline-flex items-center gap-2 rounded-md bg-green-100 px-3 py-1 text-sm font-medium text-green-800"
+              className="inline-flex items-center gap-2 rounded-full bg-[#e5e7eb] px-3 py-1 text-[12px] font-semibold text-[#0d1f3c]"
             >
               {keyword}
               <button
                 type="button"
                 onClick={() => onRemoveKeyword(keyword)}
-                className="text-green-600 transition hover:text-green-900"
+                className="text-[#0d1f3c]/60 transition hover:text-[#0d1f3c]"
               >
                 <X className="h-3.5 w-3.5" />
               </button>
@@ -672,60 +1008,89 @@ function KeywordsInput({
           {keywords.length < 10 ? (
             <input
               value={keywordInput}
-              onChange={(event) => setKeywordInput(event.target.value)}
+              onChange={(event) => {
+                const raw = event.target.value
+                const sanitized = sanitizeKeywordInput(raw)
+                if (sanitized !== raw) {
+                  onBlockedChar()
+                } else if (/\d/.test(raw) && /^\d+$/.test(raw.trim())) {
+                  onNumberChar()
+                }
+                setKeywordInput(sanitized)
+              }}
               onKeyDown={handleKeyDown}
               onBlur={onAddKeyword}
-              placeholder="Type a keyword and press Enter"
-              className="min-w-[220px] flex-1 border-0 bg-transparent p-0 text-sm placeholder:text-slate-400 outline-none"
+              placeholder="Type Keyword and press Enter or comma...."
+              className="h-10 min-w-[260px] flex-1 rounded-[6px] border border-[#e5e7eb] bg-white px-4 text-[14px] placeholder:text-[#cbd5e1] outline-none"
             />
           ) : null}
         </div>
       </div>
       <div className="mt-1 flex justify-end">
-        <p className="text-xs text-slate-400">{keywords.length} / 10 keywords</p>
+        <p className="text-[12px] text-[#9ca3af]">{keywords.length} / 10 keywords</p>
       </div>
-      <FieldMessage message={error} />
+      {warning ? (
+        <p className="mt-1 text-[12px] font-medium text-[#dc2626]">{warning}</p>
+      ) : error ? (
+        <p className="mt-1 text-[12px] font-mono text-[#dc2626]">{keywordErrorMessage}</p>
+      ) : null}
     </div>
   )
 }
 
-function ResearchDetailsStep({
-  register,
-  errors,
-  abstractText,
-  keywords,
-  onAddKeyword,
-  onRemoveKeyword,
-  keywordInput,
-  setKeywordInput,
-}) {
+  function ResearchDetailsStep({
+    register,
+    errors,
+    submitAttempted,
+    onAbstractEdit,
+    abstractText,
+    keywords,
+    onAddKeyword,
+    onRemoveKeyword,
+    keywordInput,
+    setKeywordInput,
+    keywordWarning,
+    onBlockedKeywordChar,
+    onNumberInKeyword,
+  }) {
+
   const words = countWords(abstractText)
+  const showAbstractError = Boolean(submitAttempted) && Boolean(errors.abstractText)
+  const abstractRegister = register('abstractText')
 
   return (
     <div>
       <StepHeader stepId={3} title="Research Details" />
       <div className="space-y-5">
         <div className="space-y-2">
-          <label className="mb-2 block text-[11px] font-bold uppercase tracking-wider text-slate-500">
+          <label className={fieldLabelClass}>
             Abstract <span className="text-[#C9A84C]">*</span>
           </label>
           <textarea
-            {...register('abstractText')}
+            {...abstractRegister}
+            onChange={(event) => {
+              abstractRegister.onChange(event)
+              onAbstractEdit()
+            }}
             id="field-abstractText"
             rows={9}
-            placeholder="Write a concise abstract"
-            className={`w-full rounded-md border p-3 text-sm placeholder:text-slate-400 outline-none transition focus:ring-1 ${errors.abstractText ? 'border-red-400 focus:border-red-400 focus:ring-red-400' : 'border-slate-200 bg-[#FFFFFF] focus:border-[#1A1A2E] focus:ring-[#1A1A2E]'}`}
+            placeholder="Provide a structured abstract covering background, methodology, findings, and conclusions..."
+            className={`${fieldBaseClass} ${showAbstractError ? fieldErrorClass : fieldOkClass}`}
           />
           <div className="mt-1 flex justify-end">
             <span
-              className={`text-xs ${
-                words >= 100 && words <= 500 ? 'text-slate-400' : 'text-amber-600'
+              className={`text-[12px] italic ${
+                words >= 100 && words <= 500 ? 'text-[#9ca3af]' : 'text-amber-600'
               }`}
             >
               {words} / 100-500 words
             </span>
           </div>
-          <FieldMessage message={errors.abstractText?.message} />
+          {showAbstractError ? (
+            <p className="mt-1 text-[11px] font-medium text-[#dc2626]">
+              {errors.abstractText?.message || 'Abstract is required'}
+            </p>
+          ) : null}
         </div>
 
         <KeywordsInput
@@ -734,14 +1099,17 @@ function ResearchDetailsStep({
           onRemoveKeyword={onRemoveKeyword}
           keywordInput={keywordInput}
           setKeywordInput={setKeywordInput}
-          error={errors.keywords?.message}
+          error={errors.keywords}
+          warning={keywordWarning}
+          onBlockedChar={onBlockedKeywordChar}
+          onNumberChar={onNumberInKeyword}
         />
       </div>
     </div>
   )
 }
 
-function AttachmentDropzone({ attachment, onFileSelect, error }) {
+function AttachmentDropzone({ attachment, existingAttachmentKey, onFileSelect, onClearExisting, error }) {
   const [isDragging, setIsDragging] = useState(false)
 
   const handleDrop = (event) => {
@@ -753,9 +1121,11 @@ function AttachmentDropzone({ attachment, onFileSelect, error }) {
 
   return (
     <div className="mt-4 space-y-2">
-      <label className="mb-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+      <label className={`mb-2 flex items-center gap-2 ${fieldLabelClass}`}>
         Full Paper PDF
-        <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium normal-case tracking-normal text-slate-400">optional</span>
+        <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium normal-case tracking-normal text-slate-400">
+          optional
+        </span>
       </label>
       <div
         onDragOver={(event) => {
@@ -764,20 +1134,19 @@ function AttachmentDropzone({ attachment, onFileSelect, error }) {
         }}
         onDragLeave={() => setIsDragging(false)}
         onDrop={handleDrop}
-        className={`flex flex-col items-center justify-center rounded-xl border-2 border-dashed py-10 text-center transition ${
+        className={`flex flex-col items-center justify-center rounded-[10px] border-2 border-dashed py-10 text-center transition ${
           isDragging
-            ? 'border-[#C9A84C] bg-[#FFFBF1]'
-            : 'border-slate-300 bg-slate-50'
+            ? 'border-[#c9a84c] bg-[#fff7e6]'
+            : 'border-[#d1d5db] bg-[#f9fafb]'
         }`}
       >
-        <UploadCloud className="mb-4 h-10 w-10 text-slate-400" />
-        <p className="text-sm font-semibold text-[#1A1A2E]">
+        <UploadCloud className="mb-4 h-10 w-10 text-[#9ca3af]" />
+        <p className="text-sm font-semibold text-[#0d1f3c]">
           Drag and drop a PDF file here
         </p>
-        <p className="mt-1 text-xs text-slate-500">
-          The file stays local until the final submission step.
+        <p className={helperTextClass}>
         </p>
-        <label className="mt-4 inline-flex cursor-pointer items-center gap-2 rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50">
+        <label className="mt-4 inline-flex cursor-pointer items-center gap-2 rounded-[6px] border border-[#d1d5db] bg-white px-4 py-2 text-sm font-semibold text-[#0d1f3c] transition hover:bg-[#0d1f3c]/5">
           <input
             type="file"
             accept="application/pdf"
@@ -787,13 +1156,39 @@ function AttachmentDropzone({ attachment, onFileSelect, error }) {
           Choose PDF
         </label>
         {attachment ? (
-          <div className="mt-4 rounded-md border border-slate-200 bg-white px-4 py-3 text-left text-sm text-[#1A1A2E] shadow-sm">
-            <p className="font-semibold">{attachment.name}</p>
-            <p className="mt-1 text-xs text-slate-500">
-              {(attachment.size / 1024 / 1024).toFixed(2)} MB
-            </p>
+          <div className="mt-4 w-full max-w-sm rounded-[10px] border border-[#e5e7eb] bg-white px-4 py-3 text-left text-sm text-[#0d1f3c]">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <p className="font-semibold">{attachment.name}</p>
+                <p className="mt-1 text-[12px] text-[#6b7280]">{(attachment.size / 1024 / 1024).toFixed(2)} MB</p>
+              </div>
+              <button type="button" onClick={() => onFileSelect(null)} className="shrink-0 text-slate-400 hover:text-red-500">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
           </div>
-        ) : null}
+        ) : existingAttachmentKey ? (() => {
+          const parts = existingAttachmentKey.split('/')
+          const last = parts[parts.length - 1] || ''
+          const fileName = last.replace(/^[a-f0-9]{8}-/, '') || existingAttachmentKey
+          return (
+            <div className="mt-4 w-full max-w-sm rounded-[10px] border border-[#e5e7eb] bg-white px-4 py-3 text-left text-sm text-[#0d1f3c]">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <p className="font-semibold">{fileName}</p>
+                  <p className="mt-1 text-[12px] text-[#6b7280]">Previously attached</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onClearExisting()}
+                  className="shrink-0 text-slate-400 hover:text-red-500"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          )
+        })() : null}
       </div>
       <FieldMessage message={error} />
     </div>
@@ -804,8 +1199,14 @@ function DublinCoreMetadataStep({
   control,
   register,
   errors,
+  coverageWarning,
+  onBlockedCoverageChar,
+  rightsWarning,
+  onBlockedRightsChar,
   attachment,
+  existingAttachmentKey,
   onFileSelect,
+  onClearExisting,
 }) {
   return (
     <div>
@@ -813,12 +1214,12 @@ function DublinCoreMetadataStep({
       <div className="space-y-5">
         <div className="grid gap-5 md:grid-cols-2">
           <div className="space-y-2">
-            <label className="mb-2 block text-[11px] font-bold uppercase tracking-wider text-slate-500">
-              Subject (DC) <span className="text-[#C9A84C]">*</span>
+            <label className={fieldLabelClass}>
+              Subject (RESEARCH DOMAIN) <span className="text-[#C9A84C]">*</span>
             </label>
             <select
               {...register('subjectDc')}
-              className={`w-full rounded-md border p-3 text-sm outline-none transition focus:ring-1 ${errors.subjectDc ? 'border-red-400 focus:border-red-400 focus:ring-red-400' : 'border-slate-200 bg-[#FFFFFF] focus:border-[#1A1A2E] focus:ring-[#1A1A2E]'}`}
+              className={`${fieldBaseClass} ${errors.subjectDc ? fieldErrorClass : fieldOkClass}`}
           >
             <option value="">Select S&amp;T theme</option>
               {themeOptions.map((option) => (
@@ -831,33 +1232,65 @@ function DublinCoreMetadataStep({
           </div>
 
           <div className="space-y-2">
-            <label className="mb-2 block text-[11px] font-bold uppercase tracking-wider text-slate-500">
-              Coverage (DC) <span className="text-[#C9A84C]">*</span>
+            <label className={fieldLabelClass}>
+              Coverage (SCOPE) <span className="text-[#C9A84C]">*</span>
             </label>
-            <input
-              {...register('coverageDc')}
-              placeholder="Region VII, institution, or relevant locale"
-              className={`w-full rounded-md border p-3 text-sm placeholder:text-slate-400 outline-none transition focus:ring-1 ${errors.coverageDc ? 'border-red-400 focus:border-red-400 focus:ring-red-400' : 'border-slate-200 bg-[#FFFFFF] focus:border-[#1A1A2E] focus:ring-[#1A1A2E]'}`}
-          />
-          <FieldMessage message={errors.coverageDc?.message} />
+            <Controller
+              control={control}
+              name="coverageDc"
+              render={({ field: controllerField }) => (
+                <input
+                  {...controllerField}
+                  value={controllerField.value ?? ''}
+                  onChange={(event) => {
+                    const raw = event.target.value
+                    const sanitized = sanitizeCoverageInput(raw)
+                    if (sanitized !== raw) {
+                      onBlockedCoverageChar()
+                    }
+                    controllerField.onChange(sanitized)
+                  }}
+                  placeholder="Region VII, institution, or relevant locale"
+                  className={`${fieldBaseClass} ${errors.coverageDc ? fieldErrorClass : fieldOkClass}`}
+                />
+              )}
+            />
+            <FieldMessage message={coverageWarning || errors.coverageDc?.message} />
           </div>
 
           <div className="space-y-2">
-            <label className="mb-2 block text-[11px] font-bold uppercase tracking-wider text-slate-500">
-              Rights (DC) <span className="text-[#C9A84C]">*</span>
+            <label className={fieldLabelClass}>
+              Rights (LICENSE/ACCESS) <span className="text-[#C9A84C]">*</span>
             </label>
-            <input
-              {...register('rightsDc')}
-              placeholder="Copyright, usage notes, or permissions"
-              className={`w-full rounded-md border p-3 text-sm placeholder:text-slate-400 outline-none transition focus:ring-1 ${errors.rightsDc ? 'border-red-400 focus:border-red-400 focus:ring-red-400' : 'border-slate-200 bg-[#FFFFFF] focus:border-[#1A1A2E] focus:ring-[#1A1A2E]'}`}
-          />
-          <FieldMessage message={errors.rightsDc?.message} />
+            <Controller
+              control={control}
+              name="rightsDc"
+              render={({ field: controllerField }) => (
+                <input
+                  {...controllerField}
+                  value={controllerField.value ?? ''}
+                  onChange={(event) => {
+                    const raw = event.target.value
+                    const sanitized = sanitizeRightsInput(raw)
+                    if (sanitized !== raw) {
+                      onBlockedRightsChar()
+                    }
+                    controllerField.onChange(sanitized)
+                  }}
+                  placeholder="Copyright, usage notes, or permissions"
+                  className={`${fieldBaseClass} ${errors.rightsDc ? fieldErrorClass : fieldOkClass}`}
+                />
+              )}
+            />
+            <FieldMessage message={rightsWarning || errors.rightsDc?.message} />
           </div>
 
           <div className="space-y-2">
-            <label className="mb-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+            <label className={`mb-2 flex items-center gap-2 ${fieldLabelClass}`}>
               DOI
-              <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium normal-case tracking-normal text-slate-400">optional</span>
+              <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium normal-case tracking-normal text-slate-400">
+                optional
+              </span>
             </label>
             <Controller
               control={control}
@@ -872,7 +1305,7 @@ function DublinCoreMetadataStep({
                     )
                   }}
                   placeholder="10.1234/example"
-                  className="w-full rounded-md border border-slate-200 bg-[#FFFFFF] p-3 text-sm placeholder:text-slate-400 outline-none transition focus:border-[#1A1A2E] focus:ring-1 focus:ring-[#1A1A2E]"
+                  className={`${fieldBaseClass} ${errors.doi ? fieldErrorClass : fieldOkClass}`}
                 />
               )}
             />
@@ -881,9 +1314,11 @@ function DublinCoreMetadataStep({
         </div>
 
         <div className="space-y-2">
-          <label className="mb-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+          <label className={`mb-2 flex items-center gap-2 ${fieldLabelClass}`}>
             Conference URL
-            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium normal-case tracking-normal text-slate-400">optional</span>
+            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium normal-case tracking-normal text-slate-400">
+              optional
+            </span>
           </label>
           <Controller
             control={control}
@@ -898,7 +1333,7 @@ function DublinCoreMetadataStep({
                   )
                 }}
                 placeholder="https://conference.example.org/paper"
-                className="w-full rounded-md border border-slate-200 bg-[#FFFFFF] p-3 text-sm placeholder:text-slate-400 outline-none transition focus:border-[#1A1A2E] focus:ring-1 focus:ring-[#1A1A2E]"
+                className={`${fieldBaseClass} ${errors.conferenceUrl ? fieldErrorClass : fieldOkClass}`}
               />
             )}
           />
@@ -907,7 +1342,9 @@ function DublinCoreMetadataStep({
 
         <AttachmentDropzone
           attachment={attachment}
+          existingAttachmentKey={existingAttachmentKey}
           onFileSelect={onFileSelect}
+          onClearExisting={onClearExisting}
           error={errors.attachment?.message}
         />
       </div>
@@ -915,7 +1352,11 @@ function DublinCoreMetadataStep({
   )
 }
 
-function ReviewSubmitStep({ values }) {
+function ReviewSubmitStep({ values, existingAttachmentKey }) {
+  const attachmentLabel = values.attachment?.name
+    || (existingAttachmentKey
+      ? existingAttachmentKey.split('/').pop().replace(/^[a-f0-9]{8}-/, '')
+      : 'No file attached')
   const summaryRows = [
     ['Research Title', values.title],
     ['Research Type', values.researchType],
@@ -925,43 +1366,59 @@ function ReviewSubmitStep({ values }) {
     ['Principal Investigator', values.principalInvestigator],
     ['Institutional Affiliation', values.institutionalAffiliation],
     ['Abstract', values.abstractText],
-    ['Keywords', values.keywords.join(', ')],
-    ['Subject (DC)', values.subjectDc],
-    ['Coverage (DC)', values.coverageDc],
-    ['Rights (DC)', values.rightsDc],
+    ['Keywords', values.keywords],
+    ['Subject', values.subjectDc],
+    ['Coverage', values.coverageDc],
+    ['Rights', values.rightsDc],
     ['DOI', values.doi || 'Not provided'],
     ['Conference URL', values.conferenceUrl || 'Not provided'],
-    ['Attachment', values.attachment?.name || 'No file attached'],
+    ['Attachment', attachmentLabel],
   ]
 
   return (
     <div>
       <StepHeader stepId={5} title="Review & Submit" />
-      <div className="space-y-5">
-        <div className="rounded-md border border-slate-200 bg-[#F9FAFB] px-5 py-4">
-          <p className="text-sm text-slate-500">
-            Review every section carefully before final submission.
-          </p>
-        </div>
+      <div className="space-y-6">
+        <p className="text-[13px] text-[#6b7280]">
+          Review every section carefully before final submission.
+        </p>
 
         <div className="overflow-hidden">
           <table className="min-w-full">
-            <tbody className="divide-y divide-slate-100 bg-white">
+            <tbody className="divide-y divide-[#e5e7eb] bg-white">
               {summaryRows.map(([label, value]) => (
-                <tr key={label}>
-                  <td className="w-1/3 border-b border-slate-100 py-4 text-sm text-slate-500">
+                <tr key={label} className="align-top">
+                  <td className="w-[260px] py-4 pr-6 text-[13px] text-[#6b7280]">
                     {label}
                   </td>
-                  <td className="border-b border-slate-100 py-4 text-sm font-medium text-[#1A1A2E]">
-                    {value}
+                  <td className="py-4 text-[13px] font-medium text-[#0d1f3c]">
+                    {Array.isArray(value) ? (
+                      value.length ? (
+                        <div className="flex flex-wrap gap-2">
+                          {value.map((item) => (
+                            <span
+                              key={item}
+                              className="inline-flex rounded-full bg-[#f3f4f6] px-3 py-1 text-[12px] font-semibold text-[#0d1f3c]"
+                            >
+                              {item}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-[#9ca3af]">None</span>
+                      )
+                    ) : (
+                      <span className="whitespace-pre-wrap">{value}</span>
+                    )}
                   </td>
                 </tr>
               ))}
-              <tr>
-                <td className="w-1/3 border-b border-slate-100 py-4 text-sm text-slate-500">
+
+              <tr className="align-top">
+                <td className="w-[260px] py-4 pr-6 text-[13px] text-[#6b7280]">
                   Authors
                 </td>
-                <td className="border-b border-slate-100 py-4 text-sm font-medium text-[#1A1A2E]">
+                <td className="py-4 text-[13px] font-medium text-[#0d1f3c]">
                   <div className="space-y-1">
                     {values.authors.map((author, index) => (
                       <div key={`${author.fullName}-${index}`}>
@@ -984,17 +1441,88 @@ export default function SubmissionPortal({ onSubmitted }) {
   const location = useLocation()
   const navigate = useNavigate()
   const [currentStep, setCurrentStep] = useState(1)
+  const [submitSuccess, setSubmitSuccess] = useState(false)
   const [keywordInput, setKeywordInput] = useState('')
   const [submitError, setSubmitError] = useState('')
   const [fieldBanner, setFieldBanner] = useState('')
   const [bannerErrors, setBannerErrors] = useState([])
   const [isFinalSubmitting, setIsFinalSubmitting] = useState(false)
   const [editSubmissionId, setEditSubmissionId] = useState(null)
+  const [existingAttachmentKey, setExistingAttachmentKey] = useState(null)
+  const [authorNameWarnings, setAuthorNameWarnings] = useState({})
+  const nameWarningTimers = useRef({})
+
+  const flagBlockedNameChar = (index) => {
+    setAuthorNameWarnings((prev) => ({
+      ...prev,
+      [index]: 'Numbers and special characters are not allowed in names.',
+    }))
+    clearTimeout(nameWarningTimers.current[index])
+    nameWarningTimers.current[index] = setTimeout(() => {
+      setAuthorNameWarnings((prev) => {
+        const next = { ...prev }
+        delete next[index]
+        return next
+      })
+    }, 2000)
+  }
+
+  const [keywordWarning, setKeywordWarning] = useState('')
+  const keywordWarningTimer = useRef(null)
+  const [formSubmitAttempted, setFormSubmitAttempted] = useState(false)
+
+  const [rightsWarning, setRightsWarning] = useState('')
+  const rightsWarningTimer = useRef(null)
+
+  const flagBlockedRightsChar = () => {
+    setRightsWarning('That character is not allowed in Rights.')
+    clearTimeout(rightsWarningTimer.current)
+    rightsWarningTimer.current = setTimeout(() => setRightsWarning(''), 2500)
+  }
+
+  const [coverageWarning, setCoverageWarning] = useState('')
+  const coverageWarningTimer = useRef(null)
+
+  const flagBlockedCoverageChar = () => {
+    setCoverageWarning('That character is not allowed in Coverage.')
+    clearTimeout(coverageWarningTimer.current)
+    coverageWarningTimer.current = setTimeout(() => setCoverageWarning(''), 2500)
+  }
+  const flagBlockedKeywordChar = () => {
+    setKeywordWarning('This character is not allowed in keywords.')
+    clearTimeout(keywordWarningTimer.current)
+    keywordWarningTimer.current = setTimeout(() => setKeywordWarning(''), 2500)
+  }
+
+  const flagNumberInKeyword = () => {
+    setKeywordWarning('A keyword cannot consist only of numbers.')
+    clearTimeout(keywordWarningTimer.current)
+    keywordWarningTimer.current = setTimeout(() => setKeywordWarning(''), 2500)
+  }
+
+  const flagDuplicateKeyword = () => {
+    setKeywordWarning('This keyword has already been added.')
+    clearTimeout(keywordWarningTimer.current)
+    keywordWarningTimer.current = setTimeout(() => setKeywordWarning(''), 2500)
+  }
+
+    const flagTooShortKeyword = () => {
+    setKeywordWarning('A keyword must be at least 2 letters long.')
+    clearTimeout(keywordWarningTimer.current)
+    keywordWarningTimer.current = setTimeout(() => setKeywordWarning(''), 2500)
+  }
+
+  const flagInvalidKeyword = () => {
+    setKeywordWarning('Please enter a valid keyword.')
+    clearTimeout(keywordWarningTimer.current)
+    keywordWarningTimer.current = setTimeout(() => setKeywordWarning(''), 2500)
+  }
 
   const institutionName =
     localStorage.getItem('institutionName') ||
     localStorage.getItem('userInstitution') ||
     'Higher Education Institution'
+
 
   const {
     control,
@@ -1006,11 +1534,11 @@ export default function SubmissionPortal({ onSubmitted }) {
     clearErrors,
     getValues,
     trigger,
-    formState: { errors },
+    formState: { errors, touchedFields },
   } = useForm({
     resolver: zodResolver(submissionSchema),
     mode: 'onChange',
-    defaultValues: {
+            defaultValues: {
       title: '',
       researchType: '',
       completionYear: currentYear,
@@ -1025,7 +1553,7 @@ export default function SubmissionPortal({ onSubmitted }) {
       coverageDc: '',
       rightsDc: '',
       doi: '',
-      conferenceUrl: '',
+      conferenceUrl: 'https://',
       attachment: null,
     },
   })
@@ -1035,6 +1563,7 @@ export default function SubmissionPortal({ onSubmitted }) {
     name: 'authors',
   })
 
+  const watchedTitle = useWatch({ control, name: 'title' }) || ''
   const watchedAbstract = useWatch({ control, name: 'abstractText' }) || ''
   const watchedKeywords = useWatch({ control, name: 'keywords' }) || []
   const watchedAuthors = useWatch({ control, name: 'authors' }) || []
@@ -1042,16 +1571,26 @@ export default function SubmissionPortal({ onSubmitted }) {
   const watchedPi = useWatch({ control, name: 'principalInvestigator' }) || ''
   const allValues = useWatch({ control })
 
-  const authorOptions = useMemo(
-    () =>
-      watchedAuthors
-        .map((author) => author?.fullName?.trim())
-        .filter(Boolean),
-    [watchedAuthors],
-  )
+const authorOptions = useMemo(
+  () =>
+    Array.from(
+      new Set(
+        watchedAuthors
+          .map((author) => author?.fullName?.trim())
+          .filter(Boolean),
+      ),
+    ),
+  [watchedAuthors],
+)
 
   useEffect(() => {
-    if (watchedPi && !authorOptions.includes(watchedPi)) {
+    if (!watchedPi) return
+    if (authorOptions.length === 0) return
+    const normalizedPi = watchedPi.trim().toLowerCase()
+    const matches = authorOptions.some(
+      (name) => name.trim().toLowerCase() === normalizedPi,
+    )
+    if (!matches) {
       setValue('principalInvestigator', '')
     }
   }, [authorOptions, setValue, watchedPi])
@@ -1062,7 +1601,9 @@ export default function SubmissionPortal({ onSubmitted }) {
     setBannerErrors([])
     setCurrentStep(1)
     setKeywordInput('')
-    reset({
+    setExistingAttachmentKey(null)
+    setFormSubmitAttempted(false)
+            reset({
       title: '',
       researchType: '',
       completionYear: currentYear,
@@ -1077,7 +1618,7 @@ export default function SubmissionPortal({ onSubmitted }) {
       coverageDc: '',
       rightsDc: '',
       doi: '',
-      conferenceUrl: '',
+      conferenceUrl: 'https://',
       attachment: null,
     })
   }
@@ -1138,6 +1679,7 @@ export default function SubmissionPortal({ onSubmitted }) {
         conferenceUrl: submission.conferenceUrl || '',
         attachment: null,
       })
+      setExistingAttachmentKey(submission.s3PdfKey || null)
       setCurrentStep(1)
       setKeywordInput('')
       setSubmitError('')
@@ -1146,21 +1688,23 @@ export default function SubmissionPortal({ onSubmitted }) {
 
     if (maybeSubmission) {
       hydrateFrom(maybeSubmission)
-      return
     }
 
     if (!maybeId) return
 
     const controller = new AbortController()
     const fetchDetails = async () => {
-      try {
-        const response = await apiClient.get(`/submissions/${maybeId}`, {
-          signal: controller.signal,
-        })
-        hydrateFrom(response.data)
-      } catch {
-      }
-    }
+    try {
+    const response = await apiClient.get(`/submissions/${maybeId}`, {
+      signal: controller.signal,
+    })
+    hydrateFrom(response.data)
+  } catch (err) {
+    if (controller.signal.aborted) return
+    console.error('Failed to load submission details for edit:', err)
+    setSubmitError('Unable to load submission details for editing. Please try again.')
+  }
+}
 
     fetchDetails()
     return () => controller.abort()
@@ -1174,23 +1718,56 @@ export default function SubmissionPortal({ onSubmitted }) {
     remove(index)
   }
 
-  const addKeyword = () => {
-    const value = keywordInput.trim()
-    if (!value) return
+  const MIN_KEYWORD_LENGTH = 2
+
+const addKeyword = () => {
+    const raw = keywordInput.trim()
+    if (!raw) return
+
+    const words = raw.split(/\s+/).filter(Boolean)
+
+    const candidates = words.length <= 6 ? [words.join(' ')] : words
 
     const existing = getValues('keywords')
-    if (existing.includes(value)) {
+    const next = [...existing]
+    let hasDuplicate = false
+    let hasTooShort = false
+    let hasInvalid = false
+
+    candidates.forEach((candidate) => {
+      if (candidate.length < MIN_KEYWORD_LENGTH) {
+        hasTooShort = true
+        return
+      }
+      if (!isValidKeyword(candidate)) {
+        hasInvalid = true
+        return
+      }
+      const alreadyAdded = next.some(
+        (item) => item.toLowerCase() === candidate.toLowerCase(),
+      )
+      if (alreadyAdded) {
+        hasDuplicate = true
+        return
+      }
+      if (next.length >= 10) return
+      next.push(candidate)
+    })
+
+    if (next.length !== existing.length) {
+      setValue('keywords', next, { shouldDirty: true, shouldValidate: true })
+      clearErrors('keywords')
       setKeywordInput('')
       return
     }
-    if (existing.length >= 10) return
 
-    setValue('keywords', [...existing, value], {
-      shouldDirty: true,
-      shouldValidate: true,
-    })
-    clearErrors('keywords')
-    setKeywordInput('')
+    if (hasInvalid) {
+      flagInvalidKeyword()
+    } else if (hasDuplicate) {
+      flagDuplicateKeyword()
+    } else if (hasTooShort) {
+      flagTooShortKeyword()
+    }
   }
 
   const removeKeyword = (keyword) => {
@@ -1209,14 +1786,35 @@ export default function SubmissionPortal({ onSubmitted }) {
   }
 
   const handleContinue = async () => {
+    setFormSubmitAttempted(true)
     const step = stepDefinitions.find((item) => item.id === currentStep)
     const isValid = await trigger(step?.fields, { shouldFocus: true })
     if (!isValid) {
+      const normalizeStepErrorMessage = (stepId, field, message) => {
+        if (stepId !== 2) return message
+        if (field === 'authors') return 'Author(s) is required'
+        if (field === 'principalInvestigator') return 'Principal Investigator is required'
+        if (field === 'institutionalAffiliation') return 'Institutional Affiliation is required'
+        return message
+      }
+
       const currentErrors = step?.fields
         .map((field) => {
           const err = errors[field]
           if (!err) return null
-          return { field, message: err?.message || `${field} is invalid.` }
+          const fallback = `${field} is invalid.`
+          const message = err?.message || fallback
+          if (currentStep === 3) {
+            if (field === 'abstractText') return { field, message: 'Abstract is required' }
+            if (field === 'keywords') {
+              const kwErrors = errors.keywords
+              const hasInvalidWord = Array.isArray(kwErrors) && kwErrors.some(Boolean)
+              if (hasInvalidWord) return { field, message: 'Please enter a valid keyword.' }
+              const count = Array.isArray(getValues('keywords')) ? getValues('keywords').length : 0
+              return { field, message: `Minimum 3 keywords required (${count} added)` }
+            }
+          }
+          return { field, message: normalizeStepErrorMessage(currentStep, field, message) }
         })
         .filter(Boolean)
       setBannerErrors(currentErrors)
@@ -1278,15 +1876,15 @@ export default function SubmissionPortal({ onSubmitted }) {
   }
 
   const maybeUploadAttachment = async (file) => {
-    if (!file) return null
-    const token = await ensureFreshToken()
+  if (!file) return null
+  const token = (await ensureFreshToken()) || ''
 
     try {
       const formData = new FormData()
       formData.append('file', file, file.name)
 
       const uploadResponse = await fetch(
-        'http://localhost:8080/api/v1/submissions/upload',
+        `${API_BASE_URL}/submissions/upload`,
         {
           method: 'POST',
           headers: {
@@ -1343,7 +1941,10 @@ export default function SubmissionPortal({ onSubmitted }) {
       publicationVenue: values.publicationVenue,
       principalInvestigator: values.principalInvestigator,
       institutionalAffiliation: values.institutionalAffiliation,
-      authors: values.authors,
+      authors: values.authors.map((author) => ({
+        fullName: author.fullName,
+        orcid: author.orcidId || null,
+      })),
       abstractText: values.abstractText,
       keywords: values.keywords,
       sAndTTheme: values.subjectDc,
@@ -1353,12 +1954,12 @@ export default function SubmissionPortal({ onSubmitted }) {
       conferenceUrl: values.conferenceUrl || null,
       attachmentKey: attachmentMeta?.fileKey || null,
     };
- 
+    
     // Explicitly get token and add to headers
     const token = localStorage.getItem('token');
     
     // Use axios directly to be absolutely sure of the headers
-    const response = await axios.post('http://localhost:8080/api/v1/submissions', aggregatePayload, {
+    const response = await axios.post(`${API_BASE_URL}/submissions`, aggregatePayload, {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
@@ -1373,8 +1974,62 @@ export default function SubmissionPortal({ onSubmitted }) {
     setIsFinalSubmitting(true)
 
     try {
-      await submitToBackend(values)
+      const token = await ensureFreshToken()
+      let attachmentMeta = null
+
+      try {
+        attachmentMeta = await maybeUploadAttachment(values.attachment)
+      } catch {
+        alert('Failed to upload attachment. Please try again.')
+        return
+      }
+
+      const payload = {
+        title: values.title,
+        researchType: values.researchType,
+        completionYear: values.completionYear,
+        fundingSource: values.fundingSource,
+        publicationVenue: values.publicationVenue,
+        principalInvestigator: values.principalInvestigator,
+        institutionalAffiliation: values.institutionalAffiliation,
+        authors: values.authors.map((author) => ({
+          fullName: author.fullName,
+          orcid: author.orcidId || null,
+        })),
+        abstractText: values.abstractText,
+        keywords: values.keywords,
+        sAndTTheme: values.subjectDc,
+        coverageDc: values.coverageDc,
+        rightsDc: values.rightsDc,
+        doi: values.doi || null,
+        conferenceUrl: values.conferenceUrl || null,
+        attachmentKey: attachmentMeta?.fileKey || existingAttachmentKey || null,
+      }
+
+      // Use PUT if editing, POST if new
+      if (editSubmissionId) {
+        await axios.patch(
+          `${API_BASE_URL}/submissions/${editSubmissionId}`,
+          payload,
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+          },
+        )
+      } else {
+        await axios.post(`${API_BASE_URL}/submissions`, payload, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        })
+      }
+
       resetWizard()
+      setSubmitSuccess(true)
+      setTimeout(() => setSubmitSuccess(false), 5000)
       onSubmitted?.()
     } catch (error) {
       console.error('Submission error:', error)
@@ -1409,17 +2064,20 @@ export default function SubmissionPortal({ onSubmitted }) {
   const renderStep = () => {
     switch (currentStep) {
       case 1:
-        return <BasicInfoStep register={register} errors={errors} />
+        return <BasicInfoStep register={register} errors={errors} watchedTitle={watchedTitle} />
       case 2:
         return (
           <TeamAffiliationStep
             control={control}
             register={register}
             errors={errors}
+            touchedFields={touchedFields}
             authorFields={authorFields}
             appendAuthor={addAuthor}
             removeAuthor={removeAuthor}
             authorOptions={authorOptions}
+            authorNameWarnings={authorNameWarnings}
+            onBlockedNameChar={flagBlockedNameChar}
           />
         )
       case 3:
@@ -1427,12 +2085,17 @@ export default function SubmissionPortal({ onSubmitted }) {
           <ResearchDetailsStep
             register={register}
             errors={errors}
+            submitAttempted={formSubmitAttempted}
+            onAbstractEdit={() => setFormSubmitAttempted(false)}
             abstractText={watchedAbstract}
             keywords={watchedKeywords}
             onAddKeyword={addKeyword}
             onRemoveKeyword={removeKeyword}
             keywordInput={keywordInput}
             setKeywordInput={setKeywordInput}
+            keywordWarning={keywordWarning}
+            onBlockedKeywordChar={flagBlockedKeywordChar}
+            onNumberInKeyword={flagNumberInKeyword}
           />
         )
       case 4:
@@ -1441,109 +2104,163 @@ export default function SubmissionPortal({ onSubmitted }) {
             control={control}
             register={register}
             errors={errors}
+            rightsWarning={rightsWarning}
+            onBlockedRightsChar={flagBlockedRightsChar}
             attachment={watchedAttachment}
+            existingAttachmentKey={existingAttachmentKey}
             onFileSelect={handleFileSelect}
+            onClearExisting={() => setExistingAttachmentKey(null)}
           />
         )
       case 5:
-        return <ReviewSubmitStep values={allValues} />
+        return <ReviewSubmitStep values={allValues} existingAttachmentKey={existingAttachmentKey} />
       default:
         return null
     }
   }
 
   return (
-    <div className="flex w-full flex-col gap-6">
-      <section className="w-full border border-slate-200 bg-white">
-        <div className="flex items-start justify-between gap-6 border-t-4 border-t-[#C9A84C] border-b border-slate-200 px-8 py-6">
-          <div>
-            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-              DASHBOARD &gt; <span className="text-[#C9A84C]">SUBMISSION PORTAL</span>
-            </p>
-            <h2 className="mt-2 text-3xl font-serif text-[#1A1A2E]">
-              Submission Portal
-            </h2>
-            <p className="mt-2 text-sm text-slate-500">
-              Submit research outputs through the standardized DOST form
-            </p>
+    <div className="w-full" style={{ fontFamily: "'Inter', sans-serif" }}>
+      <style>{``}</style>
+
+      <div className="-mx-[32px] -mt-[32px] w-[calc(100%+64px)]">
+        <div className="relative overflow-hidden bg-[#f8fafc] px-8 py-8">
+          <div
+            className="pointer-events-none absolute inset-0"
+            style={{
+              backgroundImage: 'url(/DOST_Building.png)',
+              backgroundSize: 'cover',
+              backgroundPosition: '78% 32%',
+              opacity: 0.18,
+            }}
+          />
+          <div
+            className="pointer-events-none absolute inset-0"
+            style={{ background: 'rgba(13, 31, 60, 0.08)' }}
+          />
+          <div className="relative z-10 flex items-start justify-between gap-6">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-[#94a3b8]">
+                DASHBOARD &gt; <span className="text-[#c9a84c]">SUBMISSION PORTAL</span>
+              </p>
+              <h2
+                className="mt-2 text-[30px] font-bold tracking-tight text-[#0d1f3c]"
+                style={{ fontFamily: "'Libre Baskerville', serif" }}
+              >
+                Submission Portal
+              </h2>
+              <p className="mt-2 text-[13px] text-[#6b7280]">
+                Submit research outputs through the standardized DOST form
+              </p>
+            </div>
+
+            <div className="text-right">
+              <p className="mt-1 text-[12px] text-[#6b7280]">{institutionName}</p>
+            </div>
           </div>
 
-          <div className="text-right">
-            <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-              ACADEMIC YEAR
-            </p>
-            <p className="text-sm font-bold text-[#1A1A2E]">2025-2026</p>
-            <p className="text-xs text-slate-500">{institutionName}</p>
-          </div>
         </div>
-
+        <div className="h-px w-full bg-[#c9a84c]" />
         <div className="px-8 py-6">
           <StepProgress currentStep={currentStep} />
+        </div>
+      </div>
 
-          {submitError ? (
-            <div className="mt-5 rounded-[8px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {submitError}
+      <div
+        onKeyDown={handleFormKeyDown}
+        className="mx-auto mt-6 w-full max-w-6xl"
+      >
+        <div className="w-full overflow-hidden rounded-[4px] border border-[#e5e7eb] bg-white">
+          <div className="px-8 py-8">
+            {submitError ? (
+              <div className="mb-6 rounded-[10px] border border-red-200 bg-red-50 px-4 py-3 text-[13px] text-red-700">
+                {submitError}
+              </div>
+            ) : null}
+
+            {submitSuccess ? (
+            <div className="mb-6 rounded-[10px] border border-emerald-200 bg-emerald-50 px-4 py-3 text-[13px] text-emerald-700">
+              ✓ Submission successful! Your research output has been recorded.
             </div>
           ) : null}
 
-          <div
-            onKeyDown={handleFormKeyDown}
-            className="mt-6 flex w-full flex-col space-y-6"
-          >
             {renderStep()}
-          </div>
-        </div>
 
-        {bannerErrors.length > 0 ? (
-          <div className="px-8">
-            <ErrorSummaryBanner
-              errors={bannerErrors}
-              onDismiss={() => setBannerErrors([])}
-            />
-          </div>
-        ) : null}
+            {currentStep === 1 ? (
+              <div className="mt-6 flex w-full items-center gap-3 rounded-[2px] border border-[#bfdbfe] bg-[#eff6ff] px-4 py-3 text-[13px] text-[#0d1f3c]">
+                <Info className="h-4 w-4 shrink-0 text-[#3b82f6]" />
+                <p>
+                Institution{' '}
+                <span className="font-semibold text-[#1d4ed8]">{institutionName}</span>
+                {' '}is pre-linked.
+              </p>
+              </div>
+            ) : null}
 
-        <div className="mt-8 flex items-center justify-between border-t border-slate-100 px-8 pb-6 pt-4">
-          <button
+            {bannerErrors.length > 0 ? (
+              <div className="mt-6">
+                <ErrorSummaryBanner
+                  errors={bannerErrors}
+                  onDismiss={() => setBannerErrors([])}
+                />
+              </div>
+            ) : null}
+          </div>
+
+          <div className="flex w-full items-center justify-between border-t border-[#e5e7eb] bg-[#f8fafc] px-8 py-4">
+            <button
             type="button"
-            onClick={() => setCurrentStep((value) => Math.max(1, value - 1))}
+            onClick={() => {
+              setBannerErrors([])
+              setFieldBanner('')
+              clearErrors()
+              setCurrentStep((value) => Math.max(1, value - 1))
+            }}
             disabled={currentStep === 1 || isFinalSubmitting}
-            className="rounded-md border border-slate-200 bg-white px-6 py-2 text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+            className={`h-10 rounded-[6px] border px-4 text-sm font-semibold transition disabled:cursor-not-allowed ${
+              currentStep === 1 || isFinalSubmitting
+                ? 'border-[#e5e7eb] bg-[#f8fafc] text-[#cbd5e1]'
+                : 'border-[#e5e7eb] bg-white text-[#0d1f3c] hover:bg-[#f8fafc]'
+            }`}
           >
             Previous
           </button>
 
-          {currentStep < stepDefinitions.length ? (
-            <button
-              type="button"
-              onClick={handleContinue}
-              className="flex items-center gap-2 rounded-md bg-[#1A1A2E] px-6 py-2 text-white transition hover:bg-[#11111f]"
-            >
-              Continue
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={handleSubmit(onFinalSubmit, onFinalSubmitError)}
-              disabled={isFinalSubmitting}
-              className="flex items-center gap-2 rounded-md bg-[#1A1A2E] px-6 py-2 text-white transition hover:bg-[#11111f] disabled:cursor-not-allowed disabled:opacity-70"
-            >
-              {isFinalSubmitting ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Submitting...
-                </>
-              ) : (
-                <>
-                  Submit
-                  <ChevronRight className="h-4 w-4" />
-                </>
-              )}
-            </button>
-          )}
+            {currentStep < stepDefinitions.length ? (
+              <button
+                type="button"
+                onClick={handleContinue}
+                className="flex h-10 items-center gap-2 rounded-[6px] bg-[#0d1f3c] px-6 text-sm font-semibold text-white transition hover:bg-[#0b1a33]"
+              >
+                Continue
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setFormSubmitAttempted(true)
+                  handleSubmit(onFinalSubmit, onFinalSubmitError)()
+                }}
+                disabled={isFinalSubmitting}
+                className="flex h-10 items-center gap-2 rounded-[6px] bg-[#0d1f3c] px-6 text-sm font-semibold text-white transition hover:bg-[#0b1a33] disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {isFinalSubmitting ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Submitting...
+                  </>
+                ) : (
+                  <>
+                    Submit
+                    <ChevronRight className="h-4 w-4" />
+                  </>
+                )}
+              </button>
+            )}
+          </div>
         </div>
-      </section>
+      </div>
     </div>
   )
 }

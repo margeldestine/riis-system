@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, ExternalLink, Copy, FileText } from 'lucide-react'
 import apiClient from '../../services/apiClient'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
+
 
 function extractApiErrorMessage(error, fallback) {
   const data = error?.response?.data
@@ -37,8 +38,6 @@ function MetaField({ label, value, children }) {
 }
 
 function RelatedCard({ record, onSelect }) {
-  const score = record.similarityScore ?? 0
-  const scoreColor = score >= 85 ? 'bg-emerald-100 text-emerald-700' : score >= 70 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'
   return (
     <button
       type="button"
@@ -46,12 +45,7 @@ function RelatedCard({ record, onSelect }) {
       className="w-full text-left rounded-lg border border-slate-200 bg-white p-3 hover:bg-slate-50 transition space-y-1.5"
     >
       <p className="text-sm font-semibold text-[#1A1A2E] leading-snug line-clamp-2">{record.title}</p>
-      <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-xs text-slate-500">{record.institutionName}</span>
-        <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${scoreColor}`}>
-          {score}% match
-        </span>
-      </div>
+      <span className="text-xs text-slate-500">{record.institutionName}</span>
     </button>
   )
 }
@@ -59,6 +53,8 @@ function RelatedCard({ record, onSelect }) {
 export default function ResearchOutputDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const location = useLocation()
+  const similarityScore = location.state?.similarityScore ?? null
 
   const [record, setRecord] = useState(null)
   const [related, setRelated] = useState([])
@@ -98,55 +94,56 @@ export default function ResearchOutputDetailPage() {
   const keywords = Array.isArray(record?.keywords) ? record.keywords : []
   const authors = Array.isArray(record?.authors) ? record.authors : []
   const principalInvestigator = authors[0]?.fullName || '—'
+  const academicYearLabel = `${new Date().getFullYear() - 1}-${new Date().getFullYear()}`
 
   return (
     <div className="min-h-screen bg-[#F4F6F9] font-sans flex flex-col">
-      {/* Top nav */}
-      <nav className="bg-white border-b border-slate-200 px-8 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="h-8 w-8 rounded-lg bg-[#1A1A2E] flex items-center justify-center">
-            <span className="text-xs font-bold text-[#C9A84C]">D</span>
+      <div className="relative overflow-hidden" style={{ background: '#1a3a6b' }}>
+        <div
+          className="absolute inset-0"
+          style={{
+            backgroundImage: 'url(/DOST_Building.png)',
+            backgroundSize: 'cover',
+            backgroundPosition: '60% 10%',
+            opacity: 0.25,
+            mixBlendMode: 'luminosity',
+          }}
+        />
+        <div className="absolute inset-0" style={{ background: 'rgba(15, 40, 90, 0.72)' }} />
+        <div className="relative z-10 px-10 py-8 w-full">
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            className="flex items-center gap-1.5 text-xs text-white/60 hover:text-white/90 transition mb-5"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            Return to Research Explorer
+          </button>
+          <h1
+            className="text-3xl leading-snug text-white"
+            style={{ fontFamily: "'Libre Baskerville', serif", fontWeight: 700 }}
+          >
+            {record?.title || 'Research Output Details'}
+          </h1>
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            {record?.institutionName && (
+              <span className="rounded-full border border-white/30 bg-white/10 px-3 py-0.5 text-xs text-white/90">
+                {record.institutionName}
+              </span>
+            )}
+            {record?.province && (
+              <span className="rounded-full border border-white/30 bg-white/10 px-3 py-0.5 text-xs text-white/90">
+                {record.province}
+              </span>
+            )}
+            {record?.subjectDc && (
+              <span className="rounded-full border border-white/30 bg-white/10 px-3 py-0.5 text-xs text-white/90">
+                {record.subjectDc}
+              </span>
+            )}
           </div>
-          <div>
-            <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-400">
-              Republic of the Philippines
-            </p>
-            <p className="text-xs font-bold text-[#1A1A2E]">DASIG Research Information System</p>
-          </div>
         </div>
-        <div className="flex items-center gap-6">
-          <button
-            type="button"
-            onClick={() => navigate('/')}
-            className="text-sm font-semibold text-[#1A1A2E] border-b-2 border-[#1A1A2E] pb-0.5"
-          >
-            Browse Research
-          </button>
-          <button
-            type="button"
-            onClick={() => navigate('/discover')}
-            className="text-sm text-slate-500 hover:text-[#1A1A2E]"
-          >
-            HEI Directory
-          </button>
-        </div>
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => navigate('/login')}
-            className="text-sm font-semibold text-[#1A1A2E] hover:text-slate-600"
-          >
-            Login
-          </button>
-          <button
-            type="button"
-            onClick={() => navigate('/register')}
-            className="rounded-lg bg-[#1A1A2E] px-4 py-2 text-sm font-semibold text-white hover:bg-[#11111f] transition"
-          >
-            Register
-          </button>
-        </div>
-      </nav>
+      </div>
 
 
       {loading ? (
@@ -159,58 +156,8 @@ export default function ResearchOutputDetailPage() {
         </div>
       ) : record ? (
         <>
-          {/* Hero */}
-         {/* Hero */}
-          {/* Hero */}
-          <div className="relative overflow-hidden" style={{ background: '#1a3a6b' }}>
-            <div
-              className="absolute inset-0"
-              style={{
-                backgroundImage: 'url(/DOST_Building.png)',
-                backgroundSize: 'cover',
-                backgroundPosition: '60% 10%',
-                opacity: 0.25,
-                mixBlendMode: 'luminosity',
-              }}
-            />
-            <div className="absolute inset-0" style={{ background: 'rgba(15, 40, 90, 0.72)' }} />
-            <div className="relative z-10 px-10 py-8 max-w-5xl">
-              <button
-                type="button"
-                onClick={() => navigate(-1)}
-                className="flex items-center gap-1.5 text-xs text-white/60 hover:text-white/90 transition mb-5"
-              >
-                <ArrowLeft className="h-3.5 w-3.5" />
-                Return to Research Explorer
-              </button>
-              <h1
-                className="text-3xl leading-snug text-white"
-                style={{ fontFamily: 'Georgia, "Times New Roman", serif', fontWeight: 700 }}
-              >
-                {record.title}
-              </h1>
-              <div className="mt-4 flex flex-wrap items-center gap-2">
-                {record.institutionName && (
-                  <span className="rounded-full border border-white/30 bg-white/10 px-3 py-0.5 text-xs text-white/90">
-                    {record.institutionName}
-                  </span>
-                )}
-                {record.province && (
-                  <span className="rounded-full border border-white/30 bg-white/10 px-3 py-0.5 text-xs text-white/90">
-                    {record.province}
-                  </span>
-                )}
-                {record.subjectDc && (
-                  <span className="rounded-full border border-white/30 bg-white/10 px-3 py-0.5 text-xs text-white/90">
-                    {record.subjectDc}
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-
           {/* Main content */}
-          <div className="mx-auto max-w-5xl px-8 py-8 w-full flex-1">
+          <div className="mx-auto w-full max-w-6xl px-6 py-8 flex-1">
             <div className="flex gap-6 items-start">
               {/* Left — metadata */}
               <div className="flex-1 space-y-6">
@@ -339,23 +286,25 @@ export default function ResearchOutputDetailPage() {
                   </button>
                 </div>
 
-                {/* Relevance */}
-                <div className="rounded-xl border border-slate-200 bg-white p-5">
-                  <div className="text-center mb-3">
-                    <p className="text-3xl font-bold text-[#1A1A2E]">
-                      94<span className="text-lg">%</span>
-                    </p>
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mt-1">
-                      Relevance to Your Search
-                    </p>
-                  </div>
-                  <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
-                    <div className="h-full rounded-full bg-emerald-500" style={{ width: '94%' }} />
-                  </div>
-                  <p className="mt-3 text-xs text-slate-400 leading-relaxed">
-                    This research closely matches your search — based on AI analysis.
-                  </p>
-                </div>
+                  {/* Relevance */}
+                  {similarityScore != null && (
+                    <div className="rounded-xl border border-slate-200 bg-white p-5">
+                      <div className="text-center mb-3">
+                        <p className="text-3xl font-bold text-[#1A1A2E]">
+                          {similarityScore}<span className="text-lg">%</span>
+                        </p>
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mt-1">
+                          Relevance to Your Search
+                        </p>
+                      </div>
+                      <div className="h-2 rounded-full bg-slate-100 overflow-hidden">
+                        <div className="h-full rounded-full bg-emerald-500" style={{ width: `${similarityScore}%` }} />
+                      </div>
+                      <p className="mt-3 text-xs text-slate-400 leading-relaxed">
+                        This research closely matches your search — based on AI analysis.
+                      </p>
+                    </div>
+                  )}
 
                 {/* Related */}
                 {related.length > 0 && (

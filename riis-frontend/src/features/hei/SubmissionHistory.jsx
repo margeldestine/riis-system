@@ -1,15 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import {
-  Search,
-} from 'lucide-react'
+import { Search } from 'lucide-react'
 import DashboardLayout from '../admin/DashboardLayout'
 import apiClient from '../../services/apiClient'
 import SubmissionDetailsDrawer from './SubmissionDetailsDrawer'
 import { heiNavItems } from './HeiDashboard'
-
-const cardClass =
-  'rounded-xl border border-slate-200 bg-white shadow-sm'
 
 function extractApiErrorMessage(error, fallbackMessage) {
   const data = error?.response?.data
@@ -20,8 +15,41 @@ function extractApiErrorMessage(error, fallbackMessage) {
   return fallbackMessage
 }
 
+function decodeJwtPayload(token) {
+  if (!token) return null
+  try {
+    const payload = token.split('.')[1]
+    const normalized = payload.replace(/-/g, '+').replace(/_/g, '/')
+    return JSON.parse(atob(normalized))
+  } catch {
+    return null
+  }
+}
+
+function getCurrentUserEmail() {
+  const stored =
+    localStorage.getItem('email') ||
+    localStorage.getItem('userEmail') ||
+    localStorage.getItem('institutionEmail')
+  if (stored) return stored
+
+  const token = localStorage.getItem('token')
+  const payload = decodeJwtPayload(token)
+  return payload?.email || ''
+}
+
 function normalizeStatus(value) {
   return (value || '').toString().trim().toUpperCase()
+}
+
+function formatStatusLabel(status) {
+  const value = normalizeStatus(status)
+  if (value === 'APPROVED' || value === 'VALIDATED') return 'Approved'
+  if (value === 'PENDING_REVIEW' || value === 'PENDING' || value === 'UNDER_REVIEW') return 'Under Review'
+  if (value === 'REQUIRES_CORRECTION') return 'Requires Correction'
+  if (value === 'REJECTED') return 'Rejected'
+  if (value === 'DRAFT') return 'Draft'
+  return status || 'Unknown'
 }
 
 function getStatusBadgeClasses(status) {
@@ -50,19 +78,20 @@ function formatDate(value) {
   if (!value) return 'N/A'
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return String(value)
-  return new Intl.DateTimeFormat('en-PH', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  }).format(date)
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
 }
 
 function KpiCard({ value, label, accentBorderClass, accentTriangleClass }) {
   return (
-    <div className={`relative overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm ${accentBorderClass}`}>
+    <div
+      className={`relative overflow-hidden rounded-[8px] border bg-white shadow-sm ${accentBorderClass}`}
+    >
       <div className="px-6 py-5">
-        <p className="mb-1 text-3xl font-bold leading-none text-[#1A1A2E]">{value}</p>
-        <p className="text-sm font-medium text-[#1A1A2E]">{label}</p>
+        <p className="mb-2 text-3xl font-bold leading-none text-[#0d1f3c]">{value}</p>
+        <p className="text-sm font-semibold text-[#0d1f3c]">{label}</p>
       </div>
       <div
         className={`pointer-events-none absolute bottom-0 right-0 h-0 w-0 border-b-[56px] border-l-[56px] border-l-transparent ${accentTriangleClass}`}
@@ -78,6 +107,7 @@ export default function SubmissionHistory() {
   const [error, setError] = useState('')
   const [pdfStatus, setPdfStatus] = useState('idle')
   const [activePdfId, setActivePdfId] = useState(null)
+  const [kpiCounts, setKpiCounts] = useState({ total: 0 })
 
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(0)
@@ -86,10 +116,51 @@ export default function SubmissionHistory() {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [selectedId, setSelectedId] = useState(null)
 
+  const [filterSubmittedBy, setFilterSubmittedBy] = useState('')
+  const [filterType, setFilterType] = useState('')
+  const [filterYear, setFilterYear] = useState('')
+
   const institutionName =
     localStorage.getItem('institutionName') ||
     localStorage.getItem('userInstitution') ||
     'Higher Education Institution'
+
+  const academicYearLabel = useMemo(() => {
+    const year = new Date().getFullYear()
+    return `${year - 1}-${year}`
+  }, [])
+
+  const yearOptions = useMemo(() => {
+    const years = new Set()
+    items.forEach((item) => {
+      const value = item?.updatedAt || item?.submittedAt
+      if (!value) return
+      const date = new Date(value)
+      if (Number.isNaN(date.getTime())) return
+      years.add(String(date.getFullYear()))
+    })
+    return Array.from(years).sort((a, b) => Number(b) - Number(a))
+  }, [items])
+
+  const mapStatusForApi = (value) => {
+    if (!value) return undefined
+    if (value === 'UNDER_REVIEW') return 'PENDING_REVIEW'
+    return value
+  }
+
+  
+  const researchTypeApiMap = {
+    FUNDED_PROJECT: 'Funded Project',
+    JOURNAL_ARTICLE: 'Journal Article',
+    CONFERENCE_PAPER: 'Conference Paper',
+    INNOVATION_OUTPUT: 'Innovation Output',
+    COMMUNITY_EXTENSION_RESEARCH: 'Community Extension Research',
+  }
+
+  const mapResearchTypeForApi = (value) => {
+    if (!value) return undefined
+    return researchTypeApiMap[value] || value
+  }
 
   const fetchSubmissions = useCallback(
     async (signal) => {
@@ -97,8 +168,18 @@ export default function SubmissionHistory() {
       setError('')
 
       try {
+
+        const currentUserEmail = getCurrentUserEmail()
         const response = await apiClient.get('/submissions', {
-          params: { page, size: 10, keyword: search || undefined },
+          params: {
+            page,
+            size: 5,
+            keyword: search || undefined,
+            researchType: mapResearchTypeForApi(filterType),
+            year: filterYear || undefined,
+            mine: filterSubmittedBy === 'me' ? true : undefined,
+            sort: 'updatedAt,desc',
+          },
           signal,
         })
 
@@ -131,7 +212,7 @@ export default function SubmissionHistory() {
         )
       }
     },
-    [page, search],
+    [page, search, filterType, filterYear, filterSubmittedBy],
   )
 
   useEffect(() => {
@@ -139,6 +220,34 @@ export default function SubmissionHistory() {
     fetchSubmissions(controller.signal)
     return () => controller.abort()
   }, [fetchSubmissions])
+
+  useEffect(() => {
+    const controller = new AbortController()
+
+    const readTotalElements = (payload) => {
+      if (payload && typeof payload === 'object') {
+        const value = Number(payload.totalElements)
+        return Number.isFinite(value) ? value : 0
+      }
+      return 0
+    }
+
+    const loadKpis = async () => {
+      try {
+        const allRes = await apiClient.get('/submissions', {
+          params: { page: 0, size: 1 },
+          signal: controller.signal,
+        })
+
+        setKpiCounts({ total: readTotalElements(allRes.data) })
+      } catch (err) {
+        if (controller.signal.aborted) return
+      }
+    }
+
+    loadKpis()
+    return () => controller.abort()
+  }, [])
 
   const kpis = useMemo(() => {
     const total = items.length
@@ -152,6 +261,29 @@ export default function SubmissionHistory() {
 
     return { total, approved, pending, requiresCorrection }
   }, [items])
+
+  const filteredItems = useMemo(() => {
+    const normalizeType = (value) =>
+      (value || '').toString().trim().toUpperCase().replace(/\s+/g, '_')
+
+    const normalizedSearch = search.trim().toLowerCase()
+
+      return items.filter((item) => {
+      if (normalizedSearch) {
+        const title = (item?.title || '').toString().toLowerCase()
+        if (!title.includes(normalizedSearch)) return false
+      }
+
+      if (filterType && normalizeType(item?.researchType) !== normalizeType(filterType)) return false
+      if (filterYear) {
+        const value = item?.updatedAt || item?.submittedAt
+        const date = value ? new Date(value) : null
+        const year = date && !Number.isNaN(date.getTime()) ? String(date.getFullYear()) : ''
+        if (year !== String(filterYear)) return false
+      }
+      return true
+    })
+  }, [items, search, filterSubmittedBy, filterType, filterYear])
 
   const handleViewPdf = useCallback(async (submissionId) => {
     if (!submissionId) return
@@ -189,195 +321,208 @@ export default function SubmissionHistory() {
       navItems={heiNavItems}
     >
       <div className="space-y-6">
-        <section className={cardClass}>
-          <div className="flex items-start justify-between gap-6 border-t-4 border-t-[#C9A84C] border-b border-slate-200 px-8 py-6">
-            <div>
-              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                DASHBOARD &gt; <span className="text-[#C9A84C]">SUBMISSION HISTORY</span>
-              </p>
-              <h1 className="mt-2 text-3xl font-serif text-[#1A1A2E]">
-                Submission History
-              </h1>
-              <p className="mt-2 text-sm text-slate-500">
-                Access the complete history of submitted research outputs
-              </p>
-            </div>
-
-            <div className="text-right">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                ACADEMIC YEAR
-              </p>
-              <p className="text-sm font-bold text-[#1A1A2E]">2025-2026</p>
-              <p className="text-xs text-slate-500">{institutionName}</p>
-            </div>
-          </div>
-
-          <div className="px-8 py-6">
-            <div className="grid gap-4 md:grid-cols-4">
-              <KpiCard
-                value={kpis.total}
-                label="Total Submitted"
-                accentBorderClass="border-b-2 border-b-slate-300"
-                accentTriangleClass="border-b-slate-400/15"
-              />
-              <KpiCard
-                value={kpis.approved}
-                label="Approved"
-                accentBorderClass="border-b-2 border-b-emerald-400"
-                accentTriangleClass="border-b-emerald-500/15"
-              />
-              <KpiCard
-                value={kpis.pending}
-                label="Pending Review"
-                accentBorderClass="border-b-2 border-b-[#C9A84C]"
-                accentTriangleClass="border-b-[#C9A84C]/15"
-              />
-              <KpiCard
-                value={kpis.requiresCorrection}
-                label="Requires Correction"
-                accentBorderClass="border-b-2 border-b-rose-400"
-                accentTriangleClass="border-b-rose-500/15"
-              />
-            </div>
-          </div>
-        </section>
-
-        <section className={cardClass}>
-          <div className="px-8 py-6">
-            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-              <div className="w-full">
-                <div className="flex w-full items-center gap-3 rounded-md border border-slate-200 bg-white px-4 py-2">
-                  <Search className="h-4 w-4 text-slate-400" />
-                  <input
-                    value={search}
-                    onChange={(event) => {
-                      setSearch(event.target.value)
-                      setPage(0)
-                    }}
-                    placeholder="Search submissions..."
-                    className="w-full border-0 bg-transparent p-0 text-sm placeholder:text-slate-400 outline-none"
-                  />
-                </div>
+        <div className="-mx-[32px] -mt-[32px] w-[calc(100%+64px)]">
+          <div className="relative overflow-hidden bg-[#f8fafc] px-8 py-8">
+            <div
+              className="pointer-events-none absolute inset-0"
+              style={{
+                backgroundImage: 'url(/DOST_Building.png)',
+                backgroundSize: 'cover',
+                backgroundPosition: '78% 32%',
+                opacity: 0.18,
+              }}
+            />
+            <div
+              className="pointer-events-none absolute inset-0"
+              style={{ background: 'rgba(13, 31, 60, 0.08)' }}
+            />
+            <div className="relative z-10 flex items-start justify-between gap-6">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-[#94a3b8]">
+                  DASHBOARD &gt; <span className="text-[#c9a84c]">SUBMISSION HISTORY</span>
+                </p>
+                <h1
+                  className="mt-2 text-[30px] font-bold tracking-tight text-[#0d1f3c]"
+                  style={{ fontFamily: "'Libre Baskerville', serif" }}
+                >
+                  Submission History
+                </h1>
+                <p className="mt-2 text-[13px] text-[#6b7280]">
+                  Access the complete history of submitted research outputs
+                </p>
               </div>
 
-              <button
-                type="button"
-                onClick={() => navigate('/hei/submission-portal')}
-                className="shrink-0 rounded-md bg-[#1A1A2E] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#11111f]"
-              >
-                New Submission
-              </button>
+              <div className="text-right">
+
+                <p className="mt-1 text-[12px] text-[#6b7280]">{institutionName}</p>
+              </div>
+            </div>
+          </div>
+          <div className="h-px w-full bg-[#c9a84c]" />
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-4">
+          <KpiCard
+            value={kpiCounts.total}
+            label="Total Submitted"
+            accentBorderClass="border-[#e5e7eb]"
+            accentTriangleClass="border-b-slate-400/15"
+          />
+        </div>
+
+        <div className="space-y-4">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="w-full">
+              <div className="flex w-full items-center gap-3 rounded-[8px] border border-[#e5e7eb] bg-white px-4 py-2.5">
+                <Search className="h-4 w-4 text-slate-400" />
+                <input
+                  value={search}
+                  onChange={(event) => {
+                    setSearch(event.target.value)
+                    setPage(0)
+                  }}
+                  placeholder="Search submissions..."
+                  className="w-full border-0 bg-transparent p-0 text-sm placeholder:text-slate-400 outline-none"
+                />
+              </div>
             </div>
 
+            <button
+              type="button"
+              onClick={() => navigate('/hei/submission-portal')}
+              className="shrink-0 rounded-[8px] bg-[#0d1f3c] px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-[#0b1a33]"
+            >
+              New Submission
+            </button>
+          </div>
+
+                    <div className="grid gap-3 md:grid-cols-3">
+            <select
+              value={filterSubmittedBy}
+              onChange={(event) => {
+                setFilterSubmittedBy(event.target.value)
+                setPage(0)
+              }}
+              className="h-10 w-full rounded-[8px] border border-[#e5e7eb] bg-white px-3 text-sm text-slate-600 outline-none"
+            >
+              <option value="">Submitted by:</option>
+              <option value="me">Me</option>
+            </select>
+            <select
+              value={filterType}
+              onChange={(event) => {
+                setFilterType(event.target.value)
+                setPage(0)
+              }}
+              className="h-10 w-full rounded-[8px] border border-[#e5e7eb] bg-white px-3 text-sm text-slate-600 outline-none"
+            >
+              <option value="">All Types</option>
+              <option value="FUNDED_PROJECT">Funded Project</option>
+              <option value="JOURNAL_ARTICLE">Journal Article</option>
+              <option value="CONFERENCE_PAPER">Conference Paper</option>
+              <option value="INNOVATION_OUTPUT">Innovation Output</option>
+              <option value="COMMUNITY_EXTENSION_RESEARCH">Community Extension Research</option>
+            </select>
+            <select
+              value={filterYear}
+              onChange={(event) => {
+                setFilterYear(event.target.value)
+                setPage(0)
+              }}
+              className="h-10 w-full rounded-[8px] border border-[#e5e7eb] bg-white px-3 text-sm text-slate-600 outline-none"
+            >
+              <option value="">All Years</option>
+              {yearOptions.map((year) => (
+                <option key={year} value={year}>
+                  {year}
+                </option>
+              ))}
+            </select>
+          </div>
+
           {error ? (
-            <div className="mt-5 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            <div className="rounded-[10px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
               {error}
             </div>
           ) : null}
 
-          <div className="mt-6 overflow-hidden rounded-xl border border-slate-200 bg-white">
-            <table className="min-w-full">
-              <thead className="bg-white">
+          <div className="overflow-hidden rounded-[10px] border border-[#e5e7eb] bg-white">
+            <table className="w-full table-fixed">
+              <thead className="bg-[#f8fafc]">
                 <tr>
-                  <th className="border-b border-slate-200 px-5 pb-3 pt-4 text-left text-xs font-semibold text-slate-500">
+                  <th className="w-[50%] border-b border-[#e5e7eb] px-4 py-3 text-left text-[12px] font-semibold text-[#6b7280]">
                     Research Title
                   </th>
-                  <th className="border-b border-slate-200 px-5 pb-3 pt-4 text-left text-xs font-semibold text-slate-500">
+                  <th className="w-[16%] whitespace-nowrap border-b border-[#e5e7eb] px-4 py-3 text-left text-[12px] font-semibold text-[#6b7280]">
                     Type
                   </th>
-                  <th className="border-b border-slate-200 px-5 pb-3 pt-4 text-left text-xs font-semibold text-slate-500">
+                  <th className="w-[14%] whitespace-nowrap border-b border-[#e5e7eb] px-4 py-3 text-left text-[12px] font-semibold text-[#6b7280]">
                     Submission Date
                   </th>
-                  <th className="border-b border-slate-200 px-5 pb-3 pt-4 text-left text-xs font-semibold text-slate-500">
-                    Status
-                  </th>
-                  <th className="border-b border-slate-200 px-5 pb-3 pt-4 text-left text-xs font-semibold text-slate-500">
+                  <th className="w-[10%] whitespace-nowrap border-b border-[#e5e7eb] px-4 py-3 text-left text-[12px] font-semibold text-[#6b7280]">
                     Actions
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
-                {status === 'loading' ? (
+              <tbody className="divide-y divide-[#f1f5f9]">
+                  {status === 'loading' ? (
                   <tr>
-                    <td className="px-5 py-6 text-sm text-slate-500" colSpan={5}>
+                    <td className="px-5 py-6 text-sm text-slate-500" colSpan={4}>
                       Loading submissions...
                     </td>
                   </tr>
-                ) : items.length ? (
-                  items.map((item, index) => (
-                    <tr key={item?.id || `${item?.title}-${index}`}>
-                      <td className="px-5 py-4">
+                ) : filteredItems.length ? (
+                  filteredItems.map((item, index) => (
+                    <tr key={item?.id || `${item?.title}-${index}`} className="bg-white">
+                      <td className="px-4 py-4">
                         <button
                           type="button"
                           onClick={() => {
                             setSelectedId(item?.id)
                             setDrawerOpen(true)
                           }}
-                          className="text-left text-sm font-medium text-blue-600 hover:text-blue-800"
+                          className="block w-full whitespace-normal break-words text-left text-sm font-semibold text-blue-700 hover:text-blue-900"
                         >
                           {item?.title || 'Untitled submission'}
                         </button>
                       </td>
-                      <td className="px-5 py-4 text-sm text-slate-600">
+                      <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-600">
                         {item?.researchType || 'Unspecified'}
                       </td>
-                      <td className="px-5 py-4 text-sm text-slate-600">
-                        {formatDate(item?.submittedAt)}
+                      <td className="whitespace-nowrap px-4 py-4 text-sm text-slate-600">
+                        {formatDate(item?.updatedAt || item?.submittedAt)}
                       </td>
-                      <td className="px-5 py-4">
-                        <span
-                          className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getStatusBadgeClasses(
-                            item?.status,
-                          )}`}
-                        >
-                          {item?.status || 'UNKNOWN'}
-                        </span>
-                      </td>
-                      <td className="px-5 py-4 text-sm font-medium">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedId(item?.id)
-                            setDrawerOpen(true)
-                          }}
-                          className="text-blue-600 hover:text-blue-800"
-                        >
-                          View
-                        </button>
-                        {item?.attachmentKey ||
-                        item?.attachment?.fileKey ||
-                        item?.attachment?.fileName ||
-                        item?.attachmentName ||
-                        item?.attachmentUrl ? (
-                          <>
-                            <span className="px-2 text-slate-300">|</span>
-                            <button
-                              type="button"
-                              onClick={() => handleViewPdf(item?.id)}
-                              disabled={pdfStatus === 'loading' && activePdfId === item?.id}
-                              className="text-blue-600 hover:text-blue-800 disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                              {pdfStatus === 'loading' && activePdfId === item?.id ? 'Opening…' : 'View PDF'}
-                            </button>
-                          </>
-                        ) : null}
-                        <span className="px-2 text-slate-300">|</span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedId(item?.id)
-                            setDrawerOpen(true)
-                          }}
-                          className="text-blue-600 hover:text-blue-800"
-                        >
-                          Edit
-                        </button>
+                      <td className="whitespace-nowrap px-4 py-4 text-sm font-semibold">
+                        <div className="inline-flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedId(item?.id)
+                              setDrawerOpen(true)
+                            }}
+                            className="text-blue-700 hover:text-blue-900"
+                          >
+                            View
+                          </button>
+                          <span className="h-4 w-px bg-slate-200" />
+                          <button
+                            type="button"
+                            onClick={() =>
+                              navigate('/hei/submission-portal', {
+                                state: { editSubmissionId: item?.id },
+                              })
+                            }
+                            className="text-blue-700 hover:text-blue-900"
+                          >
+                            Edit
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td className="px-5 py-10 text-center text-sm text-slate-500" colSpan={5}>
+                    <td className="px-5 py-10 text-center text-sm text-slate-500" colSpan={4}>
                       No submissions found.
                     </td>
                   </tr>
@@ -385,12 +530,13 @@ export default function SubmissionHistory() {
               </tbody>
             </table>
           </div>
-          <div className="mt-4 flex items-center justify-between">
+
+          <div className="flex items-center justify-between">
             <button
               type="button"
               onClick={() => setPage((prev) => Math.max(0, prev - 1))}
               disabled={page === 0 || status === 'loading'}
-              className="rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-[8px] border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
             >
               Previous
             </button>
@@ -401,13 +547,12 @@ export default function SubmissionHistory() {
               type="button"
               onClick={() => setPage((prev) => Math.min(totalPages - 1, prev + 1))}
               disabled={page >= totalPages - 1 || status === 'loading'}
-              className="rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-[8px] border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
             >
               Next
             </button>
           </div>
-          </div>
-        </section>
+        </div>
       </div>
 
       <SubmissionDetailsDrawer

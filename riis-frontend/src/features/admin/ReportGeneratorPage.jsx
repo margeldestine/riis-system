@@ -1,0 +1,526 @@
+import { useState, useEffect } from 'react'
+import { FileText, Download, RefreshCw, Loader2, CheckCircle2 } from 'lucide-react'
+import DashboardLayout from './DashboardLayout'
+import { dostNavItems } from './PendingSubmissionsPage'
+import apiClient from '../../services/apiClient'
+
+const RESEARCH_TYPES = ['Journal Article', 'Conference Paper', 'Funded Project', 'Innovation Output', 'IP Registration']
+const currentYear = new Date().getFullYear()
+const YEARS = Array.from({ length: currentYear - 2026 + 1 }, (_, i) => 2026 + i)
+
+export default function ReportGeneratorPage() {
+  const [yearFrom, setYearFrom] = useState('')
+  const [yearTo, setYearTo] = useState('')
+  const [selectedTypes, setSelectedTypes] = useState([])
+  const [fundingSource, setFundingSource] = useState('')
+  const [outputFormat, setOutputFormat] = useState('CSV')
+  const [status, setStatus] = useState('idle')
+  const [result, setResult] = useState(null)
+  const [error, setError] = useState('')
+  const [yearError, setYearError] = useState(false)
+  const [jobId, setJobId] = useState(null)
+  const [preview, setPreview] = useState([])
+  const [previewLoading, setPreviewLoading] = useState(true)
+  const [scopeType, setScopeType] = useState('REGION')
+  const [institutionId, setInstitutionId] = useState('')
+  const [province, setProvince] = useState('')
+  const [institutions, setInstitutions] = useState([])
+
+  useEffect(() => {
+    const fetchPreview = async () => {
+      setPreviewLoading(true)
+      try {
+        const res = await apiClient.post('/reports/preview', {
+          yearFrom: yearFrom ? parseInt(yearFrom) : null,
+          yearTo: yearTo ? parseInt(yearTo) : null,
+          researchTypes: selectedTypes.length > 0 ? selectedTypes : null,
+          fundingSources: fundingSource ? [fundingSource] : null,
+          outputFormat,
+          scopeType,
+          institutionId: institutionId || null,
+          province: province || null,
+        })
+        const data = res.data
+        setPreview(Array.isArray(data) ? data : [])
+      } catch {
+        setPreview([])
+      } finally {
+        setPreviewLoading(false)
+      }
+    }
+    fetchPreview()
+  }, [yearFrom, yearTo, selectedTypes, fundingSource, scopeType, institutionId, province])
+
+  useEffect(() => {
+    if (yearFrom) {
+      setYearTo(yearFrom)
+    }
+  }, [yearFrom])
+
+   useEffect(() => {
+    if (!yearFrom || !yearTo) return
+    handleGenerate()
+  }, [yearFrom, yearTo, selectedTypes, fundingSource, outputFormat, scopeType, institutionId, province])
+
+
+  useEffect(() => {
+    const fetchInstitutions = async () => {
+      try {
+        const res = await apiClient.get('/admin/institutions')
+        const data = res.data
+        setInstitutions(Array.isArray(data) ? data : (data?.content ?? []))
+      } catch {
+        setInstitutions([])
+      }
+    }
+    fetchInstitutions()
+  }, [])
+
+  const toggleType = (type) => {
+    setSelectedTypes(prev =>
+      prev.includes(type) ? prev.filter(t => t !== type) : [...prev, type]
+    )
+  }
+
+const handleGenerate = async () => {
+  if (!yearFrom || !yearTo) {
+    setYearError(true)
+    setError('Year From and Year To are required. Please select a year range before generating a report.')
+    document.querySelector('main')?.scrollTo({ top: 0, behavior: 'smooth' })
+    return
+  }
+  setYearError(false)
+
+  setStatus('generating')
+  setError('')
+  setResult(null)
+
+    try {
+      const res = await apiClient.post('/reports/generate', {
+        yearFrom: yearFrom ? parseInt(yearFrom) : null,
+        yearTo: yearTo ? parseInt(yearTo) : null,
+        researchTypes: selectedTypes.length > 0 ? selectedTypes : null,
+        fundingSources: fundingSource ? [fundingSource] : null,
+        outputFormat,
+        scopeType,
+        institutionId: institutionId || null,
+        province: province || null,
+      })
+
+      if (res.status === 200) {
+        setResult(res.data)
+        setStatus('complete')
+      } else if (res.status === 202) {
+        setJobId(res.data.jobId)
+        setStatus('polling')
+        pollStatus(res.data.jobId)
+      }
+    } catch (err) {
+      setError('Failed to generate report. Please try again.')
+      setStatus('idle')
+    }
+  }
+
+  const pollStatus = async (id) => {
+    const interval = setInterval(async () => {
+      try {
+        const res = await apiClient.get(`/reports/${id}/status`)
+        if (res.data.status === 'COMPLETE') {
+          clearInterval(interval)
+          setResult(res.data)
+          setStatus('complete')
+        } else if (res.data.status === 'FAILED') {
+          clearInterval(interval)
+          setError('Report generation failed. Please try again.')
+          setStatus('idle')
+        }
+      } catch {
+        clearInterval(interval)
+        setError('Unable to check report status.')
+        setStatus('idle')
+      }
+    }, 3000)
+  }
+
+    const handleReset = () => {
+    setYearFrom('')
+    setYearTo('')
+    setSelectedTypes([])
+    setFundingSource('')
+    setOutputFormat('CSV')
+    setScopeType('REGION')
+    setInstitutionId('')
+    setProvince('')
+    setStatus('idle')
+    setResult(null)
+    setError('')
+    setJobId(null)
+  }
+
+  const handleDownload = async (url, filename) => {
+    try {
+      const response = await fetch(url)
+      const blob = await response.blob()
+      const objectUrl = window.URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = objectUrl
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(objectUrl)
+    } catch (err) {
+      console.error('Download failed:', err)
+      setError('Failed to download the report. Please try again.')
+    }
+  }
+
+  return (
+    <DashboardLayout
+      activeLabel="Report Generator"
+      userName="DOST Administrator"
+      organization="DOST Region VII"
+      navItems={dostNavItems}
+    >
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="-mx-[32px] -mt-[32px] w-[calc(100%+64px)]">
+          <div className="relative overflow-hidden bg-[#f8fafc] px-8 py-8">
+            <div className="pointer-events-none absolute inset-0" style={{ backgroundImage: 'url(/DOST_Building.png)', backgroundSize: 'cover', backgroundPosition: '78% 32%', opacity: 0.18 }} />
+            <div className="pointer-events-none absolute inset-0" style={{ background: 'rgba(13, 31, 60, 0.08)' }} />
+            <div className="relative z-10 flex items-start justify-between gap-6">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.26em] text-[#94a3b8]">
+                  DASHBOARD &gt; <span className="text-[#c9a84c]">REPORT GENERATOR</span>
+                </p>
+                <h1 className="mt-2 text-[30px] font-bold tracking-tight text-[#0d1f3c]" style={{ fontFamily: "'Libre Baskerville', serif" }}>
+                  Report Generator
+                </h1>
+                <p className="mt-2 text-[13px] text-[#6b7280]">
+                  DOST Administrator View · Region VII · AY 2025-2026
+                </p>
+              </div>
+              <div className="text-right shrink-0">
+                <p className="mt-1 text-[12px] text-[#6b7280]">DOST Region VII</p>
+              </div>
+            </div>
+          </div>
+          <div className="h-px w-full bg-[#c9a84c]" />
+        </div>
+
+        {/* Generate Custom Reports banner */}
+        <div className="rounded-xl p-6 flex items-center gap-5" style={{ background: 'linear-gradient(135deg, #1a6e3c 0%, #2d9e5f 100%)' }}>
+          <div className="h-12 w-12 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+            <FileText className="h-6 w-6 text-white" />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold text-white">Generate Custom Reports</h2>
+            <p className="text-sm text-white/80">Export research data in your preferred format with advanced filtering</p>
+          </div>
+        </div>
+
+        {error && (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {error}
+          </div>
+        )}
+
+        <div className="grid grid-cols-[1fr,320px] gap-6 items-start">
+          {/* Left — filters */}
+          <div className="space-y-5">
+            {/* Configure Report */}
+            <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="h-9 w-9 rounded-lg bg-blue-100 flex items-center justify-center">
+                  <FileText className="h-5 w-5 text-blue-600" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-[#1A1A2E]">Configure Your Report</h3>
+                  <p className="text-xs text-slate-400">Select filters and parameters</p>
+                </div>
+              </div>
+
+              {/* Report Scope */}
+              <div className="mb-5">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-2">
+                  Report Scope
+                </p>
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {[
+                    { key: 'REGION', label: 'All Region VII' },
+                    { key: 'PROVINCE', label: 'By Province' },
+                    { key: 'HEI', label: 'By HEI' },
+                  ].map(opt => (
+                    <button
+                      key={opt.key}
+                      type="button"
+                      onClick={() => {
+                        setScopeType(opt.key)
+                        setProvince('')
+                        setInstitutionId('')
+                      }}
+                      className={`rounded-full px-3 py-1.5 text-xs font-medium transition border ${
+                        scopeType === opt.key
+                          ? 'bg-[#1A1A2E] text-white border-[#1A1A2E]'
+                          : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+
+                {scopeType === 'PROVINCE' && (
+                  <select
+                    value={province}
+                    onChange={e => setProvince(e.target.value)}
+                    className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-3 pr-8 text-sm text-slate-600 appearance-none focus:outline-none focus:ring-1 focus:ring-[#C9A84C]"
+                  >
+                    <option value="">Select province</option>
+                    {['Cebu', 'Bohol'].map(p => <option key={p} value={p}>{p}</option>)}
+                  </select>
+                )}
+
+                {scopeType === 'HEI' && (
+                  <select
+                    value={institutionId}
+                    onChange={e => setInstitutionId(e.target.value)}
+                    className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-3 pr-8 text-sm text-slate-600 appearance-none focus:outline-none focus:ring-1 focus:ring-[#C9A84C]"
+                  >
+                    <option value="">Select institution</option>
+                    {institutions.map(inst => (
+                      <option key={inst.id} value={inst.id}>{inst.name}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+
+              {/* Year range */}
+              <div className="grid grid-cols-2 gap-4 mb-5">
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Year From</p>
+                  <div className="relative">
+                    <select
+                      value={yearFrom}
+                      onChange={e => { setYearFrom(e.target.value); setYearError(false) }}
+                      className={`w-full rounded-lg border bg-white py-2.5 pl-3 pr-8 text-sm text-slate-600 appearance-none focus:outline-none focus:ring-1 focus:ring-[#C9A84C] ${yearError ? 'border-red-400 ring-1 ring-red-200' : 'border-slate-200'}`}
+                    >
+                      <option value="">Select year</option>
+                      {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">Year To</p>
+                  <div className="relative">
+                    <select
+                      value={yearTo}
+                      onChange={e => { setYearTo(e.target.value); setYearError(false) }}
+                      className={`w-full rounded-lg border bg-white py-2.5 pl-3 pr-8 text-sm text-slate-600 appearance-none focus:outline-none focus:ring-1 focus:ring-[#C9A84C] ${yearError ? 'border-red-400 ring-1 ring-red-200' : 'border-slate-200'}`}
+                    >
+                      <option value="">Select year</option>
+                      {YEARS.filter(y => !yearFrom || y >= parseInt(yearFrom)).map(y => (
+                        <option key={y} value={y}>{y}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Research Type */}
+              <div className="mb-5">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-2">
+                  Research Type (Multi-Select)
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {RESEARCH_TYPES.map(type => (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => toggleType(type)}
+                      className={`rounded-full px-3 py-1.5 text-xs font-medium transition border ${
+                        selectedTypes.includes(type)
+                          ? 'bg-[#1A1A2E] text-white border-[#1A1A2E]'
+                          : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
+                      }`}
+                    >
+                      {type}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+                            {/* Funding Source */}
+              <div className="mb-5">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1.5">
+                  Funding Source
+                </p>
+                <input
+                  type="text"
+                  value={fundingSource}
+                  onChange={e => setFundingSource(e.target.value)}
+                  placeholder="e.g., DOST-PCIEERD"
+                  className="w-full rounded-lg border border-slate-200 bg-white py-2.5 px-3 text-sm text-slate-600 focus:outline-none focus:ring-1 focus:ring-[#C9A84C]"
+                />
+              </div>
+            </div>
+
+            {/* Output Format */}
+            <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="h-9 w-9 rounded-lg bg-purple-100 flex items-center justify-center">
+                  <Download className="h-5 w-5 text-purple-600" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-[#1A1A2E]">Choose Output Format</h3>
+                  <p className="text-xs text-slate-400">Select how you want to export your data</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                {['PDF', 'CSV'].map(fmt => (
+                  <button
+                    key={fmt}
+                    type="button"
+                    onClick={() => setOutputFormat(fmt)}
+                    className={`rounded-xl border-2 p-6 flex flex-col items-center gap-3 transition ${
+                      outputFormat === fmt
+                        ? 'border-[#1A1A2E] bg-[#1A1A2E]/5'
+                        : 'border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    <div className={`h-12 w-12 rounded-xl flex items-center justify-center ${
+                      outputFormat === fmt ? 'bg-[#1A1A2E]' : 'bg-slate-100'
+                    }`}>
+                      <FileText className={`h-6 w-6 ${outputFormat === fmt ? 'text-white' : 'text-slate-400'}`} />
+                    </div>
+                    <p className={`text-sm font-semibold ${outputFormat === fmt ? 'text-[#1A1A2E]' : 'text-slate-500'}`}>
+                      {fmt === 'PDF' ? 'PDF Report' : 'CSV Export'}
+                    </p>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Data Preview */}
+            <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+              <div className="bg-[#1A1A2E] px-6 py-4 flex items-center gap-3">
+                <div className="h-8 w-8 rounded-lg bg-white/10 flex items-center justify-center">
+                  <FileText className="h-4 w-4 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white">Data Preview — First 5 Records</h3>
+                  <p className="text-xs text-slate-400">Full export will include all matching records</p>
+                </div>
+              </div>
+
+              {previewLoading ? (
+                <div className="flex items-center justify-center py-10">
+                  <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
+                </div>
+              ) : preview.length === 0 ? (
+                <div className="px-6 py-8 text-center text-sm text-slate-400">
+                  No records found.
+                </div>
+              ) : (
+                  <table className="min-w-full">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-100">
+                      <th className="px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-400">Report Title</th>
+                      <th className="px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-400">Type</th>
+                      <th className="px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-400">Year</th>
+                      <th className="px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-400">Funding</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {preview.map(item => (
+                      <tr key={item.id} className="hover:bg-slate-50 transition">
+                        <td className="px-5 py-3 text-sm font-medium text-[#1A1A2E] max-w-xs">
+                          <p className="line-clamp-2">{item.title || '—'}</p>
+                        </td>
+                        <td className="px-5 py-3">
+                          <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-700">
+                            {item.researchType || 'Research'}
+                          </span>
+                        </td>
+                        <td className="px-5 py-3 text-sm text-slate-600">{item.completionYear || '—'}</td>
+                        <td className="px-5 py-3 text-sm text-slate-600">{item.fundingSource || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          </div>
+
+          {/* Right sidebar */}
+          <div className="space-y-4">
+            {/* Config summary */}
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="h-8 w-8 rounded-lg bg-amber-200 flex items-center justify-center">
+                  <FileText className="h-4 w-4 text-amber-700" />
+                </div>
+                <h3 className="text-sm font-bold text-[#1A1A2E]">Report Configuration Summary</h3>
+              </div>
+              <div className="space-y-2 text-xs">
+                <p><span className="text-amber-600 font-semibold">● Scope:</span> <span className="text-slate-600">
+                  {scopeType === 'HEI'
+                    ? (institutions.find(i => i.id === institutionId)?.name || 'Select an HEI')
+                    : scopeType === 'PROVINCE'
+                    ? (province || 'Select a province')
+                    : 'DOST Region VII'}
+                </span></p>
+                <p><span className="text-amber-600 font-semibold">● Year Range:</span> <span className="text-slate-600">{yearFrom || '—'} – {yearTo || '—'}</span></p>
+                <p><span className="text-amber-600 font-semibold">● Types:</span> <span className="text-slate-600">{selectedTypes.length > 0 ? selectedTypes.join(', ') : 'All'}</span></p>
+                <p><span className="text-amber-600 font-semibold">● Format:</span> <span className="text-slate-600">{outputFormat}</span></p>
+                <p><span className="text-amber-600 font-semibold">● Funding:</span> <span className="text-slate-600">{fundingSource || 'All'}</span></p>
+              </div>
+            </div>
+
+            {/* Progress / Complete */}
+            {(status === 'generating' || status === 'polling') ? (
+              <div className="rounded-xl border border-slate-200 bg-white p-5 text-center space-y-3">
+                <Loader2 className="h-8 w-8 animate-spin text-[#C9A84C] mx-auto" />
+                <p className="text-sm font-semibold text-[#1A1A2E]">Generating Report...</p>
+                <p className="text-xs text-slate-400">
+                  {status === 'polling' ? 'Processing large dataset. Please wait...' : 'Building your report...'}
+                </p>
+              </div>
+            ) : (status === 'complete' && result) ? (
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-5 space-y-4">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="h-5 w-5 text-emerald-600" />
+                  <p className="text-sm font-bold text-emerald-700">Download Ready</p>
+                </div>
+                <p className="text-xs text-slate-500">
+                  {result.recordCount} records exported successfully.
+                </p>
+                                <button
+                  type="button"
+                  onClick={() => handleDownload(result.downloadUrl, `report.${outputFormat.toLowerCase()}`)}
+                  className="flex items-center justify-center gap-2 w-full rounded-lg bg-emerald-600 py-2.5 text-sm font-semibold text-white hover:bg-emerald-700 transition"
+                >
+                  <Download className="h-4 w-4" />
+                  Download {outputFormat} Report
+                </button>
+              </div>
+            ) : null}
+
+            {/* Action buttons */}
+            <div className="space-y-3">
+              <button
+                type="button"
+                onClick={handleReset}
+                className="w-full flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white py-3 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition"
+              >
+                <RefreshCw className="h-4 w-4" />
+                Reset
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </DashboardLayout>
+  )
+}

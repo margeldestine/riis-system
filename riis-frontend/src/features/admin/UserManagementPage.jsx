@@ -27,7 +27,7 @@ const getInitials = (name = '') =>
 
 function StatCard({ value, label, sublabel, borderColor, textColor }) {
   return (
-    <div style={{ border: `1.5px solid ${borderColor}`, borderRadius: 10, padding: '20px 24px', flex: 1 }}>
+    <div style={{ borderLeft: `4px solid ${borderColor}`, background: '#fff', borderRadius: 10, padding: '20px 24px', flex: 1, boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
       <div style={{ fontSize: 36, fontWeight: 700, color: textColor, lineHeight: 1 }}>{value}</div>
       <div style={{ fontWeight: 600, marginTop: 6, color: '#111827' }}>{label}</div>
       <div style={{ fontSize: 13, color: '#6b7280', marginTop: 2 }}>{sublabel}</div>
@@ -81,7 +81,7 @@ function RejectModal({ user, onConfirm, onCancel, loading }) {
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           rows={4}
-          style={{ width: '100%', marginTop: 6, padding: '10px 12px', border: '1.5px solid #d1d5db', borderRadius: 8, fontSize: 14, resize: 'vertical', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
+          style={{ width: '100%', marginTop: 6, padding: '10px 12px', border: '1.5px solid #d1d5db', borderRadius: 8, fontSize: 14, resize: 'none', outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }}
           placeholder="Enter reason..."
         />
         <p style={{ fontSize: 12, color: '#9ca3af', margin: '6px 0 20px' }}>
@@ -114,20 +114,29 @@ function QueueScreen({ users, onReview }) {
 
   return (
     <>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
-        <div>
-          <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 4px' }}>
-            Submissions &nbsp;›&nbsp; <strong style={{ color: '#111827' }}>User Management</strong>
-          </p>
-          <h1 style={{ margin: 0, fontSize: 28, fontWeight: 800, color: '#111827' }}>User Management</h1>
-          <p style={{ margin: '4px 0 0', color: '#6b7280', fontSize: 14 }}>
-            Review and approve pending HEI Research Office staff registrations
-          </p>
+      {/* Hero Header */}
+      <div style={{ margin: '-32px -32px 0', width: 'calc(100% + 64px)', marginBottom: 24 }}>
+        <div style={{ position: 'relative', overflow: 'hidden', background: '#f8fafc', padding: '32px' }}>
+          <div style={{ pointerEvents: 'none', position: 'absolute', inset: 0, backgroundImage: 'url(/DOST_Building.png)', backgroundSize: 'cover', backgroundPosition: '78% 32%', opacity: 0.18 }} />
+          <div style={{ pointerEvents: 'none', position: 'absolute', inset: 0, background: 'rgba(13, 31, 60, 0.08)' }} />
+          <div style={{ position: 'relative', zIndex: 10, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 24 }}>
+            <div>
+              <p style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.26em', color: '#94a3b8', margin: 0 }}>
+                DASHBOARD &gt; <span style={{ color: '#c9a84c' }}>USER MANAGEMENT</span>
+              </p>
+              <h1 style={{ margin: '8px 0 0', fontSize: 30, fontWeight: 700, color: '#0d1f3c', fontFamily: "'Libre Baskerville', serif", letterSpacing: '-0.02em' }}>
+                User Management
+              </h1>
+              <p style={{ margin: '8px 0 0', fontSize: 13, color: '#6b7280' }}>
+                Review and approve pending HEI Research Office staff registrations
+              </p>
+            </div>
+            <div style={{ textAlign: 'right', flexShrink: 0 }}>
+              <p style={{ fontSize: 12, color: '#6b7280', margin: '4px 0 0' }}>DOST Region VII</p>
+            </div>
+          </div>
         </div>
-        <div style={{ fontSize: 13, textAlign: 'right', color: '#6b7280' }}>
-          ACADEMIC YEAR<br />
-          <strong style={{ fontSize: 15, color: '#111827' }}>2025 – 2026</strong>
-        </div>
+        <div style={{ height: 1, width: '100%', background: '#c9a84c' }} />
       </div>
 
       <div style={{ display: 'flex', gap: 16, marginBottom: 32 }}>
@@ -194,7 +203,7 @@ function QueueScreen({ users, onReview }) {
                   <td style={{ padding: '14px 12px' }}>
                     <button
                       onClick={() => onReview(user)}
-                      style={{ background: '#1e3a5f', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+                      style={{ background: '#1e3a5f', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', display: 'inline-flex', alignItems: 'center', gap: 6 }}
                     >
                       Review »
                     </button>
@@ -214,20 +223,29 @@ function ReviewScreen({ user, onBack, onApprove, onReject, loading }) {
 
   return (
     <>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
-        <div>
-          <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 4px' }}>
-            Submissions &nbsp;›&nbsp; User Management &nbsp;›&nbsp;
-          </p>
-          <h1 style={{ margin: 0, fontSize: 26, fontWeight: 800, color: '#111827' }}>Review Registration Request</h1>
-          <p style={{ margin: '4px 0 0', color: '#6b7280', fontSize: 14 }}>
-            Review and approve pending HEI Research Office staff registrations
-          </p>
+      {/* Hero Header */}
+      <div style={{ margin: '-32px -32px 0', width: 'calc(100% + 64px)', marginBottom: 24 }}>
+        <div style={{ position: 'relative', overflow: 'hidden', background: '#f8fafc', padding: '32px' }}>
+          <div style={{ pointerEvents: 'none', position: 'absolute', inset: 0, backgroundImage: 'url(/DOST_Building.png)', backgroundSize: 'cover', backgroundPosition: '78% 32%', opacity: 0.18 }} />
+          <div style={{ pointerEvents: 'none', position: 'absolute', inset: 0, background: 'rgba(13, 31, 60, 0.08)' }} />
+          <div style={{ position: 'relative', zIndex: 10, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 24 }}>
+            <div>
+              <p style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.26em', color: '#94a3b8', margin: 0 }}>
+                DASHBOARD &gt; USER MANAGEMENT &gt; <span style={{ color: '#c9a84c' }}>REVIEW</span>
+              </p>
+              <h1 style={{ margin: '8px 0 0', fontSize: 30, fontWeight: 700, color: '#0d1f3c', fontFamily: "'Libre Baskerville', serif", letterSpacing: '-0.02em' }}>
+                Review Registration Request
+              </h1>
+              <p style={{ margin: '8px 0 0', fontSize: 13, color: '#6b7280' }}>
+                Review and approve pending HEI Research Office staff registrations
+              </p>
+            </div>
+            <div style={{ textAlign: 'right', flexShrink: 0 }}>
+              <p style={{ fontSize: 12, color: '#6b7280', margin: '4px 0 0' }}>DOST Region VII</p>
+            </div>
+          </div>
         </div>
-        <div style={{ fontSize: 13, textAlign: 'right', color: '#6b7280' }}>
-          ACADEMIC YEAR<br />
-          <strong style={{ fontSize: 15, color: '#111827' }}>2025 – 2026</strong>
-        </div>
+        <div style={{ height: 1, width: '100%', background: '#c9a84c' }} />
       </div>
 
       <div style={{ background: 'linear-gradient(135deg, #1e3a5f 0%, #162d4a 100%)', borderRadius: 12, padding: '24px 28px', marginBottom: 24, display: 'flex', alignItems: 'center', gap: 20 }}>
@@ -334,28 +352,35 @@ function ReviewScreen({ user, onBack, onApprove, onReject, loading }) {
   )
 }
 
-function SuccessScreen({ user, onBackToQueue, onReviewNext }) {
+function SuccessScreen({ user, mode = 'approved', reason, onBackToQueue, onReviewNext }) {
+  const isRejected = mode === 'rejected'
+
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
       <div style={{ background: '#fff', borderRadius: 16, padding: '48px 56px', maxWidth: 560, width: '100%', textAlign: 'center', boxShadow: '0 4px 24px rgba(0,0,0,0.07)' }}>
-        <div style={{ width: 72, height: 72, borderRadius: '50%', border: '3px solid #bbf7d0', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px', background: '#f0fdf4' }}>
-          <span style={{ fontSize: 32, color: '#16a34a' }}>✓</span>
+        <div style={{ width: 72, height: 72, borderRadius: '50%', border: `3px solid ${isRejected ? '#fecaca' : '#bbf7d0'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 24px', background: isRejected ? '#fef2f2' : '#f0fdf4' }}>
+          <span style={{ fontSize: 32, color: isRejected ? '#dc2626' : '#16a34a' }}>{isRejected ? '⊗' : '✓'}</span>
         </div>
-        <h2 style={{ margin: '0 0 10px', fontSize: 24, fontWeight: 800, color: '#111827' }}>Account Approved Successfully</h2>
+        <h2 style={{ margin: '0 0 10px', fontSize: 24, fontWeight: 800, color: '#111827' }}>
+          {isRejected ? 'Registration Rejected Successfully' : 'Account Approved Successfully'}
+        </h2>
         <p style={{ margin: '0 0 32px', fontSize: 14, color: '#6b7280', lineHeight: 1.6 }}>
-          The HEI Staff account is now active. An email notification has been sent — the staff member can now log in to DASIG.
+          {isRejected
+            ? 'The registration request has been rejected. An email notification with the reason has been sent to the applicant.'
+            : 'The HEI Staff account is now active. An email notification has been sent — the staff member can now log in to DASIG.'}
         </p>
         <div style={{ borderTop: '1px solid #f3f4f6', textAlign: 'left' }}>
           {[
             { label: 'Full Name',           value: user.fullName },
             { label: 'Institution',         value: user.institutionName },
             { label: 'Email Address',       value: user.email },
-            { label: 'Account Status',      value: '● Active', green: true },
+            { label: 'Account Status',      value: isRejected ? '● Rejected' : '● Active', green: !isRejected, red: isRejected },
+            ...(isRejected ? [{ label: 'Reason Provided', value: reason || '—' }] : []),
             { label: 'Email Notification',  value: 'Sent successfully' },
           ].map((row) => (
             <div key={row.label} style={{ display: 'flex', justifyContent: 'space-between', padding: '14px 0', borderBottom: '1px solid #f3f4f6', fontSize: 14 }}>
               <span style={{ color: '#6b7280' }}>{row.label}</span>
-              <span style={{ fontWeight: 600, color: row.green ? '#16a34a' : '#111827' }}>{row.value}</span>
+              <span style={{ fontWeight: 600, color: row.green ? '#16a34a' : row.red ? '#dc2626' : '#111827' }}>{row.value}</span>
             </div>
           ))}
         </div>
@@ -376,6 +401,8 @@ export default function UserManagementPage() {
   const [screen, setScreen] = useState('queue')
   const [selectedUser, setSelectedUser] = useState(null)
   const [approvedUser, setApprovedUser] = useState(null)
+  const [actionMode, setActionMode] = useState('approved')
+  const [rejectReason, setRejectReason] = useState('')
   const [showRejectModal, setShowRejectModal] = useState(false)
 
   const [pendingUsers, setPendingUsers] = useState([])
@@ -411,6 +438,7 @@ export default function UserManagementPage() {
       })
 
       setApprovedUser(selectedUser)
+      setActionMode('approved')
       setScreen('success')
 
       await loadPendingUsers()
@@ -431,9 +459,11 @@ export default function UserManagementPage() {
         reason,
       })
 
-      setScreen('queue')
-      setSelectedUser(null)
+      setApprovedUser(selectedUser)
+      setActionMode('rejected')
+      setRejectReason(reason)
       setShowRejectModal(false)
+      setScreen('success')
 
       await loadPendingUsers()
     } catch (error) {
@@ -495,6 +525,8 @@ export default function UserManagementPage() {
       >
         <SuccessScreen
           user={approvedUser}
+          mode={actionMode}
+          reason={rejectReason}
           onBackToQueue={handleBackToQueue}
           onReviewNext={handleReviewNext}
         />
