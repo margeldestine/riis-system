@@ -56,7 +56,7 @@ public class AIProxyService {
                 .bodyValue(Map.of("text", text, "top_n", 10))
                 .retrieve()
                 .bodyToMono(Map.class)
-                .timeout(Duration.ofSeconds(8))
+                .timeout(Duration.ofSeconds(20))
                 .block();
 
         if (response == null || !response.containsKey("keywords")) {
