@@ -428,6 +428,12 @@ public class SubmissionService {
 	}
 
 	@Transactional(readOnly = true)
+	public List<com.geeks.riis_backend.dto.SubmitterDTO> listSubmitters(String userId) {
+		String institutionId = getInstitutionIdForUser(userId);
+		return researchOutputRepository.findDistinctSubmittersByInstitutionId(institutionId);
+	}
+
+	@Transactional(readOnly = true)
 	public String getSubmissionAttachmentKey(String userId, String submissionId) {
 		String institutionId = getInstitutionIdForUser(userId);
 
@@ -478,6 +484,6 @@ public class SubmissionService {
 	}
 
 	public long countAllApproved() {
-		return researchOutputRepository.count();
+		return researchOutputRepository.count((root, query, cb) -> cb.equal(root.get("status"), STATUS_APPROVED));
 	}
 }

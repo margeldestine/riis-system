@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import DashboardLayout from './DashboardLayout'
 import { dostNavItems } from './PendingSubmissionsPage'
 import apiClient from '../../services/apiClient'
@@ -306,11 +307,21 @@ function ApprovedListScreen({ users, onBack }) {
 
   return (
     <>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
         <div>
-          <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 4px' }}>
-            Submissions &nbsp;›&nbsp; User Management &nbsp;›&nbsp; <strong style={{ color: '#111827' }}>Approved Accounts</strong>
-          </p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.26em', color: '#94a3b8', marginBottom: 4 }}>
+            <button
+              type="button"
+              onClick={onBack}
+              style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', color: 'inherit', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.26em' }}
+              onMouseEnter={(e) => e.currentTarget.style.color = '#c9a84c'}
+              onMouseLeave={(e) => e.currentTarget.style.color = 'inherit'}
+            >
+              User Management
+            </button>
+            <span>&gt;</span>
+            <span style={{ color: '#c9a84c' }}>Approved Accounts</span>
+          </div>
           <h1 style={{ margin: 0, fontSize: 28, fontWeight: 800, color: '#111827' }}>Approved Accounts</h1>
           <p style={{ margin: '4px 0 0', color: '#6b7280', fontSize: 14 }}>
             HEI Research Office staff accounts that are currently active

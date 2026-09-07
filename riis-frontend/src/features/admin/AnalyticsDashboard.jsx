@@ -98,6 +98,18 @@ const RESEARCH_TYPES = [
   'Community Extension Research',
 ]
 
+const PIE_RADIAN = Math.PI / 180
+
+function getSlicePosition(sliceData) {
+  const { cx, cy, startAngle, endAngle, outerRadius } = sliceData
+  const midAngle = (startAngle + endAngle) / 2
+  const radius = outerRadius + 28
+  return {
+    x: cx + radius * Math.cos(-midAngle * PIE_RADIAN),
+    y: cy + radius * Math.sin(-midAngle * PIE_RADIAN),
+  }
+}
+
 function LoadingCard() {
   return (
     <div className={`${cardClass} flex items-center justify-center min-h-[120px]`}>
@@ -480,6 +492,7 @@ export default function AnalyticsDashboard({
   const [heatmapData, setHeatmapData] = useState([])
   const [clusterHeatmap, setClusterHeatmap] = useState({ clusters: [], cells: [] })
   const [showExportMenu, setShowExportMenu] = useState(false)
+  const [typeTooltipPos, setTypeTooltipPos] = useState(null)
   const exportRef = useRef(null)
 
   // DAS-036/037/038: filter state. `pendingFilters` tracks what's currently
@@ -789,10 +802,18 @@ export default function AnalyticsDashboard({
                 <>
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
-                      <Pie data={typeDistribution} dataKey="value" innerRadius={44} outerRadius={64} stroke="none">
+                                            <Pie
+                        data={typeDistribution}
+                        dataKey="value"
+                        innerRadius={44}
+                        outerRadius={64}
+                        stroke="none"
+                        onMouseEnter={(sliceData) => setTypeTooltipPos(getSlicePosition(sliceData))}
+                        onMouseLeave={() => setTypeTooltipPos(null)}
+                      >
                         {typeDistribution.map((item) => (<Cell key={item.name} fill={item.color} />))}
                       </Pie>
-                      <Tooltip formatter={(value) => `${value}`} contentStyle={{ borderRadius: '8px', border: '1px solid #E5E7EB', backgroundColor: '#ffffff', color: '#1A1A2E' }} />
+                      <Tooltip formatter={(value) => `${value}`} contentStyle={{ borderRadius: '8px', border: '1px solid #E5E7EB', backgroundColor: '#ffffff', color: '#1A1A2E', zIndex: 20 }} position={typeTooltipPos ?? undefined} allowEscapeViewBox={{ x: true, y: true }} />
                     </PieChart>
                   </ResponsiveContainer>
                   <div className="pointer-events-none absolute flex flex-col items-center">

@@ -196,7 +196,7 @@ public class ReportService {
                         "Reference No.", "Title", "Research Type", "Completion Year",
                         "Funding Source", "Publication Venue/Status", "Institution", "Province",
                         "Authors", "ORCID iDs", "Abstract", "Keywords",
-                        "Dublin Core Subject", "Dublin Core Coverage", "Dublin Core Rights",
+                        "Subject", "Coverage", "Rights",
                         "DOI"
                 ).build()
         );
@@ -307,9 +307,9 @@ public class ReportService {
                     {"ORCID iD(s)", orcids},
                     {"Abstract", o.getAbstractText()},
                     {"Keywords", o.getKeywords()},
-                    {"Dublin Core Subject", o.getSubjectDc()},
-                    {"Dublin Core Coverage", o.getCoverageDc()},
-                    {"Dublin Core Rights", o.getRightsDc()},
+                    {"Subject", o.getSubjectDc()},
+                    {"Coverage", o.getCoverageDc()},
+                    {"Rights", o.getRightsDc()},
                     {"DOI", o.getDoi()},
             };
             for (String[] field : fields) {

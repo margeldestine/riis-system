@@ -120,6 +120,27 @@ export default function SubmissionHistory() {
   const [filterType, setFilterType] = useState('')
   const [filterYear, setFilterYear] = useState('')
 
+  // Colleagues at the same institution who've actually submitted
+  // something -- populates the "Submitted by:" dropdown beyond just
+  // "Me". Fetched once on mount; doesn't depend on the current filters.
+  const [submitters, setSubmitters] = useState([])
+
+  useEffect(() => {
+    const controller = new AbortController()
+    apiClient
+      .get('/submissions/submitters', { signal: controller.signal })
+      .then((response) => {
+        setSubmitters(Array.isArray(response.data) ? response.data : [])
+      })
+      .catch((err) => {
+        if (controller.signal.aborted) return
+        // Non-fatal: the dropdown just falls back to "Me" only, same as
+        // it always did before this endpoint existed.
+        setSubmitters([])
+      })
+    return () => controller.abort()
+  }, [])
+
   const institutionName =
     localStorage.getItem('institutionName') ||
     localStorage.getItem('userInstitution') ||
@@ -178,6 +199,10 @@ export default function SubmissionHistory() {
             researchType: mapResearchTypeForApi(filterType),
             year: filterYear || undefined,
             mine: filterSubmittedBy === 'me' ? true : undefined,
+            // Any dropdown value other than "" or "me" is a real
+            // colleague's user id -- filter to just their submissions.
+            submittedByUserId:
+              filterSubmittedBy && filterSubmittedBy !== 'me' ? filterSubmittedBy : undefined,
             sort: 'updatedAt,desc',
           },
           signal,
@@ -234,8 +259,8 @@ export default function SubmissionHistory() {
 
     const loadKpis = async () => {
       try {
-        const allRes = await apiClient.get('/submissions', {
-          params: { page: 0, size: 1 },
+          const allRes = await apiClient.get('/submissions', {
+          params: { page: 0, size: 1, status: 'APPROVED' },
           signal: controller.signal,
         })
 
@@ -407,6 +432,11 @@ export default function SubmissionHistory() {
             >
               <option value="">Submitted by:</option>
               <option value="me">Me</option>
+              {submitters.map((submitter) => (
+                <option key={submitter.id} value={submitter.id}>
+                  {submitter.fullName}
+                </option>
+              ))}
             </select>
             <select
               value={filterType}

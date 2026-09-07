@@ -424,11 +424,7 @@ export default function AiQualityAssessmentPanel() {
             <AdvisoryBanner />
             <div className="mt-4 flex flex-col items-center justify-center py-12 text-center">
               <Sparkles className="h-8 w-8 text-indigo-300 mb-3" />
-              <p className="text-sm font-semibold text-slate-600">No AI assessment yet</p>
-              <p className="text-xs text-slate-400 mt-1 max-w-sm">
-                Run a Claude holistic review of this output's PDF to get an advisory quality
-                assessment for the reviewing admin.
-              </p>
+                <p className="text-sm font-semibold text-slate-600">No AI assessment yet</p>
               {actionError && <p className="mt-3 text-xs text-red-600">{actionError}</p>}
               <button
                 type="button"

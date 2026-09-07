@@ -524,16 +524,8 @@ export default function InstitutionProfilePage() {
   ]
 
   useEffect(() => {
-    setIsFiltering(true)
-    const handle = setTimeout(() => {
-      setDebouncedSearchKeyword(searchKeyword)
-    }, 350)
-    return () => clearTimeout(handle)
-  }, [searchKeyword])
-
-  useEffect(() => {
-    setIsFiltering(true)
-  }, [selectedTypes, selectedClusters, yearRange])
+  setIsFiltering(true)
+  }, [page, selectedTypes, selectedClusters, yearRange])
 
   useEffect(() => {
     setYearRange(0)
@@ -808,7 +800,7 @@ export default function InstitutionProfilePage() {
                   <button
                     type="button"
                     onClick={() => setPage((p) => Math.max(0, p - 1))}
-                    disabled={page === 0}
+                    disabled={page === 0 || isFiltering}
                     className="rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     Previous
@@ -819,7 +811,7 @@ export default function InstitutionProfilePage() {
                   <button
                     type="button"
                     onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-                    disabled={page >= totalPages - 1}
+                    disabled={page >= totalPages - 1 || isFiltering}
                     className="rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     Next

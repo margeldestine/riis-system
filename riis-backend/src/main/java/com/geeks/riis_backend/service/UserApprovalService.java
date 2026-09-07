@@ -18,7 +18,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 @Transactional
-public class UserApprovalService {
+public class
+UserApprovalService {
 
     private final UserRepository          userRepository;
     private final AuditLogEntryRepository auditLogEntryRepository;

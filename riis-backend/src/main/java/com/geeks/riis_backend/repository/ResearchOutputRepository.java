@@ -114,4 +114,14 @@ public interface ResearchOutputRepository extends JpaRepository<ResearchOutput, 
 			@org.springframework.data.repository.query.Param("limit") int limit
 	);
 
+	@Query("""
+			SELECT DISTINCT new com.geeks.riis_backend.dto.SubmitterDTO(u.id, u.fullName)
+			FROM ResearchOutput ro
+			JOIN ro.submittedBy u
+			WHERE ro.institution.id = :institutionId
+			ORDER BY u.fullName ASC
+			""")
+	List<com.geeks.riis_backend.dto.SubmitterDTO> findDistinctSubmittersByInstitutionId(
+			@Param("institutionId") String institutionId
+	);
 }

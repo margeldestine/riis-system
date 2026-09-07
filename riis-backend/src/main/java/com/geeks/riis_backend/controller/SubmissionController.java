@@ -32,6 +32,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
+import com.geeks.riis_backend.dto.SubmitterDTO;
 
 import java.util.List;
 
@@ -117,6 +118,13 @@ public class SubmissionController {
 			filter.setMine(mine);
 		}
 		return ResponseEntity.ok(submissionService.listSubmissions(userId, filter, safePageable, keyword));
+	}
+
+	@GetMapping("/submitters")
+	@PreAuthorize("hasAnyAuthority('HEI_STAFF', 'ROLE_HEI_STAFF')")
+	public ResponseEntity<List<SubmitterDTO>> listSubmitters() {
+		String userId = getAuthenticatedUserId();
+		return ResponseEntity.ok(submissionService.listSubmitters(userId));
 	}
 
 	@GetMapping("/{id}")

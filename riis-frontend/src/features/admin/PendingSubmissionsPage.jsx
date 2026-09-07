@@ -354,13 +354,13 @@ export default function PendingSubmissionsPage() {
               <div className="relative overflow-hidden bg-[#f8fafc] px-8 py-8">
                 <div className="pointer-events-none absolute inset-0" style={{ backgroundImage: 'url(/DOST_Building.png)', backgroundSize: 'cover', backgroundPosition: '78% 32%', opacity: 0.18 }} />
                 <div className="pointer-events-none absolute inset-0" style={{ background: 'rgba(13, 31, 60, 0.08)' }} />
-                <div className="relative z-10">
-                  <div className="flex items-center gap-2 text-sm text-slate-500">
-                    <button type="button" onClick={() => { setSelectedDetail(null) }} className="hover:text-[#C9A84C]">
+                  <div className="relative z-10">
+                  <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.26em] text-[#94a3b8]">
+                    <button type="button" onClick={() => { setSelectedDetail(null) }} className="hover:text-[#c9a84c] uppercase tracking-[0.26em]">
                       Submissions
                     </button>
                     <span>›</span>
-                    <span className="text-[#C9A84C]">Details</span>
+                    <span className="text-[#c9a84c]">Details</span>
                   </div>
                   <h1 className="mt-2 text-[30px] font-bold tracking-tight text-[#0d1f3c]" style={{ fontFamily: "'Libre Baskerville', serif" }}>
                     Submission Details
@@ -530,14 +530,14 @@ export default function PendingSubmissionsPage() {
                       <td className="px-6 py-4">
                         <TypeBadge type={item.researchType} />
                       </td>
-                        <td className="px-6 py-4 text-sm text-slate-500">
+                          <td className="px-6 py-4 text-sm text-slate-500 whitespace-nowrap">
                         {formatDate(item.submittedAt)}
                       </td>
                       <td className="px-6 py-4">
                         <button
                           type="button"
                           onClick={() => loadDetail(item.id)}
-                          className="inline-flex items-center gap-1 rounded-lg bg-[#1A1A2E] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#11111f] transition"
+                          className="inline-flex items-center gap-1 whitespace-nowrap rounded-lg bg-[#1A1A2E] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#11111f] transition"
                         >
                           View →
                         </button>

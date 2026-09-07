@@ -281,11 +281,18 @@ export default function Login() {
 
           <div className="relative z-10 flex h-full flex-col">
             <div className="flex items-center gap-4">
-              <img
-                src={dostLogo}
-                alt="DOST Logo"
-                className="h-10 w-10 object-contain"
-              />
+              <button
+                type="button"
+                onClick={() => navigate('/')}
+                className="shrink-0 cursor-pointer"
+                aria-label="Go to Browse Research"
+              >
+                <img
+                  src={dostLogo}
+                  alt="DOST Logo"
+                  className="h-10 w-10 object-contain"
+                />
+              </button>
               <div className="leading-tight">
                 <p className="text-[11px] font-medium uppercase tracking-widest text-white/90">
                   Republic of the Philippines

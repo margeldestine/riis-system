@@ -1553,7 +1553,7 @@ export default function SubmissionPortal({ onSubmitted }) {
       coverageDc: '',
       rightsDc: '',
       doi: '',
-      conferenceUrl: 'https://',
+      conferenceUrl: '',
       attachment: null,
     },
   })
@@ -1618,7 +1618,7 @@ const authorOptions = useMemo(
       coverageDc: '',
       rightsDc: '',
       doi: '',
-      conferenceUrl: 'https://',
+      conferenceUrl: '',
       attachment: null,
     })
   }
