@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import {
-  AlertTriangle, Bot, CheckCircle2, ChevronDown, ChevronUp, HelpCircle,
+  AlertTriangle, Bot, CheckCircle2, ChevronDown, ChevronUp,
   History, Loader2, RefreshCw, Search, Sparkles, XCircle,
 } from 'lucide-react'
 import apiClient from '../../services/apiClient'
@@ -25,7 +25,6 @@ const CRITERIA = [
 const DECISIONS = [
   { value: 'AGREE', label: 'Agree', icon: CheckCircle2 },
   { value: 'OVERRIDE', label: 'Override', icon: AlertTriangle },
-  { value: 'NEEDS_MORE_INFO', label: 'Request More Info', icon: HelpCircle },
 ]
 
 function extractApiErrorMessage(error, fallback) {
@@ -72,6 +71,56 @@ function RubricBadge({ version }) {
     <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-0.5 text-[11px] font-semibold text-slate-600">
       Rubric {version || 'unknown'}
     </span>
+  )
+}
+
+function CommentModal({ entry, onClose }) {
+  if (!entry) return null
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-md rounded-[12px] bg-white p-6 shadow-[0_8px_30px_rgba(0,0,0,0.15)]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between mb-1">
+          <h3 className="text-[15px] font-semibold text-[#1A1A2E]">Admin Comment</h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+          >
+            <XCircle className="h-4.5 w-4.5" />
+          </button>
+        </div>
+
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700">
+            {entry.adminDecision ? entry.adminDecision.replace(/_/g, ' ') : 'Reviewed'}
+          </span>
+          <span className="text-[11px] text-slate-400">{formatDate(entry.createdAt)}</span>
+        </div>
+
+        <div className="mt-4 max-h-[320px] overflow-y-auto rounded-lg bg-slate-50 p-4">
+          <p className="whitespace-pre-wrap text-xs leading-relaxed text-slate-600">
+            {entry.adminNotes}
+          </p>
+        </div>
+
+        <div className="mt-5 flex justify-end">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg bg-[#1A1A2E] px-4 py-2 text-xs font-semibold text-white transition hover:bg-[#2a2a45]"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -172,6 +221,8 @@ function CriterionRow({ label, criterion }) {
 }
 
 function HistoryDrawer({ open, onToggle, loading, history }) {
+  const [activeComment, setActiveComment] = useState(null)
+
   return (
     <div className={cardClass}>
       <button type="button" onClick={onToggle} className="flex w-full items-center justify-between">
@@ -194,7 +245,7 @@ function HistoryDrawer({ open, onToggle, loading, history }) {
             <table className="min-w-full">
               <thead>
                 <tr className="border-b border-slate-100">
-                  {['Run Date', 'Rubric', 'Score', 'Admin Decision'].map((h) => (
+                  {['Run Date', 'Rubric', 'Score', 'Admin Decision', 'Comment'].map((h) => (
                     <th key={h} className="pb-2 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-400">
                       {h}
                     </th>
@@ -209,7 +260,20 @@ function HistoryDrawer({ open, onToggle, loading, history }) {
                     <td className="py-2 pr-4 text-xs font-semibold text-[#1A1A2E]">
                       {h.overallScore !== null && h.overallScore !== undefined ? `${h.overallScore}/100` : '—'}
                     </td>
-                    <td className="py-2 text-xs text-slate-600">{h.adminDecision || 'Not yet reviewed'}</td>
+                    <td className="py-2 pr-4 text-xs text-slate-600">{h.adminDecision || 'Not yet reviewed'}</td>
+                    <td className="py-2 text-xs">
+                      {h.adminNotes && h.adminNotes.trim() ? (
+                        <button
+                          type="button"
+                          onClick={() => setActiveComment(h)}
+                          className="inline-flex items-center gap-1 rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-[11px] font-semibold text-indigo-600 transition hover:bg-indigo-100"
+                        >
+                          View Comment
+                        </button>
+                      ) : (
+                        <span className="text-slate-300">—</span>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -217,6 +281,8 @@ function HistoryDrawer({ open, onToggle, loading, history }) {
           )}
         </div>
       )}
+
+      <CommentModal entry={activeComment} onClose={() => setActiveComment(null)} />
     </div>
   )
 }
@@ -487,7 +553,6 @@ export default function AiQualityAssessmentPanel() {
 
               <div className="mt-4 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <RubricBadge version={review.rubricVersion} />
                   {review.adminDecision && (
                     <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-700">
                       Reviewed: {review.adminDecision.replace(/_/g, ' ')}
