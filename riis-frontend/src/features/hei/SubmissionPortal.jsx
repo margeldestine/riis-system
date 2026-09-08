@@ -212,8 +212,11 @@ const CONFERENCE_URL_PREFIX = 'https://'
 function formatConferenceUrlInput(value) {
   const raw = (value ?? '').toString()
 
+  if (!raw) return ''
+
   if (!raw.startsWith(CONFERENCE_URL_PREFIX)) {
     const withoutPrefix = raw.replace(/^https?:?\/{0,2}/i, '')
+    if (!withoutPrefix) return ''
     return `${CONFERENCE_URL_PREFIX}${withoutPrefix}`
   }
 

@@ -17,7 +17,7 @@ const defaultNavItems = [
   { icon: BarChart3, label: 'Analytics Dashboard' },
   { icon: ClipboardList, label: 'Submission Portal' },
   { icon: FileSearch, label: 'Auto Validation' },
-  { icon: AlertTriangle, label: 'Similarity Flags' },
+  { icon: AlertTriangle, label: 'Data Quality Monitor' },
   { icon: FileText, label: 'Report Generator' },
   { icon: FolderKanban, label: 'HEI Management' },
   { icon: Users, label: 'USER Management' },

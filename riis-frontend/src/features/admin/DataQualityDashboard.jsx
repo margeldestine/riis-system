@@ -81,8 +81,14 @@ export default function DataQualityDashboard() {
   const sortedErrors = Object.entries(aggregatedErrors)
     .sort((a, b) => b[1] - a[1])
 
-  const overlapsTotalPages = Math.max(1, Math.ceil(overlaps.length / OVERLAPS_PAGE_SIZE))
-  const pagedOverlaps = overlaps.slice(
+  // Newest-detected flags first. Copy before sorting so we never mutate
+  // state directly; missing detectedAt values sink to the bottom.
+  const sortedOverlaps = [...overlaps].sort(
+    (a, b) => new Date(b.detectedAt || 0) - new Date(a.detectedAt || 0)
+  )
+
+  const overlapsTotalPages = Math.max(1, Math.ceil(sortedOverlaps.length / OVERLAPS_PAGE_SIZE))
+  const pagedOverlaps = sortedOverlaps.slice(
     overlapsPage * OVERLAPS_PAGE_SIZE,
     overlapsPage * OVERLAPS_PAGE_SIZE + OVERLAPS_PAGE_SIZE
   )
@@ -379,7 +385,7 @@ export default function DataQualityDashboard() {
                 <div className="flex items-center justify-center py-10">
                   <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
                 </div>
-              ) : overlaps.length === 0 ? (
+              ) : sortedOverlaps.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-10 text-center">
                   <CheckCircle2 className="h-8 w-8 text-emerald-500 mb-2" />
                   <p className="text-sm font-semibold text-slate-600">No similarity flags detected</p>
@@ -468,7 +474,7 @@ export default function DataQualityDashboard() {
                 </div>
               )}
 
-              {!overlapsLoading && overlaps.length > OVERLAPS_PAGE_SIZE && (
+              {!overlapsLoading && sortedOverlaps.length > OVERLAPS_PAGE_SIZE && (
                 <div className="flex items-center justify-between px-1 pt-4">
                   <p className="text-sm text-slate-500">Page {overlapsPage + 1} of {overlapsTotalPages}</p>
                   <div className="flex items-center gap-2">
