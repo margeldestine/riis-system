@@ -197,7 +197,7 @@ const handleGenerate = async () => {
                   Report Generator
                 </h1>
                 <p className="mt-2 text-[13px] text-[#6b7280]">
-                  DOST Administrator View · Region VII · AY 2025-2026
+                    Generate and export custom research reports for Region VII HEIs 
                 </p>
               </div>
               <div className="text-right shrink-0">

@@ -41,6 +41,10 @@ export default function DataQualityDashboard() {
   const [loading, setLoading] = useState(true)
   const [overlapsLoading, setOverlapsLoading] = useState(true)
 
+  // Pagination for the Similarity Flag Log
+  const [overlapsPage, setOverlapsPage] = useState(0)
+  const OVERLAPS_PAGE_SIZE = 5
+
   useEffect(() => {
     const controller = new AbortController()
 
@@ -50,7 +54,10 @@ export default function DataQualityDashboard() {
       .finally(() => setLoading(false))
 
     apiClient.get('/quality/overlaps', { signal: controller.signal })
-      .then(res => setOverlaps(Array.isArray(res.data) ? res.data : []))
+      .then(res => {
+        setOverlaps(Array.isArray(res.data) ? res.data : [])
+        setOverlapsPage(0)
+      })
       .catch(() => {})
       .finally(() => setOverlapsLoading(false))
 
@@ -74,6 +81,12 @@ export default function DataQualityDashboard() {
   const sortedErrors = Object.entries(aggregatedErrors)
     .sort((a, b) => b[1] - a[1])
 
+  const overlapsTotalPages = Math.max(1, Math.ceil(overlaps.length / OVERLAPS_PAGE_SIZE))
+  const pagedOverlaps = overlaps.slice(
+    overlapsPage * OVERLAPS_PAGE_SIZE,
+    overlapsPage * OVERLAPS_PAGE_SIZE + OVERLAPS_PAGE_SIZE
+  )
+
   return (
     <DashboardLayout
       activeLabel="Similarity Flags"
@@ -96,7 +109,7 @@ export default function DataQualityDashboard() {
                   Data Quality Monitor
                 </h1>
                 <p className="mt-2 text-[13px] text-[#6b7280]">
-                  DOST Administrator View · Region VII · AY 2025-2026
+                    Monitor similarity flags and AI quality assessments across Region VII HEIs
                 </p>
               </div>
               <div className="text-right shrink-0">
@@ -374,7 +387,7 @@ export default function DataQualityDashboard() {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {overlaps.map((group) => {
+                  {pagedOverlaps.map((group) => {
                     const topScore = Math.max(...group.matches.map((m) => m.similarityScore))
                     const score = (topScore * 100).toFixed(1)
                     const isCritical = topScore >= 0.80
@@ -452,6 +465,30 @@ export default function DataQualityDashboard() {
                       </div>
                     )
                   })}
+                </div>
+              )}
+
+              {!overlapsLoading && overlaps.length > OVERLAPS_PAGE_SIZE && (
+                <div className="flex items-center justify-between px-1 pt-4">
+                  <p className="text-sm text-slate-500">Page {overlapsPage + 1} of {overlapsTotalPages}</p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setOverlapsPage(p => Math.max(0, p - 1))}
+                      disabled={overlapsPage === 0}
+                      className="rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Previous
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setOverlapsPage(p => Math.min(overlapsTotalPages - 1, p + 1))}
+                      disabled={overlapsPage >= overlapsTotalPages - 1}
+                      className="rounded-md bg-[#1A1A2E] px-4 py-2 text-sm font-semibold text-white hover:bg-[#11111f] disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Next
+                    </button>
+                  </div>
                 </div>
               )}
             </div>

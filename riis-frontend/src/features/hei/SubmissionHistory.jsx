@@ -562,25 +562,27 @@ export default function SubmissionHistory() {
           </div>
 
           <div className="flex items-center justify-between">
-            <button
-              type="button"
-              onClick={() => setPage((prev) => Math.max(0, prev - 1))}
-              disabled={page === 0 || status === 'loading'}
-              className="rounded-[8px] border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              Previous
-            </button>
             <p className="text-sm text-slate-500">
               Page {Math.min(page + 1, totalPages)} of {totalPages}
             </p>
-            <button
-              type="button"
-              onClick={() => setPage((prev) => Math.min(totalPages - 1, prev + 1))}
-              disabled={page >= totalPages - 1 || status === 'loading'}
-              className="rounded-[8px] border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              Next
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setPage((prev) => Math.max(0, prev - 1))}
+                disabled={page === 0 || status === 'loading'}
+                className="rounded-[8px] border border-[#e5e7eb] bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Previous
+              </button>
+              <button
+                type="button"
+                onClick={() => setPage((prev) => Math.min(totalPages - 1, prev + 1))}
+                disabled={page >= totalPages - 1 || status === 'loading'}
+                className="rounded-[8px] bg-[#0d1f3c] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#0b1a33] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Next
+              </button>
+            </div>
           </div>
         </div>
       </div>

@@ -14,12 +14,15 @@ import {
 
 const cardClass = 'rounded-[12px] bg-white p-[20px] shadow-[0_2px_8px_rgba(0,0,0,0.08)]'
 
+// Matches CRITERIA in quality_rubric.py (v2.0.0, adapted from the ICEEL
+// 2026 review form: Integrity, Innovation, Readability, Applicability,
+// Presentation and English). Keep these two lists in sync.
 const CRITERIA = [
-  { key: 'methodology', label: 'Methodology' },
-  { key: 'originality', label: 'Originality' },
-  { key: 'clarity', label: 'Clarity' },
-  { key: 'alignment', label: 'Alignment' },
-  { key: 'data_integrity', label: 'Data Integrity' },
+  { key: 'integrity', label: 'Integrity' },
+  { key: 'innovation', label: 'Innovation' },
+  { key: 'readability', label: 'Readability' },
+  { key: 'applicability', label: 'Applicability' },
+  { key: 'presentation_english', label: 'Presentation and English' },
 ]
 
 const DECISIONS = [
@@ -242,10 +245,11 @@ function HistoryDrawer({ open, onToggle, loading, history }) {
           ) : history.length === 0 ? (
             <p className="py-4 text-center text-xs text-slate-400">No prior runs for this output.</p>
           ) : (
+            
             <table className="min-w-full">
               <thead>
                 <tr className="border-b border-slate-100">
-                  {['Run Date', 'Rubric', 'Score', 'Admin Decision', 'Comment'].map((h) => (
+                  {['Run Date', 'Score', 'Admin Decision', 'Comment'].map((h) => (
                     <th key={h} className="pb-2 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-400">
                       {h}
                     </th>
@@ -256,7 +260,6 @@ function HistoryDrawer({ open, onToggle, loading, history }) {
                 {history.map((h) => (
                   <tr key={h.id}>
                     <td className="py-2 pr-4 text-xs text-slate-600">{formatDate(h.createdAt)}</td>
-                    <td className="py-2 pr-4 text-xs text-slate-600">{h.rubricVersion || '—'}</td>
                     <td className="py-2 pr-4 text-xs font-semibold text-[#1A1A2E]">
                       {h.overallScore !== null && h.overallScore !== undefined ? `${h.overallScore}/100` : '—'}
                     </td>
@@ -278,6 +281,7 @@ function HistoryDrawer({ open, onToggle, loading, history }) {
                 ))}
               </tbody>
             </table>
+
           )}
         </div>
       )}
@@ -308,7 +312,11 @@ export default function AiQualityAssessmentPanel() {
   const [decisionSubmitting, setDecisionSubmitting] = useState(false)
   const [decisionError, setDecisionError] = useState('')
 
-  // Load the list of research outputs to pick from.
+  // Load the list of research outputs to pick from. This effect (and
+  // outputsLoading starting at `true`) re-runs from scratch every time
+  // this component mounts — which, since the parent renders this panel
+  // with `{activeTab === 'assessment' && <AiQualityAssessmentPanel />}`,
+  // happens every time the AI Quality Assessment tab is clicked.
   useEffect(() => {
     const controller = new AbortController()
     setOutputsLoading(true)
@@ -450,6 +458,22 @@ export default function AiQualityAssessmentPanel() {
     }
   }
 
+  // Show a single full-width loading screen every time this panel mounts
+  // (i.e. every time the AI Quality Assessment tab is clicked) while the
+  // outputs list is being fetched, instead of letting the left column
+  // briefly render "No research outputs found" before data arrives.
+  if (outputsLoading) {
+    return (
+      <div className={cardClass}>
+        <div className="flex flex-col items-center justify-center py-24 text-center">
+          <Loader2 className="h-8 w-8 animate-spin text-indigo-400 mb-3" />
+          <p className="text-sm font-semibold text-slate-600">Loading research outputs…</p>
+          <p className="text-xs text-slate-400 mt-1">Fetching approved submissions for AI quality assessment.</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="grid grid-cols-3 gap-6">
       <div>
@@ -509,7 +533,7 @@ export default function AiQualityAssessmentPanel() {
               <Loader2 className="h-8 w-8 animate-spin text-indigo-400 mb-3" />
               <p className="text-sm font-semibold text-slate-600">Assessment in progress…</p>
               <p className="text-xs text-slate-400 mt-1">
-                Claude is reviewing the submission PDF against rubric {review?.rubricVersion || 'v1-tentative'}.
+                Reviewing the submission PDF against rubric {review?.rubricVersion || 'v1-tentative'}.
                 This page checks for updates every few seconds.
               </p>
             </div>

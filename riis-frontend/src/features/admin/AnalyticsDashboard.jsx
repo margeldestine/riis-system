@@ -647,7 +647,7 @@ export default function AnalyticsDashboard({
                 Regional Research Analytics Dashboard
               </h1>
               <p className="mt-2 text-[13px] text-[#6b7280]">
-                DOST Administrator View · Region VII
+                  Monitor research output trends and performance across Region VII HEIs
               </p>
             </div>
             <div className="text-right shrink-0">

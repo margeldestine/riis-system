@@ -289,7 +289,7 @@ export default function PendingSubmissionsPage() {
     try {
       const [subRes, statsRes] = await Promise.all([
         apiClient.get('/admin/submissions', {
-          params: { status: 'APPROVED', page, size: 20 },
+          params: { status: 'APPROVED', page, size: 10 },
         }),
         apiClient.get('/admin/submissions/stats').catch(() => ({ data: {} })),
       ])
@@ -548,24 +548,27 @@ export default function PendingSubmissionsPage() {
               </table>
 
               {/* Pagination */}
+              {/* Pagination */}
               <div className="flex items-center justify-between px-6 py-4 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setPage(p => Math.max(0, p - 1))}
-                  disabled={page === 0 || status === 'loading'}
-                  className="rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Previous
-                </button>
                 <p className="text-sm text-slate-500">Page {page + 1} of {totalPages}</p>
-                <button
-                  type="button"
-                  onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
-                  disabled={page >= totalPages - 1 || status === 'loading'}
-                  className="rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Next
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPage(p => Math.max(0, p - 1))}
+                    disabled={page === 0 || status === 'loading'}
+                    className="rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Previous
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
+                    disabled={page >= totalPages - 1 || status === 'loading'}
+                    className="rounded-md bg-[#1A1A2E] px-4 py-2 text-sm font-semibold text-white hover:bg-[#11111f] disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Next
+                  </button>
+                </div>
               </div>
             </div>
           </div>

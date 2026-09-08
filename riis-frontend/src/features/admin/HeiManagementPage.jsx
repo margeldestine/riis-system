@@ -522,7 +522,7 @@ export default function HeiManagementPage() {
                 HEI Management
               </h1>
               <p style={{ margin: '8px 0 0', fontSize: 13, color: '#6b7280' }}>
-                DOST Administrator View · Region VII · AY 2025-2026
+                  Manage whitelisted institutions eligible to submit research for Region VII
               </p>
             </div>
             <div style={{ textAlign: 'right', flexShrink: 0 }}>
@@ -592,7 +592,6 @@ export default function HeiManagementPage() {
         {/* Sub-header */}
         <div style={{ padding: '14px 24px 10px', borderBottom: '1px solid #f9fafb' }}>
           <div style={{ fontWeight: 700, fontSize: 15, color: '#111827' }}>Whitelisted Institutions</div>
-          <div style={{ fontSize: 12, color: '#9ca3af' }}>Institutions eligible to use R.V. 2025-2026</div>
         </div>
 
         {/* Table */}
