@@ -159,9 +159,6 @@ public class ResearchOutput {
 	@OneToMany(mappedBy = "researchOutput", fetch = FetchType.LAZY)
 	private Set<ValidationLog> validationLogs;
 
-	@OneToMany(mappedBy = "record", fetch = FetchType.LAZY)
-	private Set<AiProcessingQueueItem> aiProcessingQueueItems;
-
 	@OneToMany(mappedBy = "newRecord", fetch = FetchType.LAZY)
 	private Set<OverlapAlert> newRecordOverlapAlerts;
 

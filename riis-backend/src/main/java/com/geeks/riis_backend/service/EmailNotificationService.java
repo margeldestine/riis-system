@@ -93,57 +93,6 @@ public class EmailNotificationService {
 		}
 	}
 
-	@Async
-	public void sendReviewStatusEmail(String toEmail, String referenceNumber, String action, String comment) {
-		if (toEmail == null || toEmail.isBlank()) {
-			log.warn("[sendReviewStatusEmail] Skipped -- toEmail is blank/null. referenceNumber={}, action={}", referenceNumber, action);
-			return;
-		}
-		if (referenceNumber == null || referenceNumber.isBlank()) {
-			log.warn("[sendReviewStatusEmail] Skipped -- referenceNumber is blank/null. toEmail={}, action={}", toEmail, action);
-			return;
-		}
-
-		try {
-			JavaMailSender mailSender = resolveMailSender("sendReviewStatusEmail");
-			if (mailSender == null) return;
-
-			String subject;
-			String body;
-
-			switch (action) {
-				case "APPROVED" -> {
-					subject = "Research Output Approved: " + referenceNumber;
-					body = "Your research output submission has been approved and is now publicly visible.\n\nReference Number: " + referenceNumber;
-				}
-				case "REJECTED" -> {
-					subject = "Research Output Rejected: " + referenceNumber;
-					body = "Your research output submission has been rejected.\n\nReference Number: " + referenceNumber
-							+ "\n\nReason:\n" + (comment != null ? comment : "No reason provided.");
-				}
-				case "REQUIRES_CORRECTION" -> {
-					subject = "Correction Required: " + referenceNumber;
-					body = "Your research output submission requires correction before it can be approved.\n\nReference Number: " + referenceNumber
-							+ "\n\nCorrection Notes:\n" + (comment != null ? comment : "Please review and resubmit.");
-				}
-				default -> {
-					subject = "Submission Update: " + referenceNumber;
-					body = "Your submission status has been updated.\n\nReference Number: " + referenceNumber;
-				}
-			}
-
-			SimpleMailMessage message = new SimpleMailMessage();
-			if (!fromEmail.isBlank()) message.setFrom(fromEmail);
-			message.setTo(toEmail);
-			message.setSubject(subject);
-			message.setText(body);
-			mailSender.send(message);
-			log.info("[sendReviewStatusEmail] Email sent successfully to {} (ref={}, action={})", toEmail, referenceNumber, action);
-		} catch (Exception e) {
-			log.error("[sendReviewStatusEmail] Failed to send email to {} (ref={}, action={}): {}", toEmail, referenceNumber, action, e.getMessage(), e);
-		}
-	}
-
 	/**
 	 * SDD 5.6: "sendAccountApprovalEmail() dispatches a notification with
 	 * a login link and confirmation that the account is now active."

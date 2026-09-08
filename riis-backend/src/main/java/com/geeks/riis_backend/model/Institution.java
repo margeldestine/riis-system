@@ -84,9 +84,6 @@ public class Institution {
 	@OneToMany(mappedBy = "institution", fetch = FetchType.LAZY)
 	private Set<ValidationLog> validationLogs;
 
-	@OneToMany(mappedBy = "institution", fetch = FetchType.LAZY)
-	private Set<AdminAction> adminActions;
-
 	@OneToOne(mappedBy = "institution", fetch = FetchType.LAZY)
 	private ThemeProfile themeProfile;
 
