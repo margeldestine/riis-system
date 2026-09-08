@@ -6,6 +6,16 @@ Everything a human reviewer or engineer needs to know about *what* Claude
 is asked to score, and *how* it is asked, lives in this module so the
 rubric can be versioned and audited independently of the API-calling
 code.
+
+v2.0.0: replaced the tentative v1.0.0 rubric with one based on the
+adviser-provided ICEEL 2026 conference review form (Integrity,
+Innovation, Readability, Applicability, Presentation and English). The
+form's original "Match to Conference Topic" criterion was dropped since
+DASIG submissions aren't tied to a single conference track. The form's
+3-tier Poor/Fair/Good scale is mapped onto the existing 0-20 low/mid/high
+band structure so this still totals 0-100 across 5 criteria, matching
+v1.0.0's scale exactly -- no downstream threshold or "/100" display
+needs to change.
 """
 
 # Bump this whenever CRITERIA, DISQUALIFYING_FLAGS, or the instructions
@@ -19,121 +29,125 @@ code.
 # specify one explicitly (which is every review run through the normal
 # admin UI). If the two drift, every review logs a spurious rubric
 # mismatch warning here even though nothing is actually wrong.
-RUBRIC_VERSION = "v1.0.0"
+RUBRIC_VERSION = "v2.0.0"
 
 MAX_SCORE_PER_CRITERION = 20
 
-# Five criteria, 0-20 points each (0-100 total). Order here is the order
+# Five criteria, 0-20 points each (0-100 total), adapted from the ICEEL
+# 2026 review form's Poor/Fair/Good scale. Order here is the order
 # rendered in the system prompt and the order Claude is asked to return
 # `criteria` in.
 CRITERIA = {
-    "methodology": {
-        "label": "Methodology",
+    "integrity": {
+        "label": "Integrity",
         "description": (
-            "How sound, appropriate, and clearly described is the research "
-            "methodology for the question being investigated?"
+            "Does the paper present its research honestly and "
+            "transparently, with no signs of fabricated, manipulated, or "
+            "misrepresented data, methods, or claims?"
         ),
         "low": (
-            "No discernible methodology, or the described approach is "
-            "clearly inappropriate for the stated research question. "
-            "Steps cannot be followed or reproduced from the text."
+            "Poor: The paper shows signs of fabricated or manipulated "
+            "data, results that don't add up, undisclosed conflicts, or "
+            "claims not supported by anything described in the text."
         ),
         "mid": (
-            "A methodology is present and broadly appropriate, but has "
-            "gaps in description, weak justification for key choices, or "
-            "minor mismatches between the stated method and the stated goal."
+            "Fair: No clear signs of dishonesty, but some claims are "
+            "asserted without adequate support, or data handling is "
+            "described thinly enough that it can't be fully verified from "
+            "the text alone."
         ),
         "high": (
-            "The methodology is clearly described, appropriate for the "
-            "research question, and detailed enough that a reader could "
-            "follow or replicate the approach. Choices are justified."
+            "Good: Data, methods, and claims are presented transparently "
+            "and consistently, with nothing in the text raising integrity "
+            "concerns."
         ),
     },
-    "originality": {
-        "label": "Originality",
+    "innovation": {
+        "label": "Innovation",
         "description": (
-            "Does the work make an identifiable original contribution "
-            "beyond restating existing literature or methods?"
+            "Does the work make an identifiable original or innovative "
+            "contribution beyond restating existing literature or methods?"
         ),
         "low": (
-            "The work is a restatement or minor rearrangement of existing "
-            "literature, tools, or methods, with no identifiable new "
-            "contribution, angle, or finding."
+            "Poor: The work is a restatement or minor rearrangement of "
+            "existing literature, tools, or methods, with no identifiable "
+            "new contribution, angle, or finding."
         ),
         "mid": (
-            "The work applies existing methods or ideas to a new context, "
-            "or offers an incremental extension, but the contribution is "
-            "modest or not clearly distinguished from prior work."
+            "Fair: The work applies existing methods or ideas to a new "
+            "context, or offers an incremental extension, but the "
+            "contribution is modest or not clearly distinguished from "
+            "prior work."
         ),
         "high": (
-            "The work presents a clearly articulated original contribution "
-            "— a new method, finding, framework, or application — and "
-            "situates it against existing work."
+            "Good: The work presents a clearly articulated original or "
+            "innovative contribution -- a new method, finding, framework, "
+            "or application -- and situates it against existing work."
         ),
     },
-    "clarity": {
-        "label": "Clarity",
+    "readability": {
+        "label": "Readability",
         "description": (
             "How clearly is the paper written and organized for its "
             "intended audience?"
         ),
         "low": (
-            "Disorganized, hard to follow, or so ambiguous that the "
+            "Poor: Disorganized, hard to follow, or so ambiguous that the "
             "research question, approach, or findings cannot be reliably "
             "identified from the text."
         ),
         "mid": (
-            "Generally understandable, but with sections that are unclear, "
-            "poorly organized, or require re-reading to follow."
+            "Fair: Generally understandable, but with sections that are "
+            "unclear, poorly organized, or require re-reading to follow."
         ),
         "high": (
-            "Well-organized and clearly written throughout; the research "
-            "question, approach, and findings are easy to follow on a "
-            "single read."
+            "Good: Well-organized and clearly written throughout; the "
+            "research question, approach, and findings are easy to follow "
+            "on a single read."
         ),
     },
-    "alignment": {
-        "label": "Alignment",
+    "applicability": {
+        "label": "Applicability",
         "description": (
-            "Do the stated research question, methodology, results, and "
-            "conclusions align and support one another?"
+            "How useful or applicable are the paper's methods, findings, "
+            "or conclusions to real-world practice, policy, or further "
+            "research?"
         ),
         "low": (
-            "Major mismatches — e.g. conclusions are not supported by the "
-            "results shown, or the methodology does not address the "
-            "stated research question."
+            "Poor: The findings or methods have no clear practical use, "
+            "or the paper does not explain how they could be applied "
+            "beyond the immediate study."
         ),
         "mid": (
-            "Mostly aligned, with some overreach in the conclusions or "
-            "loose connections between question, method, and results."
+            "Fair: Some practical relevance is implied or briefly "
+            "discussed, but the paper doesn't clearly develop how the "
+            "work could be applied or built on."
         ),
         "high": (
-            "Research question, methodology, results, and conclusions are "
-            "consistent and clearly connected throughout."
+            "Good: The paper clearly explains how its methods or findings "
+            "could be applied in practice, policy, or future research, "
+            "with concrete implications discussed."
         ),
     },
-    "data_integrity": {
-        "label": "Data Integrity",
+    "presentation_english": {
+        "label": "Presentation and English",
         "description": (
-            "Based only on internal consistency of what is written (not "
-            "external verification), do the reported data and results "
-            "appear coherent and plausibly handled?"
+            "Is the paper well-formatted and free of grammar, spelling, "
+            "and language errors that would impede a reader?"
         ),
         "low": (
-            "Reported numbers are internally inconsistent (e.g. figures, "
-            "tables, and text disagree), sample sizes or statistics don't "
-            "add up, or there is no discussion of how data was collected "
-            "or handled."
+            "Poor: Frequent grammar, spelling, or language errors, or "
+            "formatting problems, that make the paper difficult to read "
+            "or understand."
         ),
         "mid": (
-            "Data handling is described but thinly — some inconsistencies "
-            "or unexplained gaps exist, though nothing that clearly "
-            "suggests fabrication or mishandling."
+            "Fair: Occasional grammar, spelling, or formatting issues, "
+            "but they don't seriously get in the way of understanding the "
+            "paper."
         ),
         "high": (
-            "Data collection and handling are clearly described and "
-            "internally consistent across text, tables, and figures, with "
-            "no apparent contradictions."
+            "Good: Well-formatted with clear, correct English throughout; "
+            "no language issues impede the reader."
         ),
     },
 }
@@ -245,11 +259,11 @@ Respond with ONLY a single valid JSON object — no prose before or after it, an
 {{
   "overall_score": <integer 0-{MAX_SCORE_PER_CRITERION * len(CRITERIA)}>,
   "criteria": [
-    {{"name": "methodology", "score": <integer 0-{MAX_SCORE_PER_CRITERION}>, "justification": "<string>"}},
-    {{"name": "originality", "score": <integer 0-{MAX_SCORE_PER_CRITERION}>, "justification": "<string>"}},
-    {{"name": "clarity", "score": <integer 0-{MAX_SCORE_PER_CRITERION}>, "justification": "<string>"}},
-    {{"name": "alignment", "score": <integer 0-{MAX_SCORE_PER_CRITERION}>, "justification": "<string>"}},
-    {{"name": "data_integrity", "score": <integer 0-{MAX_SCORE_PER_CRITERION}>, "justification": "<string>"}}
+    {{"name": "integrity", "score": <integer 0-{MAX_SCORE_PER_CRITERION}>, "justification": "<string>"}},
+    {{"name": "innovation", "score": <integer 0-{MAX_SCORE_PER_CRITERION}>, "justification": "<string>"}},
+    {{"name": "readability", "score": <integer 0-{MAX_SCORE_PER_CRITERION}>, "justification": "<string>"}},
+    {{"name": "applicability", "score": <integer 0-{MAX_SCORE_PER_CRITERION}>, "justification": "<string>"}},
+    {{"name": "presentation_english", "score": <integer 0-{MAX_SCORE_PER_CRITERION}>, "justification": "<string>"}}
   ],
   "flags": ["<flag id string>", "..."],
   "summary": "<string>"
