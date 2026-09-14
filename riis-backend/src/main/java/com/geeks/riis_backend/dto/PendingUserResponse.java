@@ -9,8 +9,10 @@ public class PendingUserResponse {
 	private String email;
 	private String emailDomain;
 	private String status;
+	private String role;
 
 
+	private String institutionId;
 	private String institutionName;
 	private String institutionType;
 	private String province;
@@ -34,6 +36,30 @@ public class PendingUserResponse {
 			String employeeId,
 			LocalDateTime submittedAt
 	) {
+		this(id, fullName, email, status, null, null, institutionName, institutionType, province, department, position, employeeId, submittedAt);
+	}
+
+	// UC-M5-04: full constructor adding role + institutionId, used by the
+	// account directory search (UserRepository.searchAccounts). The
+	// original 11-arg constructor above is preserved unchanged so the
+	// existing findByRoleAndStatusForQueue query (and everything that
+	// already depends on it, e.g. AccountApprovalQueuePage.jsx) keeps
+	// working exactly as before.
+	public PendingUserResponse(
+			String id,
+			String fullName,
+			String email,
+			String status,
+			String role,
+			String institutionId,
+			String institutionName,
+			String institutionType,
+			String province,
+			String department,
+			String position,
+			String employeeId,
+			LocalDateTime submittedAt
+	) {
 		this.id              = id;
 		this.fullName        = fullName;
 		this.email           = email;
@@ -41,6 +67,8 @@ public class PendingUserResponse {
 				? "@" + email.split("@", 2)[1]
 				: null;
 		this.status          = status;
+		this.role            = role;
+		this.institutionId   = institutionId;
 		this.institutionName = institutionName;
 		this.institutionType = institutionType;
 		this.province        = province;
@@ -56,6 +84,8 @@ public class PendingUserResponse {
 	public String getEmail()           { return email; }
 	public String getEmailDomain()     { return emailDomain; }
 	public String getStatus()          { return status; }
+	public String getRole()            { return role; }
+	public String getInstitutionId()   { return institutionId; }
 	public String getInstitutionName() { return institutionName; }
 	public String getInstitutionType() { return institutionType; }
 	public String getProvince()        { return province; }

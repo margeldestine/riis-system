@@ -15,6 +15,8 @@ export const dostNavItems = [
   { icon: FileText, label: 'Report Generator', to: '/dost/reports' },
   { icon: Building2, label: 'HEI Management', to: '/dost/hei-management' },
   { icon: Users, label: 'User Management', to: '/dost/user-management' },
+  { icon: Users, label: 'Account Directory', to: '/dost/account-directory' },
+  { icon: ClipboardList, label: 'Audit Log', to: '/dost/audit-log' },
 ]
 
 function extractApiErrorMessage(error, fallback) {

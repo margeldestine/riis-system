@@ -13,6 +13,8 @@ import { heiNavItems } from './features/hei/HeiDashboard'
 import HeiResearchProfiles from './features/hei/HeiResearchProfiles'
 import InstitutionProfilePage from './features/hei/InstitutionProfilePage'
 import HeiManagementPage from './features/admin/HeiManagementPage'
+import AccountDirectoryPage from './features/admin/AccountDirectoryPage'
+import AuditLogPage from './features/admin/AuditLogPage'
 import HeiDirectoryPage from './features/public/HeiDirectoryPage'
 import PublicInstitutionProfilePage from './features/public/PublicInstitutionProfilePage'
 import ResearchOutputDetailPage from './features/public/ResearchOutputDetailPage'
@@ -78,6 +80,12 @@ function App() {
         } />
         <Route path="/dost/hei-management" element={
           <ProtectedRoute allowedRole="DOST_ADMIN"><HeiManagementPage /></ProtectedRoute>
+        } />
+        <Route path="/dost/account-directory" element={
+          <ProtectedRoute allowedRole="DOST_ADMIN"><AccountDirectoryPage /></ProtectedRoute>
+        } />
+        <Route path="/dost/audit-log" element={
+          <ProtectedRoute allowedRole="DOST_ADMIN"><AuditLogPage /></ProtectedRoute>
         } />
         <Route path="/dost/reports" element={
           <ProtectedRoute allowedRole="DOST_ADMIN"><ReportGeneratorPage /></ProtectedRoute>

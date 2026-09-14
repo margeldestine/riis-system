@@ -22,6 +22,22 @@ public class GlobalExceptionHandler {
 		return buildResponse(HttpStatus.BAD_REQUEST, ex.getMessage());
 	}
 
+	// UC-M5-03: surfaces the structured warning payload (e.g. active staff
+	// count) alongside the message, instead of collapsing it to a plain
+	// string like the other handlers below.
+	@ExceptionHandler(ConfirmationRequiredException.class)
+	public ResponseEntity<Map<String, Object>> handleConfirmationRequired(ConfirmationRequiredException ex) {
+		Map<String, Object> body = new LinkedHashMap<>();
+		body.put("timestamp", Instant.now().toString());
+		body.put("status", HttpStatus.CONFLICT.value());
+		body.put("error", HttpStatus.CONFLICT.getReasonPhrase());
+		body.put("message", ex.getMessage());
+		if (ex.getDetails() != null) {
+			body.putAll(ex.getDetails());
+		}
+		return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
+	}
+
 	@ExceptionHandler(ResourceNotFoundException.class)
 	public ResponseEntity<Map<String, Object>> handleNotFound(ResourceNotFoundException ex) {
 		return buildResponse(HttpStatus.NOT_FOUND, ex.getMessage());

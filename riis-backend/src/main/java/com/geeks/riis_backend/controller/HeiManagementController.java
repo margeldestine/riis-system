@@ -63,6 +63,8 @@ public class HeiManagementController {
     }
 
     // PATCH /api/v1/admin/institutions/{id}/status — toggle active/inactive
+    // UC-M5-03: pass confirm=true in the body once the admin has
+    // acknowledged the active-staff warning (a 409 from the service).
     @PatchMapping("/{id}/status")
     @PreAuthorize("hasRole('DOST_ADMIN')")
     public ResponseEntity<Void> updateStatus(
@@ -72,11 +74,13 @@ public class HeiManagementController {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String adminId = auth != null ? auth.getName() : null;
         String status = body.get("status");
-        institutionService.updateStatus(id, status, adminId);
+        boolean confirm = Boolean.parseBoolean(body.get("confirm"));
+        institutionService.updateStatus(id, status, adminId, confirm);
         return ResponseEntity.ok().build();
     }
 
     // PATCH /api/v1/admin/institutions/{id} — edit type, province, emailDomain, status
+    // UC-M5-03: same confirm passthrough as above.
     @PatchMapping("/{id}")
     @PreAuthorize("hasRole('DOST_ADMIN')")
     public ResponseEntity<?> updateInstitution(
@@ -85,6 +89,7 @@ public class HeiManagementController {
     ) {
         Authentication auth = SecurityContextHolder.getContext().getAuthentication();
         String adminId = auth != null ? auth.getName() : null;
+        boolean confirm = Boolean.parseBoolean(body.get("confirm"));
 
         try {
             Institution saved = institutionService.updateInstitutionDetails(
@@ -93,7 +98,8 @@ public class HeiManagementController {
                     body.get("province"),
                     body.get("emailDomain"),
                     body.get("status"),
-                    adminId
+                    adminId,
+                    confirm
             );
 
             InstitutionSummaryDTO response = new InstitutionSummaryDTO(

@@ -16,15 +16,21 @@ public class EmailNotificationService {
 
 	private final ObjectProvider<JavaMailSender> mailSenderProvider;
 	private final String adminEmail;
+	// UC-M5-06: on send failure, each method below enqueues a retry here
+	// instead of only logging -- see EmailOutboxService's class comment
+	// for why this is an outbox + scheduler rather than @Retryable.
+	private final EmailOutboxService emailOutboxService;
 	@Value("${spring.mail.from:}")
 	private String fromEmail;
 
 	public EmailNotificationService(
 			ObjectProvider<JavaMailSender> mailSenderProvider,
-			@Value("${app.notification.admin-email:}") String adminEmail
+			@Value("${app.notification.admin-email:}") String adminEmail,
+			EmailOutboxService emailOutboxService
 	) {
 		this.mailSenderProvider = mailSenderProvider;
 		this.adminEmail = adminEmail == null ? "" : adminEmail.trim();
+		this.emailOutboxService = emailOutboxService;
 		log.info("EmailNotificationService initialized. adminEmail configured: {}", !this.adminEmail.isBlank());
 	}
 
@@ -64,6 +70,9 @@ public class EmailNotificationService {
 			log.info("[sendSubmissionConfirmation] Email sent successfully to {} (ref={})", toEmail, referenceNumber);
 		} catch (Exception e) {
 			log.error("[sendSubmissionConfirmation] Failed to send email to {} (ref={}): {}", toEmail, referenceNumber, e.getMessage(), e);
+			emailOutboxService.enqueue(toEmail, "Submission Received: " + referenceNumber,
+					"Your research output submission has been received.\n\nReference Number: " + referenceNumber,
+					e.getMessage());
 		}
 	}
 
@@ -90,6 +99,9 @@ public class EmailNotificationService {
 			log.info("[sendResubmissionNotificationToAdmin] Email sent successfully to admin {} (ref={})", adminEmail, referenceNumber);
 		} catch (Exception e) {
 			log.error("[sendResubmissionNotificationToAdmin] Failed to send email to admin {} (ref={}): {}", adminEmail, referenceNumber, e.getMessage(), e);
+			emailOutboxService.enqueue(adminEmail, "Submission Resubmitted: " + referenceNumber,
+					"A research output has been resubmitted.\n\nReference Number: " + referenceNumber,
+					e.getMessage());
 		}
 	}
 
@@ -122,6 +134,12 @@ public class EmailNotificationService {
 			log.info("[sendAccountApprovalEmail] Email sent successfully to {}", toEmail);
 		} catch (Exception e) {
 			log.error("[sendAccountApprovalEmail] Failed to send email to {}: {}", toEmail, e.getMessage(), e);
+			emailOutboxService.enqueue(toEmail, "Your DASIG Account Has Been Approved",
+					"Dear " + fullName + ",\n\n" +
+							"Your HEI Research Office Staff account has been approved. " +
+							"You can now log in to DASIG at http://localhost:5173/login\n\n" +
+							"If you did not register for this account, please ignore this email.",
+					e.getMessage());
 		}
 	}
 
@@ -154,6 +172,10 @@ public class EmailNotificationService {
 			mailSender.send(message);
 			log.info("[sendPasswordResetEmail] Email sent successfully to {}", toEmail);
 		} catch (Exception e) {
+			// UC-M5-06: deliberately NOT enqueued for retry -- the reset
+			// link is short-lived, so a retry minutes later would very
+			// likely deliver an already-expired link. The user's existing
+			// path (request another reset) is the correct recovery here.
 			log.error("[sendPasswordResetEmail] Failed to send email to {}: {}", toEmail, e.getMessage(), e);
 		}
 	}
@@ -183,6 +205,12 @@ public class EmailNotificationService {
 			log.info("[sendAccountRejectionEmail] Email sent successfully to {}", toEmail);
 		} catch (Exception e) {
 			log.error("[sendAccountRejectionEmail] Failed to send email to {}: {}", toEmail, e.getMessage(), e);
+			emailOutboxService.enqueue(toEmail, "Your DASIG Account Registration Was Not Approved",
+					"Dear " + fullName + ",\n\n" +
+							"Unfortunately, your HEI Research Office Staff account registration has been rejected.\n\n" +
+							"Reason:\n" + (reason != null ? reason : "No reason provided.") + "\n\n" +
+							"If you believe this is a mistake, please contact your DOST Region VII administrator.",
+					e.getMessage());
 		}
 	}
 
@@ -221,6 +249,16 @@ public class EmailNotificationService {
 			return java.util.concurrent.CompletableFuture.completedFuture(true);
 		} catch (Exception e) {
 			log.error("[sendOverlapDetectionAlert] Failed to send email to {}: {}", toEmail, e.getMessage(), e);
+			emailOutboxService.enqueue(toEmail, "Similarity Flag: Related Research Output Found",
+					"A similarity flag has been raised for your recently approved research output.\n\n" +
+							"Your Research: " + newRecordTitle + "\n" +
+							"Similar Existing Research: " + existingRecordTitle + "\n" +
+							"Institution: " + existingRecordHei + "\n" +
+							"Similarity Score: " + String.format("%.1f", similarityScore * 100) + "%\n\n" +
+							"Please review this similarity flag and coordinate with the relevant institution if necessary.\n\n" +
+							"Note: This is an automated similarity signal based on text embeddings. It is intended to " +
+							"assist human reviewers and does not constitute a confirmed finding of duplication or plagiarism.",
+					e.getMessage());
 			return java.util.concurrent.CompletableFuture.completedFuture(false);
 		}
 	}

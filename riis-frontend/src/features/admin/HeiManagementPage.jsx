@@ -13,13 +13,13 @@ const postInstitution = async (payload) => {
   return data
 }
 
-const patchInstitutionStatus = async (id, status) => {
-  const { data } = await apiClient.patch(`/admin/institutions/${id}/status`, { status })
+const patchInstitutionStatus = async (id, status, confirm = false) => {
+  const { data } = await apiClient.patch(`/admin/institutions/${id}/status`, { status, confirm: confirm ? 'true' : 'false' })
   return data
 }
 
-const patchInstitutionDetails = async (id, payload) => {
-  const { data } = await apiClient.patch(`/admin/institutions/${id}`, payload)
+const patchInstitutionDetails = async (id, payload, confirm = false) => {
+  const { data } = await apiClient.patch(`/admin/institutions/${id}`, { ...payload, confirm: confirm ? 'true' : 'false' })
   return data
 }
 
@@ -292,10 +292,16 @@ function EditHEIModal({ institution, onClose, onSuccess }) {
   })
   const [errors, setErrors] = useState({})
   const [submitting, setSubmitting] = useState(false)
+  // UC-M5-03: set when the backend returns a 409 warning that the target
+  // institution still has active HEI staff accounts. Holds the warning
+  // message + count so the admin can review and confirm before we resend
+  // the same request with confirm=true.
+  const [pendingWarning, setPendingWarning] = useState(null)
 
   const set = (field, value) => {
     setForm(f => ({ ...f, [field]: value }))
     setErrors(e => ({ ...e, [field]: '' }))
+    setPendingWarning(null)
   }
 
   const validate = () => {
@@ -309,10 +315,7 @@ function EditHEIModal({ institution, onClose, onSuccess }) {
     return e
   }
 
-  const handleSubmit = async () => {
-    const e = validate()
-    if (Object.keys(e).length) { setErrors(e); return }
-
+  const submitDetails = async (confirm) => {
     setSubmitting(true)
     try {
       await patchInstitutionDetails(institution.id, {
@@ -320,15 +323,32 @@ function EditHEIModal({ institution, onClose, onSuccess }) {
         province:    form.province,
         emailDomain: form.emailDomain.trim().toLowerCase(),
         status:      form.status,
-      })
+      }, confirm)
       onSuccess()
       onClose()
     } catch (err) {
+      if (err?.response?.status === 409 && err?.response?.data?.requiresConfirmation) {
+        setPendingWarning({
+          message: err.response.data.message,
+          activeStaffCount: err.response.data.activeStaffCount,
+        })
+        return
+      }
       const msg = err?.response?.data?.message || 'Unable to update institution.'
       setErrors({ _global: msg })
     } finally {
       setSubmitting(false)
     }
+  }
+
+  const handleSubmit = async () => {
+    const e = validate()
+    if (Object.keys(e).length) { setErrors(e); return }
+    await submitDetails(false)
+  }
+
+  const handleConfirmDeactivation = async () => {
+    await submitDetails(true)
   }
 
   const inputStyle = (hasErr) => ({
@@ -419,16 +439,31 @@ function EditHEIModal({ institution, onClose, onSuccess }) {
             </div>
           </div>
 
+          {pendingWarning && (
+            <div style={{ marginBottom: 18, padding: '14px 16px', background: '#fffbeb', border: '1.5px solid #fde68a', borderRadius: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                <span style={{ fontSize: 16 }}>⚠</span>
+                <strong style={{ fontSize: 13, color: '#92400e' }}>This will affect active staff</strong>
+              </div>
+              <p style={{ margin: 0, fontSize: 13, color: '#78350f', lineHeight: 1.5 }}>{pendingWarning.message}</p>
+            </div>
+          )}
+
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <button onClick={onClose} style={{ padding: '10px 20px', borderRadius: 8, border: '1.5px solid #d1d5db', background: '#fff', fontWeight: 500, fontSize: 14, cursor: 'pointer', color: '#374151' }}>
               Cancel
             </button>
             <button
-              onClick={handleSubmit}
+              onClick={pendingWarning ? handleConfirmDeactivation : handleSubmit}
               disabled={submitting}
-              style={{ padding: '10px 24px', borderRadius: 8, border: 'none', background: '#1e3a5f', color: '#fff', fontWeight: 700, fontSize: 14, cursor: submitting ? 'not-allowed' : 'pointer', opacity: submitting ? 0.7 : 1 }}
+              style={{
+                padding: '10px 24px', borderRadius: 8, border: 'none',
+                background: pendingWarning ? '#b45309' : '#1e3a5f',
+                color: '#fff', fontWeight: 700, fontSize: 14,
+                cursor: submitting ? 'not-allowed' : 'pointer', opacity: submitting ? 0.7 : 1,
+              }}
             >
-              {submitting ? 'Saving…' : 'Save »'}
+              {submitting ? 'Saving…' : pendingWarning ? 'Confirm & Save Anyway »' : 'Save »'}
             </button>
           </div>
         </div>
@@ -469,6 +504,10 @@ export default function HeiManagementPage() {
 
   useEffect(() => { load() }, [])
 
+  // UC-M5-03: if deactivating would strand active HEI staff, the backend
+  // returns a 409 warning; this quick-toggle path (no modal context to show
+  // an inline banner in) confirms via window.confirm and resends with
+  // confirm=true if the admin agrees.
   const handleToggleStatus = async (inst) => {
     const next = inst.whitelistStatus === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE'
     setEditingId(inst.id)
@@ -476,7 +515,19 @@ export default function HeiManagementPage() {
       await patchInstitutionStatus(inst.id, next)
       await load()
     } catch (err) {
-      console.error('[HEIManagementPage] Status update failed:', err)
+      if (err?.response?.status === 409 && err?.response?.data?.requiresConfirmation) {
+        const proceed = window.confirm(err.response.data.message)
+        if (proceed) {
+          try {
+            await patchInstitutionStatus(inst.id, next, true)
+            await load()
+          } catch (confirmErr) {
+            console.error('[HEIManagementPage] Confirmed status update failed:', confirmErr)
+          }
+        }
+      } else {
+        console.error('[HEIManagementPage] Status update failed:', err)
+      }
     } finally {
       setEditingId(null)
     }
