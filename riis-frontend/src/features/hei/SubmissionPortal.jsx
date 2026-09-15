@@ -223,10 +223,10 @@ function formatConferenceUrlInput(value) {
   return raw
 }
 
-const namePattern = /^[A-Za-z]+(?:[ '-][A-Za-z]+)*$/
+const namePattern = /^[A-Za-z]+(?:[ '.-]+[A-Za-z]+)*\.?$/
 
 function sanitizeFullNameInput(value) {
-  return (value ?? '').replace(/[^A-Za-z\s'-]/g, '')
+  return (value ?? '').replace(/[^A-Za-z\s'.-]/g, '')
 }
 
 function sanitizeKeywordInput(value) {
@@ -378,7 +378,7 @@ const authorSchema = z.object({
     .trim()
     .min(1, 'Author full name is required.')
     .regex(namePattern, {
-      message: 'Full name can only contain letters, spaces, hyphens, and apostrophes.',
+      message: 'Full name can only contain letters, spaces, hyphens, apostrophes, and periods.',
     }),
   orcidId: z
     .string()
@@ -1458,7 +1458,7 @@ export default function SubmissionPortal({ onSubmitted }) {
   const flagBlockedNameChar = (index) => {
     setAuthorNameWarnings((prev) => ({
       ...prev,
-      [index]: 'Numbers and special characters are not allowed in names.',
+      [index]: 'Only letters, spaces, hyphens, apostrophes, and periods are allowed in names.',
     }))
     clearTimeout(nameWarningTimers.current[index])
     nameWarningTimers.current[index] = setTimeout(() => {
