@@ -7,6 +7,9 @@ import jakarta.validation.Valid;
 import java.util.List;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -35,6 +38,29 @@ public class UserManagementController {
         return ResponseEntity.ok(userApprovalService.getUsersByRoleAndStatus(role, status));
     }
 
+    // UC-M5-04: full account directory, searchable/filterable by role,
+    // institution, and status (each optional, unlike the fixed-pair /
+    // endpoint above which AccountApprovalQueuePage.jsx already depends
+    // on). Kept as a separate sub-path so that existing contract is left
+    // untouched.
+    @GetMapping("/directory")
+    @PreAuthorize("hasRole('DOST_ADMIN')")
+    public ResponseEntity<Page<PendingUserResponse>> getAccountDirectory(
+            @RequestParam(required = false) String role,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String institutionId,
+            @RequestParam(required = false) String search,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size
+    ) {
+        PageRequest pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
+        return ResponseEntity.ok(userApprovalService.searchAccounts(role, status, institutionId, search, pageable));
+    }
+
+    // UC-M5-04: same endpoint now also handles active-account actions
+    // (SUSPENDED / DEACTIVATED / REACTIVATED / ROLE_CHANGED), not just the
+    // PENDING -> ACTIVE/REJECTED decision. Self-deactivation is rejected
+    // server-side in the service layer.
     @PatchMapping("/{id}/status")
     @PreAuthorize("hasRole('DOST_ADMIN')")
     public ResponseEntity<Void> updateUserStatus(

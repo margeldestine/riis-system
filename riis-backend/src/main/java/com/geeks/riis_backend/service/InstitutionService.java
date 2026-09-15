@@ -11,6 +11,7 @@ import com.geeks.riis_backend.dto.RegisterHEIDTO;
 import com.geeks.riis_backend.dto.ResearchOutputExportRowDTO;
 import com.geeks.riis_backend.dto.ThemeKeywordDTO;
 import com.geeks.riis_backend.exception.BadRequestException;
+import com.geeks.riis_backend.exception.ConfirmationRequiredException;
 import com.geeks.riis_backend.exception.ResourceNotFoundException;
 import com.geeks.riis_backend.model.AuditLogEntry;
 import com.geeks.riis_backend.model.Author;
@@ -138,8 +139,8 @@ public class InstitutionService {
         Page<PublicOutputCardDTO> outputDTOs = outputPage.map(ro -> {
             List<PublicAuthorDTO> authors = ro.getAuthors() == null ? List.of() :
                     ro.getAuthors().stream()
-                            .map(a -> new PublicAuthorDTO(a.getFullName(), a.getOrcidId()))
-                            .collect(Collectors.toList());
+                    .map(a -> new PublicAuthorDTO(a.getFullName(), a.getOrcidId()))
+                    .collect(Collectors.toList());
 
             String excerpt = ro.getAbstractText() != null && ro.getAbstractText().length() > 300
                     ? ro.getAbstractText().substring(0, 300) + "…"
@@ -265,9 +266,9 @@ public class InstitutionService {
                         ro.getDoi(),
                         ro.getAuthors() == null ? List.of() :
                                 ro.getAuthors().stream()
-                                        .map(Author::getFullName)
-                                        .filter(name -> name != null && !name.isBlank())
-                                        .collect(Collectors.toList())
+                                .map(Author::getFullName)
+                                .filter(name -> name != null && !name.isBlank())
+                                .collect(Collectors.toList())
                 ))
                 .collect(Collectors.toList());
 
@@ -334,6 +335,15 @@ public class InstitutionService {
 
 
     public void updateStatus(UUID id, String newStatus, String adminEmail) {
+        updateStatus(id, newStatus, adminEmail, false);
+    }
+
+    // UC-M5-03: overload accepting an explicit confirm flag -- when the
+    // target status is INACTIVE/SUSPENDED and the institution still has
+    // ACTIVE HEI_STAFF accounts, the change is blocked with a 409 warning
+    // unless the caller passes confirm=true (i.e. the admin acknowledged
+    // the warning and resent the request).
+    public void updateStatus(UUID id, String newStatus, String adminEmail, boolean confirm) {
         Institution inst = institutionRepository.findById(id.toString())
                 .orElseThrow(() -> new ResourceNotFoundException("Institution not found: " + id));
 
@@ -341,12 +351,21 @@ public class InstitutionService {
             throw new BadRequestException("Status is required.");
         }
 
-        inst.setWhitelistStatus(newStatus.toUpperCase());
+        String normalizedStatus = newStatus.toUpperCase();
+        warnIfDeactivatingWithActiveStaff(inst, normalizedStatus, confirm);
+
+        inst.setWhitelistStatus(normalizedStatus);
         institutionRepository.save(inst);
         writeAuditLog("UPDATE_HEI_STATUS", inst.getId(), adminEmail, newStatus);
     }
 
     public Institution updateInstitutionDetails(UUID id, String type, String province, String emailDomain, String status, String adminEmail) {
+        return updateInstitutionDetails(id, type, province, emailDomain, status, adminEmail, false);
+    }
+
+    // UC-M5-03: same confirm-flag pattern as updateStatus above, applied
+    // to the combined details-edit endpoint (EditHEIModal's Save action).
+    public Institution updateInstitutionDetails(UUID id, String type, String province, String emailDomain, String status, String adminEmail, boolean confirm) {
         Institution inst = institutionRepository.findById(id.toString())
                 .orElseThrow(() -> new ResourceNotFoundException("Institution not found: " + id));
 
@@ -367,12 +386,38 @@ public class InstitutionService {
             inst.setContactEmail(cleanDomain);
         }
         if (status != null && !status.isBlank()) {
-            inst.setWhitelistStatus(status.trim().toUpperCase());
+            String normalizedStatus = status.trim().toUpperCase();
+            warnIfDeactivatingWithActiveStaff(inst, normalizedStatus, confirm);
+            inst.setWhitelistStatus(normalizedStatus);
         }
 
         Institution saved = institutionRepository.save(inst);
         writeAuditLog("UPDATE_HEI_DETAILS", saved.getId(), adminEmail, null);
         return saved;
+    }
+
+    // UC-M5-03: shared guard for both status-change entry points. Only
+    // fires when moving INTO INACTIVE/SUSPENDED -- reactivating an HEI, or
+    // leaving it ACTIVE, never needs this warning.
+    private void warnIfDeactivatingWithActiveStaff(Institution inst, String normalizedNewStatus, boolean confirm) {
+        boolean isDeactivating = "INACTIVE".equals(normalizedNewStatus) || "SUSPENDED".equals(normalizedNewStatus);
+        boolean wasAlreadyDeactivated = "INACTIVE".equals(inst.getWhitelistStatus()) || "SUSPENDED".equals(inst.getWhitelistStatus());
+
+        if (!isDeactivating || wasAlreadyDeactivated || confirm) {
+            return;
+        }
+
+        long activeStaffCount = userRepository.countByInstitutionIdAndRoleAndStatus(
+                inst.getId(), "HEI_STAFF", "ACTIVE");
+
+        if (activeStaffCount > 0) {
+            throw new ConfirmationRequiredException(
+                    "This institution has " + activeStaffCount + " active HEI staff account(s). "
+                            + "Setting it to " + normalizedNewStatus + " will immediately block their access. "
+                            + "Confirm to proceed.",
+                    Map.of("activeStaffCount", activeStaffCount, "requiresConfirmation", true)
+            );
+        }
     }
 
 
