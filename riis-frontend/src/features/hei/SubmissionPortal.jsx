@@ -7,7 +7,8 @@ import {
   UploadCloud,
   X,
   ChevronRight,
-  Info
+  Info,
+  Sparkles
 } from 'lucide-react'
 import '@fontsource/inter'
 import '@fontsource/libre-baskerville'
@@ -16,6 +17,10 @@ import { z } from 'zod'
 import { useLocation, useNavigate } from 'react-router-dom'
 import axios from 'axios'
 import apiClient from '../../services/apiClient'
+import PdfIntakeStep from './PdfIntakeStep'
+import { AutoFillBadge } from './AutoFillBadge'
+import { AutoFillContext } from './autoFillContext'
+import { buildPrefill, isDirtyValue } from './pdfPrefill'
 
 // Same env-var pattern as apiClient.js -- this file makes several raw
 // axios/fetch calls (token refresh, file upload, submit/resubmit) that
@@ -687,6 +692,7 @@ function BasicInfoStep({ register, errors, watchedTitle }) {
         <div className="space-y-2 md:col-span-2">
           <label className={fieldLabelClass}>
             Research Title <span className="text-[#C9A84C]">*</span>
+            <AutoFillBadge field="title" />
           </label>
           <input
             {...register('title')}
@@ -784,6 +790,7 @@ function TeamAffiliationStep({
             <div>
               <p className={fieldLabelClass}>
                 Author(s) <span className="text-[#C9A84C]">*</span>
+                <AutoFillBadge field="authors" />
               </p>
             </div>
             <button
@@ -981,6 +988,7 @@ function TeamAffiliationStep({
     <div className="space-y-2">
       <label className={fieldLabelClass}>
         Keywords <span className="text-[#C9A84C]">*</span>
+        <AutoFillBadge field="keywords" />
       </label>
       <div
         className={`rounded-[6px] border bg-[#f8fafc] px-3 py-3 transition focus-within:ring-2 ${
@@ -1068,6 +1076,7 @@ function TeamAffiliationStep({
         <div className="space-y-2">
           <label className={fieldLabelClass}>
             Abstract <span className="text-[#C9A84C]">*</span>
+            <AutoFillBadge field="abstractText" />
           </label>
           <textarea
             {...abstractRegister}
@@ -1294,6 +1303,7 @@ function DublinCoreMetadataStep({
               <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium normal-case tracking-normal text-slate-400">
                 optional
               </span>
+              <AutoFillBadge field="doi" />
             </label>
             <Controller
               control={control}
@@ -1444,6 +1454,17 @@ export default function SubmissionPortal({ onSubmitted }) {
   const location = useLocation()
   const navigate = useNavigate()
   const [currentStep, setCurrentStep] = useState(1)
+
+  // ---- Guided PDF intake (Refactoring Priority 2) --------------------------
+  // intakeDone:   the optional "Step 0" PDF screen has been passed (or skipped)
+  // autoFilled:   { fieldName: { confidence, state: 'pending' | 'verified' } } drives the badges
+  // pdfExtraction: last API result, kept for its warnings
+  // Editing an existing submission never shows the intake screen.
+  const [intakeDone, setIntakeDone] = useState(false)
+  const [autoFilled, setAutoFilled] = useState({})
+  const [pdfExtraction, setPdfExtraction] = useState(null)
+  const isEditMode = Boolean(location?.state?.editSubmissionId || location?.state?.initialSubmission)
+  const showIntake = !intakeDone && !isEditMode
   const [submitSuccess, setSubmitSuccess] = useState(false)
   const [keywordInput, setKeywordInput] = useState('')
   const [submitError, setSubmitError] = useState('')
@@ -1537,7 +1558,7 @@ export default function SubmissionPortal({ onSubmitted }) {
     clearErrors,
     getValues,
     trigger,
-    formState: { errors, touchedFields },
+    formState: { errors, touchedFields, dirtyFields },
   } = useForm({
     resolver: zodResolver(submissionSchema),
     mode: 'onChange',
@@ -1603,6 +1624,9 @@ const authorOptions = useMemo(
     setFieldBanner('')
     setBannerErrors([])
     setCurrentStep(1)
+    setIntakeDone(false)
+    setAutoFilled({})
+    setPdfExtraction(null)
     setKeywordInput('')
     setExistingAttachmentKey(null)
     setFormSubmitAttempted(false)
@@ -1877,6 +1901,83 @@ const addKeyword = () => {
 
     return mapped
   }
+
+  // ---- Guided PDF intake handlers ------------------------------------------
+  const extractPdfMetadata = async (file, signal) => {
+    const token = (await ensureFreshToken()) || ''
+    const formData = new FormData()
+    formData.append('file', file, file.name)
+
+    const response = await fetch(`${API_BASE_URL}/submissions/extract-metadata`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` }, // no Content-Type: the browser sets the multipart boundary
+      body: formData,
+      signal,
+    })
+
+    if (!response.ok) {
+      let detail = ''
+      try {
+        detail = (await response.json())?.message || ''
+      } catch {
+        // response body was not JSON
+      }
+      throw new Error(
+        detail ||
+          (response.status === 401 || response.status === 403
+            ? 'Your session has expired. Please sign in again.'
+            : 'We could not read this PDF. You can continue and enter the details yourself.'),
+      )
+    }
+    return response.json()
+  }
+
+  // Hydrates Steps 1-4 in one go. reset() (not setValue per field) so the extracted values
+  // become the form's baseline: dirtyFields then means "edited after auto-fill", which is what
+  // flips a badge from "please verify" to "Checked".
+  const applyPdfExtraction = (result, file) => {
+    const { values, filled } = buildPrefill(result)
+    reset({ ...getValues(), ...values, attachment: file })
+    setAutoFilled(
+      Object.fromEntries(
+        Object.entries(filled).map(([field, confidence]) => [field, { confidence, state: 'pending' }]),
+      ),
+    )
+    setPdfExtraction(result)
+    setFormSubmitAttempted(false)
+    const filledFields = Object.keys(values)
+    // Validate what we filled so problems (e.g. an abstract under 100 words) show immediately.
+    if (filledFields.length > 0) setTimeout(() => trigger(filledFields), 0)
+  }
+
+  const attachPdfOnly = (file) => {
+    setValue('attachment', file, { shouldDirty: true, shouldValidate: true })
+    setAutoFilled({})
+    setPdfExtraction(null)
+  }
+
+  const continueFromIntake = () => {
+    setIntakeDone(true)
+    setCurrentStep(1)
+  }
+
+  // A badge reads "Checked" once the user clicked it or edited the field. Derived on every render
+  // (no effect, no extra state): RHF's dirtyFields is mutated in place, so it is not a reliable
+  // memo dependency, and the map is tiny.
+  const autoFillFields = Object.fromEntries(
+    Object.entries(autoFilled).map(([field, info]) => [
+      field,
+      info.state === 'pending' && isDirtyValue(dirtyFields?.[field]) ? { ...info, state: 'verified' } : info,
+    ]),
+  )
+  const autoFillContextValue = {
+    fields: autoFillFields,
+    markVerified: (field) =>
+      setAutoFilled((prev) =>
+        prev[field] ? { ...prev, [field]: { ...prev[field], state: 'verified' } } : prev,
+      ),
+  }
+  const pendingAutoFillCount = Object.values(autoFillFields).filter((item) => item.state === 'pending').length
 
   const maybeUploadAttachment = async (file) => {
   if (!file) return null
@@ -2165,7 +2266,7 @@ const addKeyword = () => {
         </div>
         <div className="h-px w-full bg-[#c9a84c]" />
         <div className="px-8 py-6">
-          <StepProgress currentStep={currentStep} />
+          <StepProgress currentStep={showIntake ? 0 : currentStep} />
         </div>
       </div>
 
@@ -2187,9 +2288,41 @@ const addKeyword = () => {
             </div>
           ) : null}
 
-            {renderStep()}
+            <AutoFillContext.Provider value={autoFillContextValue}>
+              {showIntake ? (
+                <PdfIntakeStep
+                  onExtract={extractPdfMetadata}
+                  onApply={applyPdfExtraction}
+                  onAttachOnly={attachPdfOnly}
+                  onContinue={continueFromIntake}
+                />
+              ) : (
+                renderStep()
+              )}
+            </AutoFillContext.Provider>
 
-            {currentStep === 1 ? (
+            {!showIntake && currentStep === 1 && pdfExtraction?.extracted ? (
+              <div className="mt-6 flex w-full items-start gap-3 rounded-[2px] border border-[#fde68a] bg-[#fffbeb] px-4 py-3 text-[13px] text-[#92400e]">
+                <Sparkles className="mt-0.5 h-4 w-4 shrink-0" />
+                <p>
+                  Some fields were pre-filled from your PDF. Please check each one marked{' '}
+                  <span className="font-semibold">Auto-filled</span> across Steps 1-4; automatic reading can
+                  make mistakes, especially with author names.
+                </p>
+              </div>
+            ) : null}
+
+            {!showIntake && currentStep === 5 && pendingAutoFillCount > 0 ? (
+              <div className="mt-6 flex w-full items-start gap-3 rounded-[2px] border border-[#fde68a] bg-[#fffbeb] px-4 py-3 text-[13px] text-[#92400e]">
+                <Sparkles className="mt-0.5 h-4 w-4 shrink-0" />
+                <p>
+                  {pendingAutoFillCount} auto-filled field{pendingAutoFillCount === 1 ? '' : 's'} not yet marked
+                  as checked. Review the values above; you can still go back and edit them.
+                </p>
+              </div>
+            ) : null}
+
+            {!showIntake && currentStep === 1 ? (
               <div className="mt-6 flex w-full items-center gap-3 rounded-[2px] border border-[#bfdbfe] bg-[#eff6ff] px-4 py-3 text-[13px] text-[#0d1f3c]">
                 <Info className="h-4 w-4 shrink-0 text-[#3b82f6]" />
                 <p>
@@ -2210,7 +2343,7 @@ const addKeyword = () => {
             ) : null}
           </div>
 
-          <div className="flex w-full items-center justify-between border-t border-[#e5e7eb] bg-[#f8fafc] px-8 py-4">
+          <div className={`flex w-full items-center justify-between border-t border-[#e5e7eb] bg-[#f8fafc] px-8 py-4 ${showIntake ? 'hidden' : ''}`}>
             <button
             type="button"
             onClick={() => {

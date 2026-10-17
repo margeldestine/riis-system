@@ -2,22 +2,34 @@ package com.geeks.riis_backend.controller;
 
 import com.geeks.riis_backend.dto.OverlapAlertGroupDTO;
 import com.geeks.riis_backend.dto.OverlapMatchDTO;
+import com.geeks.riis_backend.dto.SimilarityDispositionHistoryEntryDTO;
+import com.geeks.riis_backend.dto.SimilarityDispositionRequest;
 import com.geeks.riis_backend.model.Institution;
 import com.geeks.riis_backend.model.OverlapAlert;
+import com.geeks.riis_backend.model.SimilarityDispositionStatus;
 import com.geeks.riis_backend.model.ValidationLog;
 import com.geeks.riis_backend.repository.InstitutionRepository;
 import com.geeks.riis_backend.repository.OverlapAlertRepository;
 import com.geeks.riis_backend.repository.ValidationLogRepository;
+import com.geeks.riis_backend.service.SimilarityDispositionService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -30,33 +42,31 @@ public class QualityController {
     private final OverlapAlertRepository overlapAlertRepository;
     private final ValidationLogRepository validationLogRepository;
     private final InstitutionRepository institutionRepository;
+    private final SimilarityDispositionService similarityDispositionService;
 
     @GetMapping("/overlaps")
     @PreAuthorize("hasRole('DOST_ADMIN')")
     public ResponseEntity<List<OverlapAlertGroupDTO>> getOverlapAlerts(
-            @RequestParam(defaultValue = "0.80") double minScore) {
+            @RequestParam(defaultValue = "0.80") double minScore,
+            @RequestParam(required = false) String status) {
 
-        List<OverlapAlert> alerts = overlapAlertRepository.findAll().stream()
-                .filter(a -> a.getSimilarityScore() >= minScore)
-                .collect(Collectors.toList());
+        SimilarityDispositionStatus statusFilter =
+                (status == null || status.isBlank()) ? null : SimilarityDispositionStatus.fromString(status);
+
+        List<OverlapAlert> alerts = statusFilter == null
+                ? overlapAlertRepository.findBySimilarityScoreGreaterThanEqualOrderByDetectedAtDesc(minScore)
+                : overlapAlertRepository.findBySimilarityScoreGreaterThanEqualAndStatusOrderByDetectedAtDesc(
+                        minScore, statusFilter);
 
         Map<String, List<OverlapAlert>> groupedByNewRecord = alerts.stream()
-                .collect(Collectors.groupingBy(a -> a.getNewRecord().getId()));
+                .collect(Collectors.groupingBy(a -> a.getNewRecord().getId(), LinkedHashMap::new, Collectors.toList()));
 
         List<OverlapAlertGroupDTO> result = groupedByNewRecord.values().stream()
                 .map(group -> {
                     OverlapAlert first = group.get(0);
 
                     List<OverlapMatchDTO> matches = group.stream()
-                            .map(a -> new OverlapMatchDTO(
-                                    a.getId(),
-                                    a.getExistingRecord().getId(),
-                                    a.getExistingRecord().getTitle(),
-                                    a.getExistingRecord().getInstitution() != null ?
-                                            a.getExistingRecord().getInstitution().getName() : "Unknown",
-                                    a.getSimilarityScore(),
-                                    a.isNotificationSent()
-                            ))
+                            .map(similarityDispositionService::toMatchDto)
                             .collect(Collectors.toList());
 
                     return new OverlapAlertGroupDTO(
@@ -72,6 +82,38 @@ public class QualityController {
                 .collect(Collectors.toList());
 
         return ResponseEntity.ok(result);
+    }
+
+    // Refactoring Priority 2: disposition workflow for similarity flags.
+    // Covered by the URL-level rule /api/v1/quality/** (DOST_ADMIN) in SecurityConfig
+    // AND by @PreAuthorize here -- two independent layers, same as the rest of this controller.
+    @PatchMapping("/overlaps/{alertId}/disposition")
+    @PreAuthorize("hasRole('DOST_ADMIN')")
+    public ResponseEntity<OverlapMatchDTO> updateDisposition(
+            @PathVariable String alertId,
+            @Valid @RequestBody SimilarityDispositionRequest request) {
+        String actorUserId = getAuthenticatedUserId();
+        return ResponseEntity.ok(similarityDispositionService.updateDisposition(alertId, actorUserId, request));
+    }
+
+    @GetMapping("/overlaps/{alertId}/history")
+    @PreAuthorize("hasRole('DOST_ADMIN')")
+    public ResponseEntity<List<SimilarityDispositionHistoryEntryDTO>> getDispositionHistory(
+            @PathVariable String alertId) {
+        return ResponseEntity.ok(similarityDispositionService.getHistory(alertId));
+    }
+
+    private String getAuthenticatedUserId() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unauthorized");
+        }
+        Object principal = authentication.getPrincipal();
+        String userId = principal == null ? null : principal.toString();
+        if (userId == null || userId.isBlank() || "anonymousUser".equalsIgnoreCase(userId)) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unauthorized");
+        }
+        return userId;
     }
 
     @GetMapping("/metrics")

@@ -13,5 +13,9 @@ public record OverlapAlertDTO(
         String existingRecordHei,
         double similarityScore,
         LocalDateTime detectedAt,
-        boolean notificationSent
+        boolean notificationSent,
+        String status,
+        String dispositionNotes,
+        String reviewedByName,
+        LocalDateTime reviewedAt
 ) {}

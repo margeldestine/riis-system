@@ -1,5 +1,6 @@
 package com.geeks.riis_backend.controller;
 
+import com.geeks.riis_backend.dto.PdfMetadataExtractionResponseDTO;
 import com.geeks.riis_backend.dto.SubmissionRequest;
 import com.geeks.riis_backend.dto.SubmissionFilterDTO;
 import com.geeks.riis_backend.dto.SubmissionDetailDTO;
@@ -7,6 +8,8 @@ import com.geeks.riis_backend.dto.SubmissionResponse;
 import com.geeks.riis_backend.dto.SubmissionSummaryDTO;
 import com.geeks.riis_backend.dto.UploadUrlRequest;
 import com.geeks.riis_backend.dto.UploadUrlResponse;
+import com.geeks.riis_backend.exception.BadRequestException;
+import com.geeks.riis_backend.service.PdfMetadataExtractionService;
 import com.geeks.riis_backend.service.S3UploadService;
 import com.geeks.riis_backend.service.SubmissionService;
 import jakarta.validation.Valid;
@@ -34,6 +37,7 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 import com.geeks.riis_backend.dto.SubmitterDTO;
 
+import java.io.IOException;
 import java.util.List;
 
 @RestController
@@ -42,10 +46,16 @@ public class SubmissionController {
 
 	private final SubmissionService submissionService;
 	private final S3UploadService s3UploadService;
+	private final PdfMetadataExtractionService pdfMetadataExtractionService;
 
-	public SubmissionController(SubmissionService submissionService, S3UploadService s3UploadService) {
+	public SubmissionController(
+			SubmissionService submissionService,
+			S3UploadService s3UploadService,
+			PdfMetadataExtractionService pdfMetadataExtractionService
+	) {
 		this.submissionService = submissionService;
 		this.s3UploadService = s3UploadService;
+		this.pdfMetadataExtractionService = pdfMetadataExtractionService;
 	}
 
 
@@ -88,6 +98,54 @@ public class SubmissionController {
 
 		S3UploadService.PresignedUpload upload = s3UploadService.uploadFile(institutionId, file);
 		return ResponseEntity.ok(new UploadUrlResponse(upload.uploadUrl(), upload.objectKey()));
+	}
+
+	/**
+	 * Guided PDF intake: reads the front matter of a research PDF and returns
+	 * advisory values for the submission form. Nothing is stored -- the PDF is
+	 * parsed in memory (multipart) or read from the caller's own S3 prefix
+	 * (objectKey) -- and the endpoint answers 200 even for scanned/corrupt PDFs
+	 * (see PdfMetadataExtractionResponseDTO.status).
+	 *
+	 * Exactly one of {@code file} or {@code objectKey} must be supplied.
+	 */
+	@PostMapping("/extract-metadata")
+	@PreAuthorize("hasAnyAuthority('HEI_STAFF', 'ROLE_HEI_STAFF')")
+	public ResponseEntity<PdfMetadataExtractionResponseDTO> extractMetadata(
+			@RequestParam(value = "file", required = false) MultipartFile file,
+			@RequestParam(value = "objectKey", required = false) String objectKey
+	) {
+		String userId = getAuthenticatedUserId();
+		boolean hasFile = file != null && !file.isEmpty();
+		boolean hasKey = objectKey != null && !objectKey.isBlank();
+		if (hasFile == hasKey) {
+			throw new BadRequestException("Provide either a PDF file or an objectKey (exactly one).");
+		}
+
+		if (hasFile) {
+			String contentType = file.getContentType() == null ? "" : file.getContentType().trim().toLowerCase();
+			boolean typeOk = contentType.isEmpty()
+					|| contentType.equals("application/pdf")
+					|| contentType.equals("application/octet-stream");
+			if (!typeOk) {
+				throw new BadRequestException("Only PDF files can be read.");
+			}
+			try {
+				return ResponseEntity.ok(pdfMetadataExtractionService.extractFromBytes(file.getBytes()));
+			} catch (IOException e) {
+				throw new BadRequestException("The uploaded file could not be read.");
+			}
+		}
+
+		// Storage-key mode: only keys under the caller's own institution prefix,
+		// otherwise any HEI officer could read another institution's PDFs.
+		String institutionId = submissionService.getInstitutionIdForUser(userId);
+		String key = objectKey.trim();
+		String ownPrefix = institutionId.trim() + "/submissions/";
+		if (!key.startsWith(ownPrefix) || key.contains("..")) {
+			throw new BadRequestException("That storage key does not belong to your institution.");
+		}
+		return ResponseEntity.ok(pdfMetadataExtractionService.extractFromS3Key(key));
 	}
 
 	@GetMapping

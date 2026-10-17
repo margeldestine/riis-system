@@ -2,6 +2,8 @@ package com.geeks.riis_backend.model;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
@@ -58,4 +60,24 @@ public class OverlapAlert {
 	@CreationTimestamp
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private LocalDateTime createdAt;
+
+	// ---- Disposition workflow (V7) ----------------------------------------
+
+	// @Builder.Default is required: OverlapDetectionService creates alerts with
+	// OverlapAlert.builder()...build() and never sets a status, and without it the
+	// builder would pass null into a NOT NULL column.
+	@Enumerated(EnumType.STRING)
+	@Column(name = "status", nullable = false, length = 40)
+	@Builder.Default
+	private SimilarityDispositionStatus status = SimilarityDispositionStatus.OPEN;
+
+	@Column(name = "disposition_notes", columnDefinition = "text")
+	private String dispositionNotes;
+
+	@ManyToOne(fetch = FetchType.LAZY)
+	@JoinColumn(name = "reviewed_by")
+	private User reviewedBy;
+
+	@Column(name = "reviewed_at")
+	private LocalDateTime reviewedAt;
 }

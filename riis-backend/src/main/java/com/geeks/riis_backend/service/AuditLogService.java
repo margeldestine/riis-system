@@ -1,5 +1,6 @@
 package com.geeks.riis_backend.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.geeks.riis_backend.dto.AuditLogEntryDTO;
 import com.geeks.riis_backend.exception.ResourceNotFoundException;
@@ -57,6 +58,39 @@ public class AuditLogService {
 				.targetType(targetType)
 				.targetId(targetId)
 				.comment(comment)
+				.createdAt(LocalDateTime.now())
+				.build();
+
+		auditLogEntryRepository.save(entry);
+	}
+
+	/**
+	 * Append-only write path for events that need structured detail (before/after
+	 * values, rationale). Identifies the actor by user id -- what the JWT principal
+	 * carries -- rather than by e-mail like {@link #log}. Joins the caller's
+	 * transaction (class-level @Transactional, REQUIRED), so a business change and
+	 * its audit entry commit or roll back together. Entries are never updated or
+	 * deleted anywhere in the application.
+	 */
+	public void logWithMetadata(
+			String actionType,
+			String targetType,
+			String targetId,
+			String actorUserId,
+			String comment,
+			JsonNode metadata
+	) {
+		User actor = actorUserId != null
+				? userRepository.findById(actorUserId).orElse(null)
+				: null;
+
+		AuditLogEntry entry = AuditLogEntry.builder()
+				.actor(actor)
+				.actionType(actionType)
+				.targetType(targetType)
+				.targetId(targetId)
+				.comment(comment)
+				.metadataJson(metadata != null ? metadata : JsonNodeFactory.instance.objectNode())
 				.createdAt(LocalDateTime.now())
 				.build();
 
