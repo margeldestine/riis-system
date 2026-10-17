@@ -49,13 +49,9 @@ public interface UserRepository extends JpaRepository<User, String> {
 	// be warned if doing so would strand currently-active staff accounts.
 	long countByInstitutionIdAndRoleAndStatus(String institutionId, String role, String status);
 
-	// UC-M5-04: backs the account directory view (searchable/filterable by
-	// role, institution, status). Uses the 13-arg PendingUserResponse
-	// constructor (adds role + institutionId) since the directory table
-	// displays role and the institution filter dropdown needs the id back
-	// for round-tripping -- findByRoleAndStatusForQueue above is left on
-	// the original 11-arg constructor since nothing consuming it needs
-	// those two fields.
+	// Full-text request routing: active staff of one institution (fallback recipients).
+	List<User> findByInstitutionIdAndRoleAndStatus(String institutionId, String role, String status);
+
 	@Query("""
             SELECT new com.geeks.riis_backend.dto.PendingUserResponse(
                 u.id,

@@ -104,7 +104,8 @@ public class AdminReviewService {
                 output.getIdentifierDc(),
                 output.getCorrectionNotes(),
                 output.getS3PdfKey(),
-                validationErrorCount
+                validationErrorCount,
+                output.getVisibility() == null ? null : output.getVisibility().name()
         );
     }
 

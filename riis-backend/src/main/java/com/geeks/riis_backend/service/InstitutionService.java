@@ -13,6 +13,7 @@ import com.geeks.riis_backend.dto.ThemeKeywordDTO;
 import com.geeks.riis_backend.exception.BadRequestException;
 import com.geeks.riis_backend.exception.ConfirmationRequiredException;
 import com.geeks.riis_backend.exception.ResourceNotFoundException;
+import com.geeks.riis_backend.model.AccessVisibility;
 import com.geeks.riis_backend.model.AuditLogEntry;
 import com.geeks.riis_backend.model.Author;
 import com.geeks.riis_backend.model.Institution;
@@ -54,6 +55,7 @@ public class InstitutionService {
     private final AuditLogEntryRepository auditLogEntryRepository;
     private final ResearchOutputRepository researchOutputRepository;
     private final ThemeProfileRepository  themeProfileRepository;
+    private final PublicAccessPolicy      accessPolicy;
 
 
     @Transactional(readOnly = true)
@@ -136,28 +138,8 @@ public class InstitutionService {
         );
 
 
-        Page<PublicOutputCardDTO> outputDTOs = outputPage.map(ro -> {
-            List<PublicAuthorDTO> authors = ro.getAuthors() == null ? List.of() :
-                    ro.getAuthors().stream()
-                    .map(a -> new PublicAuthorDTO(a.getFullName(), a.getOrcidId()))
-                    .collect(Collectors.toList());
-
-            String excerpt = ro.getAbstractText() != null && ro.getAbstractText().length() > 300
-                    ? ro.getAbstractText().substring(0, 300) + "…"
-                    : ro.getAbstractText();
-
-            return new PublicOutputCardDTO(
-                    ro.getId(),
-                    ro.getTitle(),
-                    ro.getDoi(),
-                    ro.getResearchType(),
-                    ro.getCompletionYear(),
-                    ro.getFundingSource(),
-                    excerpt,
-                    authors,
-                    ro.getStatus()
-            );
-        });
+        PublicAccessPolicy.Viewer viewer = accessPolicy.currentViewer();
+        Page<PublicOutputCardDTO> outputDTOs = outputPage.map(ro -> toPublicCard(ro, viewer));
 
 
         int totalApproved = researchOutputRepository
@@ -255,21 +237,9 @@ public class InstitutionService {
                 Sort.by(Sort.Direction.DESC, "completionYear")
         );
 
+        PublicAccessPolicy.Viewer viewer = accessPolicy.currentViewer();
         List<ResearchOutputExportRowDTO> rows = outputs.stream()
-                .map(ro -> new ResearchOutputExportRowDTO(
-                        ro.getTitle(),
-                        ro.getResearchType(),
-                        ro.getCompletionYear(),
-                        ro.getFundingSource(),
-                        ro.getPublicationVenue(),
-                        ro.getPrincipalInvestigator(),
-                        ro.getDoi(),
-                        ro.getAuthors() == null ? List.of() :
-                                ro.getAuthors().stream()
-                                .map(Author::getFullName)
-                                .filter(name -> name != null && !name.isBlank())
-                                .collect(Collectors.toList())
-                ))
+                .map(ro -> toExportRow(ro, viewer))
                 .collect(Collectors.toList());
 
         return new InstitutionExportDataDTO(
@@ -277,6 +247,57 @@ public class InstitutionService {
                 inst.getType(),
                 inst.getProvince(),
                 rows
+        );
+    }
+
+
+    private PublicOutputCardDTO toPublicCard(ResearchOutput ro, PublicAccessPolicy.Viewer viewer) {
+        AccessVisibility tier = accessPolicy.viewTier(viewer, ro);
+        boolean metadata = tier.exposesDescriptiveMetadata();
+
+        List<PublicAuthorDTO> authors = (!metadata || ro.getAuthors() == null) ? List.of() :
+                ro.getAuthors().stream()
+                        .map(a -> new PublicAuthorDTO(a.getFullName(), a.getOrcidId()))
+                        .collect(Collectors.toList());
+
+        String abstractText = tier.exposesAbstract() ? ro.getAbstractText() : null;
+        String excerpt = abstractText != null && abstractText.length() > 300
+                ? abstractText.substring(0, 300) + "…"
+                : abstractText;
+
+        return new PublicOutputCardDTO(
+                ro.getId(),
+                ro.getTitle(),
+                metadata ? ro.getDoi() : null,
+                metadata ? ro.getResearchType() : "",
+                metadata ? ro.getCompletionYear() : null,
+                metadata ? ro.getFundingSource() : null,
+                excerpt,
+                authors,
+                ro.getStatus(),
+                accessPolicy.effectiveVisibility(ro).name(),
+                accessPolicy.fullTextAction(ro)
+        );
+    }
+
+    private ResearchOutputExportRowDTO toExportRow(ResearchOutput ro, PublicAccessPolicy.Viewer viewer) {
+        if (!accessPolicy.viewTier(viewer, ro).exposesDescriptiveMetadata()) {
+            // RESTRICTED for this viewer: title only
+            return new ResearchOutputExportRowDTO(ro.getTitle(), "", null, "", "", "", "", List.of());
+        }
+        return new ResearchOutputExportRowDTO(
+                ro.getTitle(),
+                ro.getResearchType(),
+                ro.getCompletionYear(),
+                ro.getFundingSource(),
+                ro.getPublicationVenue(),
+                ro.getPrincipalInvestigator(),
+                ro.getDoi(),
+                ro.getAuthors() == null ? List.of() :
+                        ro.getAuthors().stream()
+                                .map(Author::getFullName)
+                                .filter(name -> name != null && !name.isBlank())
+                                .collect(Collectors.toList())
         );
     }
 

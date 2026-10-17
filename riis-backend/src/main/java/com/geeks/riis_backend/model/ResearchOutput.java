@@ -24,6 +24,8 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UpdateTimestamp;
 import org.hibernate.annotations.UuidGenerator;
 import org.hibernate.type.SqlTypes;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 
 @Entity
 @Table(
@@ -121,6 +123,11 @@ public class ResearchOutput {
 
 	@Column(name = "s3_pdf_key", length = 1024)
 	private String s3PdfKey;
+
+	@Enumerated(EnumType.STRING)
+	@Column(name = "visibility", nullable = false, length = 16)
+	@Builder.Default
+	private AccessVisibility visibility = AccessVisibility.PUBLIC;
 
 	@Column(name = "status", length = 32, nullable = false)
 	private String status;

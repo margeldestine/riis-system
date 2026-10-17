@@ -21,6 +21,8 @@ import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 import org.hibernate.annotations.UuidGenerator;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 
 @Entity
 @Table(
@@ -59,6 +61,11 @@ public class Institution {
 
 	@Column(name = "whitelist_status", length = 16, nullable = false)
 	private String whitelistStatus;
+
+	@Enumerated(EnumType.STRING)
+	@Column(name = "default_visibility", nullable = false, length = 16)
+	@Builder.Default
+	private AccessVisibility defaultVisibility = AccessVisibility.PUBLIC;
 
 	@ManyToOne(fetch = FetchType.LAZY)
 	@JoinColumn(name = "registered_by")

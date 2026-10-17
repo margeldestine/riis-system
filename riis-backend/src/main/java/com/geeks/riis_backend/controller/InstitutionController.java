@@ -1,10 +1,6 @@
 package com.geeks.riis_backend.controller;
 
-import com.geeks.riis_backend.dto.InstitutionDropdownItem;
-import com.geeks.riis_backend.dto.InstitutionExportDataDTO;
-import com.geeks.riis_backend.dto.InstitutionProfileDTO;
-import com.geeks.riis_backend.dto.InstitutionSummaryDTO;
-import com.geeks.riis_backend.dto.PublicStatsDTO;
+import com.geeks.riis_backend.dto.*;
 import com.geeks.riis_backend.model.Institution;
 import com.geeks.riis_backend.service.InstitutionService;
 import com.geeks.riis_backend.service.ReportExportService;
@@ -52,8 +48,10 @@ public class InstitutionController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<Institution> getInstitutionById(@PathVariable("id") String id) {
-        return ResponseEntity.ok(institutionService.getInstitutionById(id));
+    public ResponseEntity<InstitutionPublicDTO> getInstitutionById(@PathVariable("id") String id) {
+        Institution inst = institutionService.getInstitutionById(id);
+        return ResponseEntity.ok(new InstitutionPublicDTO(
+                inst.getId(), inst.getName(), inst.getType(), inst.getProvince(), inst.getContactEmail()));
     }
 
     @GetMapping

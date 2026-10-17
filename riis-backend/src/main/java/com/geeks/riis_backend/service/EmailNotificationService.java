@@ -263,4 +263,73 @@ public class EmailNotificationService {
 		}
 	}
 
+	private static String oneLine(String value) {
+		return value == null ? "" : value.replaceAll("[\\r\\n]+", " ").trim();
+	}
+
+	/** To the owning HEI's research office. Reply-To is the requester, so "Reply" goes straight to them. */
+	@Async
+	public void sendFullTextRequestToResearchOffice(
+			String officeEmail, String institutionName, String recordTitle, String referenceNumber,
+			String requesterName, String requesterEmail, String requesterAffiliation, String purpose) {
+		if (officeEmail == null || officeEmail.isBlank()) {
+			log.warn("[sendFullTextRequestToResearchOffice] Skipped -- institution contact email is blank. ref={}", referenceNumber);
+			return;
+		}
+		String subject = "Full text request: " + oneLine(referenceNumber);
+		String body = "Someone requested the full text of a research output from " + oneLine(institutionName) + ".\n\n"
+				+ "Title: " + oneLine(recordTitle) + "\n"
+				+ "Reference Number: " + oneLine(referenceNumber) + "\n\n"
+				+ "Requester: " + oneLine(requesterName) + "\n"
+				+ "Email: " + oneLine(requesterEmail) + "\n"
+				+ (requesterAffiliation == null || requesterAffiliation.isBlank()
+				? "" : "Affiliation: " + oneLine(requesterAffiliation) + "\n")
+				+ "\nReason for request:\n" + purpose + "\n\n"
+				+ "Please reply directly to the requester if you approve. DASIG does not send or host the full text.\n"
+				+ "You can record the outcome in the DASIG research-office inbox.";
+		try {
+			JavaMailSender mailSender = resolveMailSender("sendFullTextRequestToResearchOffice");
+			if (mailSender == null) return;
+
+			SimpleMailMessage message = new SimpleMailMessage();
+			if (!fromEmail.isBlank()) message.setFrom(fromEmail);
+			message.setTo(officeEmail);
+			message.setReplyTo(oneLine(requesterEmail));
+			message.setSubject(subject);
+			message.setText(body);
+			mailSender.send(message);
+			log.info("[sendFullTextRequestToResearchOffice] Email sent to {} (ref={})", officeEmail, referenceNumber);
+		} catch (Exception e) {
+			log.error("[sendFullTextRequestToResearchOffice] Failed to send to {} (ref={}): {}", officeEmail, referenceNumber, e.getMessage(), e);
+			emailOutboxService.enqueue(officeEmail, subject, body, e.getMessage());
+		}
+	}
+
+	/** To the requester, so they know the request went out. */
+	@Async
+	public void sendFullTextRequestConfirmation(String toEmail, String requesterName, String recordTitle, String institutionName) {
+		if (toEmail == null || toEmail.isBlank()) {
+			return;
+		}
+		String subject = "Your full text request was sent";
+		String body = "Hi " + oneLine(requesterName) + ",\n\n"
+				+ "Your request for the full text of \"" + oneLine(recordTitle) + "\" was sent to the research office of "
+				+ oneLine(institutionName) + ".\n\n"
+				+ "They will contact you directly if the request is approved. DASIG does not host or send the full text.";
+		try {
+			JavaMailSender mailSender = resolveMailSender("sendFullTextRequestConfirmation");
+			if (mailSender == null) return;
+
+			SimpleMailMessage message = new SimpleMailMessage();
+			if (!fromEmail.isBlank()) message.setFrom(fromEmail);
+			message.setTo(toEmail);
+			message.setSubject(subject);
+			message.setText(body);
+			mailSender.send(message);
+		} catch (Exception e) {
+			log.error("[sendFullTextRequestConfirmation] Failed to send to {}: {}", toEmail, e.getMessage(), e);
+			emailOutboxService.enqueue(toEmail, subject, body, e.getMessage());
+		}
+	}
+
 }

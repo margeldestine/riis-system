@@ -35,5 +35,6 @@ public record SubmissionRequest(
 		String conferenceUrl,
 		String principalInvestigator,
 		String institutionalAffiliation,
-		String attachmentKey
+		String attachmentKey,
+		String visibility
 ) {}

@@ -1,15 +1,16 @@
 package com.geeks.riis_backend.service;
 
 import com.geeks.riis_backend.exception.ResourceNotFoundException;
+import com.geeks.riis_backend.model.AccessVisibility;
 import com.geeks.riis_backend.model.ResearchOutput;
 import com.geeks.riis_backend.repository.ResearchOutputRepository;
+import com.geeks.riis_backend.service.PublicAccessPolicy.Viewer;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -18,8 +19,11 @@ import java.util.stream.Collectors;
 @Transactional(readOnly = true)
 public class SearchService {
 
+    private static final String STATUS_APPROVED = "APPROVED";
+
     private final ResearchOutputRepository researchOutputRepository;
     private final AIProxyService aiProxyService;
+    private final PublicAccessPolicy accessPolicy;
 
     private float[] computeQueryEmbedding(String query) {
         return aiProxyService.computeSPECTEREmbedding(query, "");
@@ -64,14 +68,15 @@ public class SearchService {
     }
 
     public List<Map<String, Object>> executeKeywordSearch(String query, Map<String, Object> filters) {
-        List<ResearchOutput> approved = researchOutputRepository.findByStatus("APPROVED");
+        Viewer viewer = accessPolicy.currentViewer();
+        List<ResearchOutput> approved = researchOutputRepository.findByStatus(STATUS_APPROVED);
         String q = query == null ? "" : query.trim().toLowerCase();
 
         return approved.stream()
-                .filter(o -> matchesQuery(o, q))
-                .filter(o -> matchesFilters(o, filters))
+                .filter(o -> matchesQuery(o, q, viewer))
+                .filter(o -> matchesFilters(o, filters, viewer))
                 .map(o -> {
-                    Map<String, Object> card = toCard(o);
+                    Map<String, Object> card = toCard(o, viewer);
                     card.put("similarityScore", null);
                     return card;
                 })
@@ -79,13 +84,14 @@ public class SearchService {
     }
 
     public List<Map<String, Object>> executeSemanticSearch(float[] embedding, Map<String, Object> filters) {
+        Viewer viewer = accessPolicy.currentViewer();
         List<ResearchOutput> similar = researchOutputRepository
                 .findSimilarBySpecterEmbedding(embedding, "00000000-0000-0000-0000-000000000000", 20);
 
         return similar.stream()
-                .filter(o -> matchesFilters(o, filters))
+                .filter(o -> matchesFilters(o, filters, viewer))
                 .map(o -> {
-                    Map<String, Object> card = toCard(o);
+                    Map<String, Object> card = toCard(o, viewer);
                     double score = computeCosineSimilarity(embedding, o.getSpecterEmbedding());
                     card.put("similarityScore", Math.round(score * 1000.0) / 10.0);
                     return card;
@@ -132,57 +138,61 @@ public class SearchService {
     }
 
     public Map<String, Object> getById(String id) {
+        Viewer viewer = accessPolicy.currentViewer();
         ResearchOutput o = researchOutputRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Record not found: " + id));
-        Map<String, Object> card = toCard(o);
-        card.put("abstractText", o.getAbstractText());
-        card.put("subjectDc", o.getSubjectDc());
-        card.put("coverageDc", o.getCoverageDc());
-        card.put("rightsDc", o.getRightsDc());
-        card.put("publisherDc", o.getPublisherDc());
-        card.put("contributorDc", o.getContributorDc());
-        card.put("s3PdfKey", o.getS3PdfKey());
+
+        // Public detail pages only show APPROVED records (owners and admins may still open their own).
+        boolean seesAll = viewer.canSeeAll(accessPolicy.institutionIdOf(o));
+        if (!STATUS_APPROVED.equals(o.getStatus()) && !seesAll) {
+            throw new ResourceNotFoundException("Record not found: " + id);
+        }
+
+        AccessVisibility tier = accessPolicy.viewTier(viewer, o);
+        boolean metadata = tier.exposesDescriptiveMetadata();
+
+        Map<String, Object> card = toCard(o, viewer);
+        card.put("abstractText", tier.exposesAbstract() ? o.getAbstractText() : null);
+        card.put("subjectDc", metadata ? o.getSubjectDc() : null);
+        card.put("coverageDc", metadata ? o.getCoverageDc() : null);
+        card.put("rightsDc", metadata ? o.getRightsDc() : null);
+        card.put("publisherDc", metadata ? o.getPublisherDc() : null);
+        card.put("contributorDc", metadata ? o.getContributorDc() : null);
+        // s3PdfKey is intentionally NEVER returned. The raw PDF is not exposed through any public endpoint.
         return card;
     }
 
     public List<Map<String, Object>> getRelated(String id) {
+        Viewer viewer = accessPolicy.currentViewer();
         ResearchOutput source = researchOutputRepository.findById(id).orElse(null);
         if (source == null) return List.of();
+        if (!STATUS_APPROVED.equals(source.getStatus())
+                && !viewer.canSeeAll(accessPolicy.institutionIdOf(source))) {
+            return List.of();
+        }
 
         if (source.getSpecterEmbedding() != null && source.getSpecterEmbedding().length > 0) {
             return researchOutputRepository
                     .findSimilarBySpecterEmbedding(source.getSpecterEmbedding(), id, 3)
                     .stream()
                     .map(o -> {
-                        Map<String, Object> item = new LinkedHashMap<>();
-                        item.put("id", o.getId());
-                        item.put("title", o.getTitle());
-                        item.put("institutionName", o.getInstitution() != null ? o.getInstitution().getName() : "");
-                        item.put("researchType", o.getResearchType());
-                        item.put("completionYear", o.getCompletionYear());
-                        item.put("abstractExcerpt", truncate(o.getAbstractText(), 150));
                         double score = computeCosineSimilarity(source.getSpecterEmbedding(), o.getSpecterEmbedding());
-                        item.put("similarityScore", Math.round(score * 1000.0) / 10.0);
-                        return item;
+                        return toRelatedItem(o, viewer, Math.round(score * 1000.0) / 10.0);
                     })
                     .collect(Collectors.toList());
         }
 
-        return researchOutputRepository.findByStatus("APPROVED").stream()
+        // Keyword fallback reads keywords, so skip it when the source hides them.
+        if (!accessPolicy.viewTier(viewer, source).exposesDescriptiveMetadata()) {
+            return List.of();
+        }
+
+        return researchOutputRepository.findByStatus(STATUS_APPROVED).stream()
                 .filter(o -> !o.getId().equals(id))
+                .filter(o -> accessPolicy.viewTier(viewer, o).exposesDescriptiveMetadata())
                 .filter(o -> hasKeywordOverlap(source, o))
                 .limit(3)
-                .map(o -> {
-                    Map<String, Object> item = new LinkedHashMap<>();
-                    item.put("id", o.getId());
-                    item.put("title", o.getTitle());
-                    item.put("institutionName", o.getInstitution() != null ? o.getInstitution().getName() : "");
-                    item.put("researchType", o.getResearchType());
-                    item.put("completionYear", o.getCompletionYear());
-                    item.put("abstractExcerpt", truncate(o.getAbstractText(), 150));
-                    item.put("similarityScore", null);
-                    return item;
-                })
+                .map(o -> toRelatedItem(o, viewer, null))
                 .collect(Collectors.toList());
     }
 
@@ -198,23 +208,42 @@ public class SearchService {
         return dot / (Math.sqrt(normA) * Math.sqrt(normB));
     }
 
-    private boolean matchesQuery(ResearchOutput o, String q) {
+    /**
+     * Only fields the viewer is allowed to see take part in matching, so a hidden abstract
+     * (or hidden keywords/authors) can never be discovered by searching for words inside it.
+     */
+    private boolean matchesQuery(ResearchOutput o, String q, Viewer viewer) {
         if (q.isBlank()) return true;
+        AccessVisibility tier = accessPolicy.viewTier(viewer, o);
+
         String title = o.getTitle() != null ? o.getTitle().toLowerCase() : "";
-        String keywords = o.getKeywords() != null ? o.getKeywords().toLowerCase() : "";
-        String abstrakt = o.getAbstractText() != null ? o.getAbstractText().toLowerCase() : "";
         String institution = o.getInstitution() != null && o.getInstitution().getName() != null
                 ? o.getInstitution().getName().toLowerCase() : "";
-        String authors = o.getAuthors() != null
-                ? o.getAuthors().stream()
-                .map(a -> a.getFullName() != null ? a.getFullName().toLowerCase() : "")
-                .collect(Collectors.joining(" ")) : "";
-        return title.contains(q) || keywords.contains(q) || abstrakt.contains(q)
-                || institution.contains(q) || authors.contains(q);
+        if (title.contains(q) || institution.contains(q)) return true;
+
+        if (tier.exposesDescriptiveMetadata()) {
+            String keywords = o.getKeywords() != null ? o.getKeywords().toLowerCase() : "";
+            String authors = o.getAuthors() != null
+                    ? o.getAuthors().stream()
+                    .map(a -> a.getFullName() != null ? a.getFullName().toLowerCase() : "")
+                    .collect(Collectors.joining(" ")) : "";
+            if (keywords.contains(q) || authors.contains(q)) return true;
+        }
+
+        if (tier.exposesAbstract()) {
+            String abstrakt = o.getAbstractText() != null ? o.getAbstractText().toLowerCase() : "";
+            return abstrakt.contains(q);
+        }
+        return false;
     }
 
-    private boolean matchesFilters(ResearchOutput o, Map<String, Object> filters) {
+    /**
+     * Type / year / funding are hidden for RESTRICTED records, so filtering on them must not
+     * reveal them: when one of those filters is active, hidden-field records are excluded.
+     */
+    private boolean matchesFilters(ResearchOutput o, Map<String, Object> filters, Viewer viewer) {
         if (filters == null) return true;
+        boolean hiddenMetadata = !accessPolicy.viewTier(viewer, o).exposesDescriptiveMetadata();
 
         Object institution = filters.get("institutionId");
         if (institution != null && !institution.toString().isBlank()) {
@@ -231,12 +260,13 @@ public class SearchService {
 
         Object researchType = filters.get("researchType");
         if (researchType != null && !researchType.toString().isBlank()) {
-            if (!researchType.toString().equalsIgnoreCase(o.getResearchType()))
+            if (hiddenMetadata || !researchType.toString().equalsIgnoreCase(o.getResearchType()))
                 return false;
         }
 
         Object year = filters.get("year");
         if (year != null && !year.toString().isBlank()) {
+            if (hiddenMetadata) return false;
             try {
                 int y = Integer.parseInt(year.toString());
                 if (o.getCompletionYear() == null || o.getCompletionYear() != y)
@@ -246,7 +276,7 @@ public class SearchService {
 
         Object fundingSource = filters.get("fundingSource");
         if (fundingSource != null && !fundingSource.toString().isBlank()) {
-            if (o.getFundingSource() == null || !o.getFundingSource()
+            if (hiddenMetadata || o.getFundingSource() == null || !o.getFundingSource()
                     .toLowerCase().contains(fundingSource.toString().toLowerCase()))
                 return false;
         }
@@ -264,25 +294,47 @@ public class SearchService {
         return !aKeys.isEmpty();
     }
 
-    private Map<String, Object> toCard(ResearchOutput o) {
+    /** Same keys as before, plus "visibility" and "fullText". Hidden fields are blank, never removed. */
+    private Map<String, Object> toCard(ResearchOutput o, Viewer viewer) {
+        AccessVisibility tier = accessPolicy.viewTier(viewer, o);
+        boolean metadata = tier.exposesDescriptiveMetadata();
+
         Map<String, Object> card = new LinkedHashMap<>();
         card.put("id", o.getId());
         card.put("title", o.getTitle());
-        card.put("researchType", o.getResearchType());
-        card.put("completionYear", o.getCompletionYear());
-        card.put("fundingSource", o.getFundingSource());
-        card.put("publicationVenue", o.getPublicationVenue());
-        card.put("doi", o.getDoi());
-        card.put("abstractExcerpt", truncate(o.getAbstractText(), 200));
-        card.put("keywords", parseKeywords(o.getKeywords()));
+        card.put("researchType", metadata ? o.getResearchType() : "");
+        card.put("completionYear", metadata ? o.getCompletionYear() : null);
+        card.put("fundingSource", metadata ? o.getFundingSource() : null);
+        card.put("publicationVenue", metadata ? o.getPublicationVenue() : null);
+        card.put("doi", metadata ? o.getDoi() : null);
+        card.put("abstractExcerpt", tier.exposesAbstract() ? truncate(o.getAbstractText(), 200) : "");
+        card.put("keywords", metadata ? parseKeywords(o.getKeywords()) : List.of());
         card.put("institutionId", o.getInstitution() != null ? o.getInstitution().getId() : null);
         card.put("institutionName", o.getInstitution() != null ? o.getInstitution().getName() : null);
         card.put("province", o.getInstitution() != null ? o.getInstitution().getProvince() : null);
-        card.put("authors", o.getAuthors() != null ? o.getAuthors().stream()
+        card.put("authors", metadata && o.getAuthors() != null ? o.getAuthors().stream()
                 .map(a -> Map.of("fullName", a.getFullName() != null ? a.getFullName() : "",
                         "orcidId", a.getOrcidId() != null ? a.getOrcidId() : ""))
                 .collect(Collectors.toList()) : List.of());
+        card.put("visibility", accessPolicy.effectiveVisibility(o).name());
+        card.put("fullText", accessPolicy.fullTextAction(o));
         return card;
+    }
+
+    private Map<String, Object> toRelatedItem(ResearchOutput o, Viewer viewer, Double similarityScore) {
+        AccessVisibility tier = accessPolicy.viewTier(viewer, o);
+        boolean metadata = tier.exposesDescriptiveMetadata();
+
+        Map<String, Object> item = new LinkedHashMap<>();
+        item.put("id", o.getId());
+        item.put("title", o.getTitle());
+        item.put("institutionName", o.getInstitution() != null ? o.getInstitution().getName() : "");
+        item.put("researchType", metadata ? o.getResearchType() : "");
+        item.put("completionYear", metadata ? o.getCompletionYear() : null);
+        item.put("abstractExcerpt", tier.exposesAbstract() ? truncate(o.getAbstractText(), 150) : "");
+        item.put("similarityScore", similarityScore);
+        item.put("visibility", accessPolicy.effectiveVisibility(o).name());
+        return item;
     }
 
     private String truncate(String text, int maxChars) {

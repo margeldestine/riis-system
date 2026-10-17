@@ -11,6 +11,7 @@ import com.geeks.riis_backend.event.RecordIngestedEvent;
 import com.geeks.riis_backend.event.RecordResubmittedEvent;
 import com.geeks.riis_backend.exception.ResourceNotFoundException;
 import com.geeks.riis_backend.exception.SubmissionValidationException;
+import com.geeks.riis_backend.model.AccessVisibility;
 import com.geeks.riis_backend.model.Author;
 import com.geeks.riis_backend.model.Institution;
 import com.geeks.riis_backend.model.ResearchOutput;
@@ -95,6 +96,10 @@ public class SubmissionService {
 
 		Set<Author> authors = mapAuthors(dto.authors());
 
+		AccessVisibility visibility = isBlank(dto.visibility())
+				? (institution.getDefaultVisibility() == null ? AccessVisibility.PUBLIC : institution.getDefaultVisibility())
+				: AccessVisibility.fromString(dto.visibility());
+
 		ResearchOutput output = ResearchOutput.builder()
 				.referenceNumber(referenceNumber)
 				.institution(institution)
@@ -114,6 +119,7 @@ public class SubmissionService {
 				.principalInvestigator(isBlank(dto.principalInvestigator()) ? null : dto.principalInvestigator().trim())
 				.institutionalAffiliation(isBlank(dto.institutionalAffiliation()) ? null : dto.institutionalAffiliation().trim())
 				.s3PdfKey(dto.attachmentKey())
+				.visibility(visibility)
 				.status(STATUS_APPROVED)
 				.authors(authors)
 				.build();
@@ -245,7 +251,8 @@ public class SubmissionService {
 				output.getIdentifierDc(),
 				output.getCorrectionNotes(),
 				output.getS3PdfKey(),
-				validationErrorCount
+				validationErrorCount,
+				output.getVisibility() == null ? null : output.getVisibility().name()
 		);
 	}
 

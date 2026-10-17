@@ -11,5 +11,7 @@ public record PublicOutputCardDTO(
         String fundingSource,
         String abstractExcerpt,
         List<PublicAuthorDTO> authors,
-        String status
+        String status,
+        String visibility,
+        FullTextActionDTO fullText
 ) {}

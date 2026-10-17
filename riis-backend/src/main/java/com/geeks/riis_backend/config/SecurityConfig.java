@@ -119,6 +119,17 @@ public class SecurityConfig {
 						.requestMatchers(HttpMethod.PUT, "/api/v1/submissions/**").hasAnyAuthority("ROLE_HEI_STAFF", "HEI_STAFF", "ROLE_HEI", "HEI", "ROLE_DOST_ADMIN", "DOST_ADMIN")
 						.requestMatchers(HttpMethod.GET, "/api/v1/submissions/**").hasAnyAuthority("ROLE_HEI_STAFF", "HEI_STAFF", "ROLE_HEI", "HEI", "ROLE_DOST_ADMIN", "DOST_ADMIN")
 						.requestMatchers("/api/v1/admin/**").hasAnyAuthority("ROLE_DOST_ADMIN", "DOST_ADMIN")
+
+						// Priority 1: public "Request full text" form (rate limited in the controller)
+						.requestMatchers(HttpMethod.POST, "/api/v1/public/research/*/full-text-requests").permitAll()
+						// Priority 1: change a record's visibility (HEI staff of the owning HEI, or DOST admin; also checked in the service)
+						.requestMatchers(HttpMethod.PATCH, "/api/v1/submissions/*/visibility").hasAnyAuthority("ROLE_HEI_STAFF", "HEI_STAFF", "ROLE_DOST_ADMIN", "DOST_ADMIN")
+						// Priority 1: research-office inbox and HEI settings
+						.requestMatchers("/api/v1/hei/**").hasAnyAuthority("ROLE_HEI_STAFF", "HEI_STAFF", "ROLE_DOST_ADMIN", "DOST_ADMIN")
+						// Priority 1: legacy controller returned the raw entity (incl. s3PdfKey and embeddings) to ANY logged-in user.
+						// The frontend does not call it, so it is locked to DOST admins.
+						.requestMatchers("/api/v1/research-outputs/**").hasAnyAuthority("ROLE_DOST_ADMIN", "DOST_ADMIN")
+
 						.requestMatchers("/api/v1/analytics/**").hasRole("DOST_ADMIN")
 						.requestMatchers("/api/v1/reports/**").hasAnyAuthority("ROLE_DOST_ADMIN", "DOST_ADMIN", "ROLE_HEI_STAFF", "HEI_STAFF")
 						// QualityController's every method already enforces
