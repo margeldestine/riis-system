@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { AlertTriangle, CheckCircle2, ExternalLink, X, XCircle } from 'lucide-react'
 import apiClient from '../../services/apiClient'
+import VisibilityEditor from './VisibilityEditor'
 
 function extractApiErrorMessage(error, fallbackMessage) {
   const data = error?.response?.data
@@ -309,6 +310,15 @@ export default function SubmissionDetailsDrawer({
                     {details.abstractText || details.abstract}
                   </p>
                 </div>
+              ) : null}
+
+              {details.visibility ? (
+                <VisibilityEditor
+                  key={details.id}
+                  recordId={details.id}
+                  current={details.visibility}
+                  onChanged={(next) => setDetails((prev) => (prev ? { ...prev, visibility: next } : prev))}
+                />
               ) : null}
 
               {commentBoxConfig && details.correctionNotes ? (

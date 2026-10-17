@@ -21,6 +21,9 @@ import DataQualityDashboard from './features/admin/DataQualityDashboard'
 import ReportGeneratorPage from './features/admin/ReportGeneratorPage'
 import HeiReportsPage from './features/hei/HeiReportsPage'
 import ResetPassword from './features/auth/ResetPassword'
+import HeiAccessSettingsPage from './features/hei/HeiAccessSettingsPage'
+import FullTextRequestsInboxPage from './features/hei/FullTextRequestsInboxPage'
+import AccessPolicyPage from './features/public/AccessPolicyPage'
 
 function HeiPlaceholderPage({ activeLabel, title }) {
   return (
@@ -66,6 +69,7 @@ function App() {
         <Route path="/discover" element={<HeiDirectoryPage />} />
         <Route path="/institutions/:id" element={<PublicInstitutionProfilePage />} />
         <Route path="/research/:id" element={<ResearchOutputDetailPage />} />
+        <Route path="/access-policy" element={<AccessPolicyPage />} />
 
         {/* DOST Admin routes */}
         <Route path="/dost/dashboard" element={
@@ -112,9 +116,16 @@ function App() {
         <Route path="/hei/institutions/:id" element={
           <ProtectedRoute allowedRole="HEI_STAFF"><InstitutionProfilePage /></ProtectedRoute>
         } />
+        <Route path="/hei/access-settings" element={
+          <ProtectedRoute allowedRole="HEI_STAFF"><HeiAccessSettingsPage /></ProtectedRoute>
+        } />
+        <Route path="/hei/full-text-requests" element={
+          <ProtectedRoute allowedRole="HEI_STAFF"><FullTextRequestsInboxPage /></ProtectedRoute>
+        } />
         <Route path="/hei/browse-research" element={
           <ProtectedRoute allowedRole="HEI_STAFF"><HeiDiscoveryPage /></ProtectedRoute>
         } />
+        
       </Routes>
     </BrowserRouter>
   )

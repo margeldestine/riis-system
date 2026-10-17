@@ -5,7 +5,9 @@ import {
   FileSearch,
   FileText,
   FolderKanban,
+  Inbox,
   Loader2,
+  ShieldCheck,
   Users,
 } from 'lucide-react'
 import apiClient from '../../services/apiClient'
@@ -21,6 +23,8 @@ export const heiNavItems = [
   { icon: Users, label: 'HEI Research Profiles', to: '/hei/research-profiles' },
   { icon: FileSearch, label: 'Browse Research', to: '/hei/browse-research' },
   { icon: FileText, label: 'Reports', to: '/hei/reports' },
+  { icon: Inbox, label: 'Full-Text Requests', to: '/hei/full-text-requests' },
+  { icon: ShieldCheck, label: 'Access Settings', to: '/hei/access-settings' },
 ]
 
 function extractApiErrorMessage(error, fallbackMessage) {

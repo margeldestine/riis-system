@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import apiClient from '../../services/apiClient'
+import PublicFooter from './PublicFooter'
+
+
 
 function getInitials(name) {
   if (!name) return '??'
@@ -179,15 +182,7 @@ export default function HeiDirectoryPage() {
         )}
       </div>
 
-      {/* Footer */}
-      <footer className="border-t border-slate-200 bg-white px-8 py-4 flex items-center justify-between text-xs text-slate-400">
-        <span className="font-semibold text-[#1A1A2E]">DASIG</span>
-        <div className="flex items-center gap-4">
-          <span>Privacy Policy</span>
-          <span>Technical Support</span>
-          <span className="text-[#C9A84C] font-semibold">DOST</span>
-        </div>
-      </footer>
+        <PublicFooter />
     </div>
   )
 }

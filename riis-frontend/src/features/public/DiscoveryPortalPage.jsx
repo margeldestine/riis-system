@@ -1,7 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Search, Filter, X, Download, ChevronDown, ExternalLink } from 'lucide-react'
+import { Search, Filter, X, ChevronDown, ExternalLink } from 'lucide-react'
 import apiClient from '../../services/apiClient'
+import FullTextAction from './FullTextAction'
+import PublicFooter from './PublicFooter'
+import VisibilityBadge from './VisibilityBadge'
+import { isAbstractWithheld } from './accessTiers'
 
 function extractApiErrorMessage(error, fallback) {
   const data = error?.response?.data
@@ -90,6 +94,9 @@ function ResultCard({ result, onSelect }) {
               {result.abstractExcerpt}
             </p>
           )}
+          {isAbstractWithheld(result) && (
+            <p className="mt-2 text-xs italic text-slate-400">Abstract withheld by the institution.</p>
+          )}
 
           {/* Keywords */}
           {keywords.length > 0 && (
@@ -104,9 +111,12 @@ function ResultCard({ result, onSelect }) {
 
           {/* Type + venue */}
           <div className="mt-3 flex items-center gap-3">
-            <span className="shrink-0">
-              <TypeBadge type={result.researchType} />
-            </span>
+            {result.researchType ? (
+              <span className="shrink-0">
+                <TypeBadge type={result.researchType} />
+              </span>
+            ) : null}
+            <VisibilityBadge visibility={result.visibility} />
             {result.publicationVenue && (
               <span
                 className="min-w-0 flex-1 truncate text-xs text-slate-400"
@@ -139,17 +149,7 @@ function ResultCard({ result, onSelect }) {
           >
             View Details
           </button>
-          {result.doi && (
-            
-            <a href={`https://doi.org/${result.doi}`}
-              target="_blank"
-              rel="noreferrer"
-              className="flex items-center justify-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition"
-            >
-              <Download className="h-3 w-3" />
-              PDF
-            </a>
-          )}
+          <FullTextAction record={result} variant="card" />
         </div>
       </div>
     </div>
@@ -231,6 +231,14 @@ function RelatedDrawer({ open, record, related, relatedLoading, onClose }) {
               <p className="text-sm text-slate-600 leading-relaxed">{record.abstractExcerpt}</p>
             </div>
           )}
+          {isAbstractWithheld(record) && (
+            <p className="text-xs italic text-slate-400">Abstract withheld by the institution.</p>
+          )}
+
+          <div className="space-y-2">
+            <p className="text-[10px] uppercase tracking-wider text-slate-400">Full text</p>
+            <FullTextAction record={record} variant="panel" />
+          </div>
 
           {keywords.length > 0 && (
             <div>
@@ -687,14 +695,7 @@ export default function DiscoveryPortalPage({ embedded = false }) {
 
       {/* Footer — only shown on public page */}
       {!embedded && (
-        <footer className="border-t border-slate-200 bg-white px-8 py-4 flex items-center justify-between text-xs text-slate-400">
-          <span className="font-semibold text-[#1A1A2E]">DASIG</span>
-          <div className="flex items-center gap-4">
-            <span>Privacy Policy</span>
-            <span>Technical Support</span>
-            <span className="text-[#C9A84C] font-semibold">DOST</span>
-          </div>
-        </footer>
+        <PublicFooter />
       )}
 
       <RelatedDrawer

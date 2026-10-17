@@ -1,7 +1,11 @@
 import { useEffect, useState } from 'react'
-import { ArrowLeft, ExternalLink, Copy, FileText } from 'lucide-react'
+import { ArrowLeft, ExternalLink, Copy, EyeOff, Lock } from 'lucide-react'
 import apiClient from '../../services/apiClient'
-import { useParams, useNavigate, useLocation } from 'react-router-dom'
+import { useParams, useNavigate, useLocation, Link } from 'react-router-dom'
+import FullTextAction from './FullTextAction'
+import PublicFooter from './PublicFooter'
+import VisibilityBadge from './VisibilityBadge'
+import { isAbstractWithheld, safeExternalUrl } from './accessTiers'
 
 
 function extractApiErrorMessage(error, fallback) {
@@ -84,7 +88,15 @@ export default function ResearchOutputDetailPage() {
     const authors = Array.isArray(record.authors)
       ? record.authors.map(a => a.fullName).filter(Boolean).join(', ')
       : ''
-    const citation = `${authors} (${record.completionYear}). ${record.title}. ${record.publicationVenue || record.institutionName || ''}. ${record.doi ? `https://doi.org/${record.doi}` : ''}`
+    // Hidden fields come back empty, so build the citation from whatever is actually shown.
+    const parts = [
+      authors,
+      record.completionYear ? `(${record.completionYear})` : '',
+      record.title ? `${record.title}.` : '',
+      record.publicationVenue || record.institutionName ? `${record.publicationVenue || record.institutionName}.` : '',
+      record.doi ? `https://doi.org/${record.doi}` : '',
+    ]
+    const citation = parts.filter(Boolean).join(' ')
     navigator.clipboard.writeText(citation).then(() => {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
@@ -94,6 +106,15 @@ export default function ResearchOutputDetailPage() {
   const keywords = Array.isArray(record?.keywords) ? record.keywords : []
   const authors = Array.isArray(record?.authors) ? record.authors : []
   const principalInvestigator = authors[0]?.fullName || '—'
+  const abstractWithheld = isAbstractWithheld(record)
+  // RESTRICTED records come back with only the title and institution (owners/admins get everything).
+  const metadataWithheld =
+    record?.visibility === 'RESTRICTED' &&
+    authors.length === 0 &&
+    !record.researchType &&
+    !record.doi &&
+    !record.completionYear
+  const doiUrl = record?.doi ? safeExternalUrl(`https://doi.org/${record.doi}`) : null
   const academicYearLabel = `${new Date().getFullYear() - 1}-${new Date().getFullYear()}`
 
   return (
@@ -141,6 +162,7 @@ export default function ResearchOutputDetailPage() {
                 {record.subjectDc}
               </span>
             )}
+            <VisibilityBadge visibility={record?.visibility} />
           </div>
         </div>
       </div>
@@ -167,6 +189,18 @@ export default function ResearchOutputDetailPage() {
                     Record Metadata
                   </p>
 
+                  {metadataWithheld ? (
+                    <p className="mb-5 flex items-start gap-2 rounded-lg bg-slate-50 px-4 py-3 text-sm text-slate-500">
+                      <Lock className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" />
+                      <span>
+                        {record.institutionName || 'The owning institution'} has restricted this record. Only the title
+                        and institution are shown publicly. Use{' '}
+                        <strong className="font-semibold text-slate-600">Request full text</strong> to contact its
+                        research office.
+                      </span>
+                    </p>
+                  ) : null}
+
                   <div className="grid grid-cols-3 gap-x-8 gap-y-5">
                     <MetaField label="Content Authors">
                       <div className="space-y-0.5">
@@ -191,27 +225,33 @@ export default function ResearchOutputDetailPage() {
                     <MetaField label="Funding Source" value={record.fundingSource} />
 
                     <MetaField label="DOI">
-                      {record.doi ? (
+                      {record.doi && doiUrl ? (
                         <a
-                          href={`https://doi.org/${record.doi}`}
+                          href={doiUrl}
                           target="_blank"
-                          rel="noreferrer"
+                          rel="noreferrer noopener"
                           className="text-sm text-blue-600 hover:underline flex items-center gap-1"
                         >
                           {record.doi}
                           <ExternalLink className="h-3 w-3" />
                         </a>
+                      ) : record.doi ? (
+                        <p className="text-sm text-slate-600">{record.doi}</p>
                       ) : <p className="text-sm text-slate-400">—</p>}
                     </MetaField>
 
                     <MetaField label="Completion Year" value={record.completionYear} />
                     <MetaField label="Publisher" value={record.publisherDc || record.publicationVenue} />
-                    <MetaField label="Research Type">
-                      <TypeBadge type={record.researchType} />
-                    </MetaField>
+                    {record.researchType ? (
+                      <MetaField label="Research Type">
+                        <TypeBadge type={record.researchType} />
+                      </MetaField>
+                    ) : null}
 
                     <MetaField label="DC Coverage" value={record.coverageDc} />
-                    <MetaField label="Principal Investigator" value={principalInvestigator} />
+                    {authors.length > 0 ? (
+                      <MetaField label="Principal Investigator" value={principalInvestigator} />
+                    ) : null}
                     <MetaField label="Has License" value={record.rightsDc} />
 
                     {record.subjectDc && (
@@ -221,7 +261,7 @@ export default function ResearchOutputDetailPage() {
                 </div>
 
                 {/* Abstract */}
-                {(record.abstractText || record.abstractExcerpt) && (
+                {record.abstractText || record.abstractExcerpt ? (
                   <div className="rounded-xl border border-slate-200 bg-white p-6">
                     <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-3">
                       Abstract
@@ -230,7 +270,17 @@ export default function ResearchOutputDetailPage() {
                       {record.abstractText || record.abstractExcerpt}
                     </p>
                   </div>
-                )}
+                ) : abstractWithheld && !metadataWithheld ? (
+                  <div className="rounded-xl border border-dashed border-slate-300 bg-white p-6">
+                    <p className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                      <EyeOff className="h-3.5 w-3.5" /> Abstract
+                    </p>
+                    <p className="text-sm text-slate-500">
+                      {record.institutionName || 'The owning institution'} shares only the descriptive details of this
+                      record publicly. Use the full-text options to get in touch.
+                    </p>
+                  </div>
+                ) : null}
 
                 {/* Keywords */}
                 {keywords.length > 0 && (
@@ -254,28 +304,22 @@ export default function ResearchOutputDetailPage() {
 
               {/* Right sidebar */}
               <div className="w-72 shrink-0 space-y-4">
-                {/* Access panel */}
+                {/* Full text access panel */}
                 <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-3">
                   <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                    Access
+                    Full text
                   </p>
-                  {record.doi ? (
-                    <a
-                      href={`https://doi.org/${record.doi}`}
-                      target="_blank"
-                      rel="noreferrer"
-                     className="flex items-center justify-center gap-2 w-full rounded-lg px-4 py-2.5 text-sm font-semibold text-white transition" style={{ background: '#1a6e3c' }}
-                    >
-                      <FileText className="h-4 w-4" />
-                      View Full Paper PDF
-                      <ExternalLink className="h-3.5 w-3.5" />
-                    </a>
-                  ) : (
-                    <div className="flex items-center justify-center gap-2 w-full rounded-lg bg-slate-100 px-4 py-2.5 text-sm font-medium text-slate-400">
-                      <FileText className="h-4 w-4" />
-                      No PDF available
-                    </div>
-                  )}
+
+                  <FullTextAction record={record} variant="panel" />
+
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    DASIG organizes Region VII research and does not host the full text. The owning institution decides
+                    whether to share it.{' '}
+                    <Link to="/access-policy" className="text-blue-600 hover:underline">
+                      Read the access policy
+                    </Link>
+                  </p>
+
                   <button
                     type="button"
                     onClick={handleCopyCitation}
@@ -327,15 +371,7 @@ export default function ResearchOutputDetailPage() {
         </>
       ) : null}
 
-      {/* Footer */}
-      <footer className="mt-auto border-t border-slate-200 bg-white px-8 py-4 flex items-center justify-between text-xs text-slate-400">
-        <span className="font-semibold text-[#1A1A2E]">DASIG</span>
-        <div className="flex items-center gap-4">
-          <span>Privacy Policy</span>
-          <span>Technical Support</span>
-          <span className="text-[#C9A84C] font-semibold">DOST</span>
-        </div>
-      </footer>
+      <PublicFooter className="mt-auto" />
     </div>
   )
 }

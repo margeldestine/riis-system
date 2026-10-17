@@ -21,6 +21,8 @@ import PdfIntakeStep from './PdfIntakeStep'
 import { AutoFillBadge } from './AutoFillBadge'
 import { AutoFillContext } from './autoFillContext'
 import { buildPrefill, isDirtyValue } from './pdfPrefill'
+import VisibilitySelector from './VisibilitySelector'
+import { visibilityLabel } from './visibilityOptions.js'
 
 // Same env-var pattern as apiClient.js -- this file makes several raw
 // axios/fetch calls (token refresh, file upload, submit/resubmit) that
@@ -345,7 +347,7 @@ const stepDefinitions = [
   {
     id: 4,
     label: 'Metadata & Attachments',
-    fields: ['subjectDc', 'coverageDc', 'rightsDc', 'doi', 'conferenceUrl', 'attachment'],
+    fields: ['subjectDc', 'coverageDc', 'rightsDc', 'doi', 'conferenceUrl', 'attachment', 'visibility'],
   },
   {
     id: 5,
@@ -402,6 +404,9 @@ const submissionSchema = z
   .min(1, 'Research title is required.')
   .max(500, 'Research title must be 500 characters or fewer.'),
     researchType: z.string().trim().min(1, 'Research type is required.'),
+    visibility: z.enum(['PUBLIC', 'METADATA_ONLY', 'RESTRICTED'], {
+      errorMap: () => ({ message: 'Choose who can see this record.' }),
+    }),
     completionYear: z.coerce
       .number({
         invalid_type_error: 'Completion year is required.',
@@ -1219,6 +1224,7 @@ function DublinCoreMetadataStep({
   existingAttachmentKey,
   onFileSelect,
   onClearExisting,
+  visibilityProps,
 }) {
   return (
     <div>
@@ -1360,12 +1366,14 @@ function DublinCoreMetadataStep({
           onClearExisting={onClearExisting}
           error={errors.attachment?.message}
         />
+
+        {visibilityProps ? <VisibilitySelector control={control} {...visibilityProps} /> : null}
       </div>
     </div>
   )
 }
 
-function ReviewSubmitStep({ values, existingAttachmentKey }) {
+function ReviewSubmitStep({ values, existingAttachmentKey, showVisibility }) {
   const attachmentLabel = values.attachment?.name
     || (existingAttachmentKey
       ? existingAttachmentKey.split('/').pop().replace(/^[a-f0-9]{8}-/, '')
@@ -1386,6 +1394,7 @@ function ReviewSubmitStep({ values, existingAttachmentKey }) {
     ['DOI', values.doi || 'Not provided'],
     ['Conference URL', values.conferenceUrl || 'Not provided'],
     ['Attachment', attachmentLabel],
+    ...(showVisibility ? [['Public visibility', visibilityLabel(values.visibility)]] : []),
   ]
 
   return (
@@ -1542,6 +1551,13 @@ export default function SubmissionPortal({ onSubmitted }) {
     keywordWarningTimer.current = setTimeout(() => setKeywordWarning(''), 2500)
   }
 
+  // Visibility default (Refactoring Priority 1): pre-select the institution default.
+  // 'loading' | 'ready' | 'failed'. If it fails we leave the choice empty so the officer picks one.
+  const isEditing = Boolean(location?.state?.editSubmissionId)
+  const [visibilityDefaultState, setVisibilityDefaultState] = useState(isEditing ? 'ready' : 'loading')
+  const [institutionDefaultVisibility, setInstitutionDefaultVisibility] = useState('')
+  const institutionDefaultVisibilityRef = useRef('')
+
   const institutionName =
     localStorage.getItem('institutionName') ||
     localStorage.getItem('userInstitution') ||
@@ -1565,6 +1581,7 @@ export default function SubmissionPortal({ onSubmitted }) {
             defaultValues: {
       title: '',
       researchType: '',
+      visibility: '',
       completionYear: currentYear,
       fundingSource: '',
       publicationVenue: '',
@@ -1633,6 +1650,7 @@ const authorOptions = useMemo(
             reset({
       title: '',
       researchType: '',
+      visibility: institutionDefaultVisibilityRef.current,
       completionYear: currentYear,
       fundingSource: '',
       publicationVenue: '',
@@ -1653,6 +1671,31 @@ const authorOptions = useMemo(
   useEffect(() => {
     resetWizard()
   }, [])
+
+  // Pre-select the institution's default visibility for NEW submissions.
+  useEffect(() => {
+    if (isEditing) return undefined
+    let cancelled = false
+    apiClient
+      .get('/hei/settings/default-visibility')
+      .then((response) => {
+        if (cancelled) return
+        const value = response?.data?.visibility
+        if (!['PUBLIC', 'METADATA_ONLY', 'RESTRICTED'].includes(value)) throw new Error('bad value')
+        institutionDefaultVisibilityRef.current = value
+        setInstitutionDefaultVisibility(value)
+        // Never overwrite a choice the officer already made.
+        if (!getValues('visibility')) setValue('visibility', value)
+        setVisibilityDefaultState('ready')
+      })
+      .catch(() => {
+        if (!cancelled) setVisibilityDefaultState('failed')
+      })
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEditing])
 
   useEffect(() => {
     const state = location?.state
@@ -1705,6 +1748,8 @@ const authorOptions = useMemo(
         doi: submission.doi || '',
         conferenceUrl: submission.conferenceUrl || '',
         attachment: null,
+        // Placeholder only: visibility is not sent when editing (changed via the visibility endpoint).
+        visibility: 'PUBLIC',
       })
       setExistingAttachmentKey(submission.s3PdfKey || null)
       setCurrentStep(1)
@@ -2057,6 +2102,7 @@ const addKeyword = () => {
       doi: values.doi || null,
       conferenceUrl: values.conferenceUrl || null,
       attachmentKey: attachmentMeta?.fileKey || null,
+      visibility: values.visibility,
     };
     
     // Explicitly get token and add to headers
@@ -2108,6 +2154,8 @@ const addKeyword = () => {
         doi: values.doi || null,
         conferenceUrl: values.conferenceUrl || null,
         attachmentKey: attachmentMeta?.fileKey || existingAttachmentKey || null,
+        // Only on create. Edits never change visibility.
+        ...(editSubmissionId ? {} : { visibility: values.visibility }),
       }
 
       // Use PUT if editing, POST if new
@@ -2214,10 +2262,21 @@ const addKeyword = () => {
             existingAttachmentKey={existingAttachmentKey}
             onFileSelect={handleFileSelect}
             onClearExisting={() => setExistingAttachmentKey(null)}
+            visibilityProps={
+              isEditing
+                ? null
+                : { error: errors.visibility?.message, defaultState: visibilityDefaultState, defaultValue: institutionDefaultVisibility }
+            }
           />
         )
       case 5:
-        return <ReviewSubmitStep values={allValues} existingAttachmentKey={existingAttachmentKey} />
+        return (
+          <ReviewSubmitStep
+            values={allValues}
+            existingAttachmentKey={existingAttachmentKey}
+            showVisibility={!isEditing}
+          />
+        )
       default:
         return null
     }

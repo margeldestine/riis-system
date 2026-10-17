@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { BarChart3, Building2, Calendar, ChevronDown, FileText, Globe, MapPin, User } from 'lucide-react'
 import apiClient from '../../services/apiClient'
+import FullTextAction from './FullTextAction'
+import { Link } from 'react-router-dom'
+import VisibilityBadge from './VisibilityBadge'
 
 function getInitials(name) {
   if (!name) return '??'
@@ -129,6 +132,8 @@ function OutputCard({ output, isOwnInstitution }) {
 
       {output.abstractExcerpt ? (
         <p className="text-xs text-slate-500 leading-relaxed">{output.abstractExcerpt}</p>
+      ) : output.visibility === 'METADATA_ONLY' || output.visibility === 'RESTRICTED' ? (
+        <p className="text-xs italic text-slate-400">Abstract withheld by the institution.</p>
       ) : null}
 
       {output.doi ? (
@@ -145,7 +150,7 @@ function OutputCard({ output, isOwnInstitution }) {
         </p>
       ) : null}
 
-      <div className="pt-1">
+      <div className="flex flex-wrap items-center gap-2 pt-1">
         <button
           type="button"
           onClick={() => navigate(`/research/${output.id}`)}
@@ -153,6 +158,8 @@ function OutputCard({ output, isOwnInstitution }) {
         >
           View Details
         </button>
+        <FullTextAction record={output} variant="card" />
+        <VisibilityBadge visibility={output.visibility} />
       </div>
     </div>
   )
@@ -674,8 +681,9 @@ export default function PublicInstitutionProfilePage() {
       <footer style={{ borderTop: '1px solid #e2e8f0', background: '#fff', padding: '16px 40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, color: '#94a3b8' }}>
         <span style={{ fontWeight: 700, color: '#1a1a2e' }}>DASIG</span>
         <div style={{ display: 'flex', gap: 16 }}>
+          <Link to="/access-policy" style={{ color: 'inherit' }}>Access Policy</Link>
           <span>Privacy Policy</span>
-          <span>Technical Support</span>
+          <span>Technical Support</span><a href="http://"></a>
           <span style={{ color: '#c9a84c', fontWeight: 600 }}>DOST</span>
         </div>
       </footer>

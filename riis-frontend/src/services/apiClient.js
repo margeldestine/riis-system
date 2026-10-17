@@ -7,7 +7,7 @@ const apiClient = axios.create({
   },
 })
 
-const PUBLIC_ROUTES = ['/search', '/institutions', '/auth/']
+const PUBLIC_ROUTES = ['/search', '/institutions', '/auth/', '/public/']
 
 apiClient.interceptors.request.use(
   (config) => {
