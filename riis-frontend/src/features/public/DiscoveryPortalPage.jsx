@@ -5,7 +5,9 @@ import apiClient from '../../services/apiClient'
 import FullTextAction from './FullTextAction'
 import PublicFooter from './PublicFooter'
 import VisibilityBadge from './VisibilityBadge'
+import RelatedResearchList from './RelatedResearchList'
 import { isAbstractWithheld } from './accessTiers'
+const MODE_LABELS = { KEYWORD: 'Keyword', SEMANTIC: 'Semantic', BOTH: 'Combined' }
 
 function extractApiErrorMessage(error, fallback) {
   const data = error?.response?.data
@@ -142,7 +144,6 @@ function ResultCard({ result, onSelect }) {
           <button
             type="button"
             onClick={() => {
-              console.log('similarity score being passed:', result.similarityScore)
               navigate(`/research/${result.id}`, { state: { similarityScore: result.similarityScore ?? null } })
             }}
             className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 transition whitespace-nowrap"
@@ -157,6 +158,7 @@ function ResultCard({ result, onSelect }) {
 }
 
 function RelatedDrawer({ open, record, related, relatedLoading, onClose }) {
+  const navigate = useNavigate()
   useEffect(() => {
     const handler = (e) => { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', handler)
@@ -255,25 +257,11 @@ function RelatedDrawer({ open, record, related, relatedLoading, onClose }) {
 
           <div className="border-t border-slate-100 pt-4">
             <p className="text-sm font-bold text-[#1A1A2E] mb-3">Related Research</p>
-            {relatedLoading ? (
-              <p className="text-xs text-slate-400">Loading related records...</p>
-            ) : related.length === 0 ? (
-              <p className="text-xs text-slate-400 italic">No related records found.</p>
-            ) : (
-              <div className="space-y-3">
-                {related.map(r => (
-                  <div key={r.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                    <p className="text-sm font-semibold text-[#1A1A2E] leading-snug">{r.title}</p>
-                    <div className="mt-1 flex items-center gap-2">
-                      <span className="text-xs text-slate-500">{r.institutionName}</span>
-                      <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-semibold text-blue-700">
-                        {r.similarityScore}% match
-                      </span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+                        <RelatedResearchList
+              related={related}
+              loading={relatedLoading}
+              onSelect={(id) => navigate(`/research/${id}`)}
+            />
           </div>
         </div>
       </div>
@@ -286,7 +274,7 @@ export default function DiscoveryPortalPage({ embedded = false }) {
   const [searchParams, setSearchParams] = useSearchParams()
 
   const [query, setQuery] = useState(searchParams.get('q') || '')
-  const [mode, setMode] = useState(searchParams.get('mode') || 'KEYWORD')
+  const [mode, setMode] = useState(searchParams.get('mode') || 'BOTH')
   const pageSize = 5
   const [page, setPage] = useState(0)
   const [filters, setFilters] = useState({
@@ -333,7 +321,7 @@ export default function DiscoveryPortalPage({ embedded = false }) {
 
     const params = new URLSearchParams()
     if (q) params.set('q', q)
-    if (mode !== 'KEYWORD') params.set('mode', mode)
+    if (mode !== 'BOTH') params.set('mode', mode)
     Object.entries(filters).forEach(([k, v]) => { if (v) params.set(k, v) })
     setSearchParams(params)
 
@@ -640,7 +628,7 @@ export default function DiscoveryPortalPage({ embedded = false }) {
                     onClick={() => setMode(m)}
                     className={`px-3 py-1.5 font-medium transition ${mode === m ? 'bg-[#1A1A2E] text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}
                   >
-                    {m.charAt(0) + m.slice(1).toLowerCase()}
+                    {MODE_LABELS[m]}
                   </button>
                 ))}
               </div>

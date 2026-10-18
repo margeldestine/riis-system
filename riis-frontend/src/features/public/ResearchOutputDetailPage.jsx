@@ -5,6 +5,7 @@ import { useParams, useNavigate, useLocation, Link } from 'react-router-dom'
 import FullTextAction from './FullTextAction'
 import PublicFooter from './PublicFooter'
 import VisibilityBadge from './VisibilityBadge'
+import RelatedResearchList from './RelatedResearchList'
 import { isAbstractWithheld, safeExternalUrl } from './accessTiers'
 
 
@@ -38,19 +39,6 @@ function MetaField({ label, value, children }) {
       <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-0.5">{label}</p>
       {children || <p className="text-sm font-medium text-[#1A1A2E]">{value}</p>}
     </div>
-  )
-}
-
-function RelatedCard({ record, onSelect }) {
-  return (
-    <button
-      type="button"
-      onClick={() => onSelect(record.id)}
-      className="w-full text-left rounded-lg border border-slate-200 bg-white p-3 hover:bg-slate-50 transition space-y-1.5"
-    >
-      <p className="text-sm font-semibold text-[#1A1A2E] leading-snug line-clamp-2">{record.title}</p>
-      <span className="text-xs text-slate-500">{record.institutionName}</span>
-    </button>
   )
 }
 
@@ -356,13 +344,10 @@ export default function ResearchOutputDetailPage() {
                     <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
                       You Might Also Be Interested In
                     </p>
-                    {related.map((r) => (
-                      <RelatedCard
-                        key={r.id}
-                        record={r}
-                        onSelect={(newId) => navigate(`/research/${newId}`)}
-                      />
-                    ))}
+                    <RelatedResearchList
+                      related={related}
+                      onSelect={(newId) => navigate(`/research/${newId}`)}
+                    />
                   </div>
                 )}
               </div>
