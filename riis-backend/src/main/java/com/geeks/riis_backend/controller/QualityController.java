@@ -27,6 +27,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
+import com.geeks.riis_backend.repository.QualityQueryRepository;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -39,6 +41,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class QualityController {
 
+    private final QualityQueryRepository qualityQueryRepository;
     private final OverlapAlertRepository overlapAlertRepository;
     private final ValidationLogRepository validationLogRepository;
     private final InstitutionRepository institutionRepository;
@@ -53,35 +56,56 @@ public class QualityController {
         SimilarityDispositionStatus statusFilter =
                 (status == null || status.isBlank()) ? null : SimilarityDispositionStatus.fromString(status);
 
-        List<OverlapAlert> alerts = statusFilter == null
-                ? overlapAlertRepository.findBySimilarityScoreGreaterThanEqualOrderByDetectedAtDesc(minScore)
-                : overlapAlertRepository.findBySimilarityScoreGreaterThanEqualAndStatusOrderByDetectedAtDesc(
-                        minScore, statusFilter);
+        List<OverlapRow> rows = qualityQueryRepository.overlapRows(minScore, statusFilter).stream()
+                .map(OverlapRow::of)
+                .collect(Collectors.toList());
 
-        Map<String, List<OverlapAlert>> groupedByNewRecord = alerts.stream()
-                .collect(Collectors.groupingBy(a -> a.getNewRecord().getId(), LinkedHashMap::new, Collectors.toList()));
+        Map<String, List<OverlapRow>> groupedByNewRecord = rows.stream()
+                .collect(Collectors.groupingBy(OverlapRow::newId, LinkedHashMap::new, Collectors.toList()));
 
         List<OverlapAlertGroupDTO> result = groupedByNewRecord.values().stream()
                 .map(group -> {
-                    OverlapAlert first = group.get(0);
-
+                    OverlapRow first = group.get(0);
                     List<OverlapMatchDTO> matches = group.stream()
-                            .map(similarityDispositionService::toMatchDto)
+                            .map(OverlapRow::toMatchDto)
                             .collect(Collectors.toList());
-
                     return new OverlapAlertGroupDTO(
-                            first.getNewRecord().getId(),
-                            first.getNewRecord().getReferenceNumber(),
-                            first.getNewRecord().getTitle(),
-                            first.getNewRecord().getInstitution() != null ?
-                                    first.getNewRecord().getInstitution().getName() : "Unknown",
-                            first.getDetectedAt(),
+                            first.newId(),
+                            first.newRef(),
+                            first.newTitle(),
+                            first.newHei() != null ? first.newHei() : "Unknown",
+                            first.detectedAt(),
                             matches
                     );
                 })
                 .collect(Collectors.toList());
 
         return ResponseEntity.ok(result);
+    }
+
+    /** One flag row from QualityQueryRepository.overlapRows (column order documented there). */
+    private record OverlapRow(String alertId, double score, LocalDateTime detectedAt,
+                              boolean notificationSent, SimilarityDispositionStatus status,
+                              String notes, LocalDateTime reviewedAt, String reviewer,
+                              String newId, String newRef, String newTitle, String newHei,
+                              String existingId, String existingTitle, String existingHei) {
+
+        static OverlapRow of(Object[] r) {
+            return new OverlapRow(
+                    (String) r[0], ((Number) r[1]).doubleValue(), (LocalDateTime) r[2],
+                    (Boolean) r[3], (SimilarityDispositionStatus) r[4],
+                    (String) r[5], (LocalDateTime) r[6], (String) r[7],
+                    (String) r[8], (String) r[9], (String) r[10], (String) r[11],
+                    (String) r[12], (String) r[13], (String) r[14]);
+        }
+
+        OverlapMatchDTO toMatchDto() {
+            SimilarityDispositionStatus s = status == null ? SimilarityDispositionStatus.OPEN : status;
+            return new OverlapMatchDTO(
+                    alertId, existingId, existingTitle,
+                    existingHei != null ? existingHei : "Unknown",
+                    score, notificationSent, s.name(), s.getLabel(), notes, reviewer, reviewedAt);
+        }
     }
 
     // Refactoring Priority 2: disposition workflow for similarity flags.

@@ -5,6 +5,7 @@ import com.geeks.riis_backend.dto.SubmissionDetailDTO;
 import com.geeks.riis_backend.dto.SubmissionSummaryDTO;
 import com.geeks.riis_backend.exception.BadRequestException;
 import com.geeks.riis_backend.exception.ResourceNotFoundException;
+import com.geeks.riis_backend.repository.QualityQueryRepository;
 import com.geeks.riis_backend.model.Author;
 import com.geeks.riis_backend.model.ResearchOutput;
 import com.geeks.riis_backend.repository.ResearchOutputRepository;
@@ -13,12 +14,16 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.support.PageableExecutionUtils;
 
 import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.time.LocalDateTime;
 
 @Service
 @RequiredArgsConstructor
@@ -28,27 +33,40 @@ public class AdminReviewService {
     private final ResearchOutputRepository researchOutputRepository;
     private final S3UploadService s3UploadService;
 
+    private final QualityQueryRepository qualityQueryRepository;
+
     @Transactional(readOnly = true)
     public Page<SubmissionSummaryDTO> listSubmissions(String status, String institutionId,
                                                       String researchType, Pageable pageable) {
-        return researchOutputRepository.findByStatus(status, pageable)
-                .map(o -> new SubmissionSummaryDTO(
-                        o.getId(),
-                        o.getReferenceNumber(),
-                        o.getTitle(),
-                        o.getResearchType(),
-                        o.getFundingSource(),
-                        o.getCompletionYear(),
-                        o.getCreatedAt(),
-                        o.getStatus(),
-                        o.getInstitution() != null ? o.getInstitution().getId() : null,
-                        o.getInstitution() != null ? o.getInstitution().getName() : null,
-                        o.getAuthors() == null ? null
-                                : o.getAuthors().stream()
-                                .map(Author::getFullName)
-                                .filter(name -> name != null && !name.isBlank())
-                                .collect(Collectors.joining(", "))
-                ));
+        List<Object[]> rows = qualityQueryRepository.submissionRows(
+                status, (int) pageable.getOffset(), pageable.getPageSize());
+
+        List<String> ids = rows.stream().map(r -> (String) r[0]).toList();
+        Map<String, List<String>> authorsByOutput = new HashMap<>();
+        for (Object[] r : qualityQueryRepository.authorNames(ids)) {
+            String name = (String) r[1];
+            if (name != null && !name.isBlank()) {
+                authorsByOutput.computeIfAbsent((String) r[0], k -> new ArrayList<>()).add(name);
+            }
+        }
+
+        List<SubmissionSummaryDTO> content = rows.stream()
+                .map(r -> new SubmissionSummaryDTO(
+                        (String) r[0],
+                        (String) r[1],
+                        (String) r[2],
+                        (String) r[3],
+                        (String) r[4],
+                        r[5] == null ? null : ((Number) r[5]).intValue(),
+                        (LocalDateTime) r[6],
+                        (String) r[7],
+                        (String) r[8],
+                        (String) r[9],
+                        String.join(", ", authorsByOutput.getOrDefault((String) r[0], List.of()))))
+                .toList();
+
+        return PageableExecutionUtils.getPage(content, pageable,
+                () -> qualityQueryRepository.submissionCount(status));
     }
 
     @Transactional(readOnly = true)
