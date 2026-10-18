@@ -136,6 +136,7 @@ export default function HeiDirectoryPage() {
         <div className="flex items-center gap-6">
           <button type="button" onClick={() => navigate('/')} className="text-sm text-slate-500 hover:text-[#1A1A2E]">Browse Research</button>
           <button type="button" className="text-sm font-semibold text-[#1A1A2E] border-b-2 border-[#1A1A2E] pb-0.5">HEI Directory</button>
+          <button type="button" onClick={() => navigate('/about')} className="text-sm text-slate-500 hover:text-[#1A1A2E]">About</button>
         </div>
         <div className="flex items-center gap-3">
           <button type="button" onClick={() => navigate('/login')} className="text-sm font-semibold text-[#1A1A2E] hover:text-slate-600">Login</button>

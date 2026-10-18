@@ -420,6 +420,9 @@ export default function DiscoveryPortalPage({ embedded = false }) {
           <button type="button" onClick={() => navigate('/discover')} className="text-sm text-slate-500 hover:text-[#1A1A2E]">
           HEI Directory
         </button>
+          <button type="button" onClick={() => navigate('/about')} className="text-sm text-slate-500 hover:text-[#1A1A2E]">
+            About
+          </button>
         </div>
         <div className="flex items-center gap-3">
           <button

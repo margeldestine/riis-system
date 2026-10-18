@@ -24,6 +24,7 @@ import ResetPassword from './features/auth/ResetPassword'
 import HeiAccessSettingsPage from './features/hei/HeiAccessSettingsPage'
 import FullTextRequestsInboxPage from './features/hei/FullTextRequestsInboxPage'
 import AccessPolicyPage from './features/public/AccessPolicyPage'
+import AboutPage from './features/public/AboutPage'
 
 function HeiPlaceholderPage({ activeLabel, title }) {
   return (
@@ -70,6 +71,7 @@ function App() {
         <Route path="/institutions/:id" element={<PublicInstitutionProfilePage />} />
         <Route path="/research/:id" element={<ResearchOutputDetailPage />} />
         <Route path="/access-policy" element={<AccessPolicyPage />} />
+        <Route path="/about" element={<AboutPage />} />
 
         {/* DOST Admin routes */}
         <Route path="/dost/dashboard" element={

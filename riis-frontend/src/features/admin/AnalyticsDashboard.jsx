@@ -21,6 +21,7 @@ import {
   YAxis,
 } from 'recharts'
 import apiClient from '../../services/apiClient'
+import ParticipationCard from './ParticipationCard'
 
 const cardClass =
   'rounded-[12px] bg-white p-[20px] shadow-[0_2px_8px_rgba(0,0,0,0.08)]'
@@ -749,6 +750,9 @@ export default function AnalyticsDashboard({
           </div>
         </div>
       </section>
+
+      {/* Priority 3: participation by province + submission model */}
+      <ParticipationCard />
 
       {/* Trend + Donut */}
       <section style={{ display: 'grid', gridTemplateColumns: '1.55fr 0.85fr', gap: '16px' }}>

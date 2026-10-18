@@ -353,6 +353,7 @@ export default function PublicInstitutionProfilePage() {
         <div style={{ display: 'flex', gap: 24 }}>
           <button onClick={() => navigate('/')} style={{ border: 'none', background: 'transparent', fontSize: 14, color: '#64748b', cursor: 'pointer', fontWeight: 500 }}>Browse Research</button>
           <button onClick={() => navigate('/discover')} style={{ border: 'none', background: 'transparent', fontSize: 14, color: '#1a1a2e', fontWeight: 700, cursor: 'pointer', borderBottom: '2px solid #1a1a2e', paddingBottom: 2 }}>HEI Directory</button>
+          <button onClick={() => navigate('/about')} style={{ border: 'none', background: 'transparent', fontSize: 14, color: '#64748b', cursor: 'pointer', fontWeight: 500 }}>About</button>
         </div>
         <div style={{ display: 'flex', gap: 12 }}>
           <button onClick={() => navigate('/login')} style={{ border: 'none', background: 'transparent', fontSize: 14, fontWeight: 600, color: '#1a1a2e', cursor: 'pointer' }}>Login</button>

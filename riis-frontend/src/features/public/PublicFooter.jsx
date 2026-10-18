@@ -8,6 +8,9 @@ export default function PublicFooter({ className = '' }) {
     >
       <span className="font-semibold text-[#1A1A2E]">DASIG</span>
       <div className="flex items-center gap-4">
+          <Link to="/about" className="hover:text-[#1A1A2E] hover:underline">
+          About
+        </Link>
         <Link to="/access-policy" className="hover:text-[#1A1A2E] hover:underline">
           Access Policy
         </Link>
