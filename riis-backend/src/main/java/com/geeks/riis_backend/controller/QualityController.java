@@ -120,31 +120,36 @@ public class QualityController {
     @PreAuthorize("hasRole('DOST_ADMIN')")
     public ResponseEntity<List<Map<String, Object>>> getQualityMetrics() {
         List<Institution> institutions = institutionRepository.findAll();
-        List<Map<String, Object>> metrics = new ArrayList<>();
 
+        Map<String, ValidationLogRepository.InstitutionValidationCounts> counts = new HashMap<>();
+        for (ValidationLogRepository.InstitutionValidationCounts c : validationLogRepository.countsByInstitution()) {
+            counts.put(c.getInstitutionId(), c);
+        }
+
+        Map<String, Map<String, Integer>> errorsByInstitution = new HashMap<>();
+        for (ValidationLogRepository.InstitutionErrorFieldCount row
+                : validationLogRepository.errorFieldCountsByInstitution()) {
+            errorsByInstitution
+                    .computeIfAbsent(row.getInstitutionId(), k -> new HashMap<>())
+                    .put(row.getField(), row.getCount().intValue());
+        }
+
+        List<Map<String, Object>> metrics = new ArrayList<>();
         for (Institution inst : institutions) {
-            long total = validationLogRepository.countByInstitutionId(inst.getId());
-            long passed = validationLogRepository.countPassedByInstitutionId(inst.getId());
-            List<ValidationLog> failed = validationLogRepository
-                    .findFailedByInstitutionId(inst.getId());
+            ValidationLogRepository.InstitutionValidationCounts c = counts.get(inst.getId());
+            long total = c == null ? 0 : c.getTotal();
+            long passed = c == null ? 0 : c.getPassed();
+            long failed = total - passed;
 
             double completenessRate = total > 0 ? (double) passed / total * 100 : 0;
-
-            Map<String, Integer> errorFrequency = new HashMap<>();
-            for (ValidationLog log : failed) {
-                if (log.getErrorsJson() != null) {
-                    log.getErrorsJson().fields().forEachRemaining(entry ->
-                            errorFrequency.merge(entry.getKey(), 1, Integer::sum));
-                }
-            }
 
             Map<String, Object> metric = new HashMap<>();
             metric.put("institutionId", inst.getId());
             metric.put("institutionName", inst.getName());
             metric.put("completenessRate", Math.round(completenessRate));
             metric.put("totalSubmissions", total);
-            metric.put("totalErrors", failed.size());
-            metric.put("errorFrequency", errorFrequency);
+            metric.put("totalErrors", failed);
+            metric.put("errorFrequency", errorsByInstitution.getOrDefault(inst.getId(), new HashMap<>()));
             metric.put("province", inst.getProvince());
             metrics.add(metric);
         }
