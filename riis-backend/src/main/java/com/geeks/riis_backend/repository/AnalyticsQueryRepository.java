@@ -8,6 +8,18 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 import java.util.Locale;
 
+/**
+ * Priority 4 (dashboard performance): database-side aggregates for the DOST
+ * analytics panels.
+ *
+ * Before: every panel loaded ALL approved ResearchOutput entities into memory,
+ * filtered them in Java, and triggered lazy loads (institution, authors) row by
+ * row (N+1). Each lazy load is a network round trip to the database.
+ *
+ * After: each panel runs ONE grouped query and gets back only the numbers it
+ * needs. The optional filters are appended to the WHERE clause only when they
+ * are set, so no query ever binds a null parameter (which Postgres cannot type).
+ */
 @Repository
 public class AnalyticsQueryRepository {
 
@@ -112,5 +124,23 @@ public class AnalyticsQueryRepository {
         return run("SELECT i.id, ro.subjectDc, COUNT(ro)",
                 " AND ro.subjectDc IS NOT NULL AND TRIM(ro.subjectDc) <> ''"
                         + " GROUP BY i.id, ro.subjectDc", f);
+    }
+
+    // ---- HEI list (InstitutionService.listAll) -------------------------------
+
+    /** Rows: [institutionId, approvedCount] for every institution that has approved outputs. */
+    public List<Object[]> approvedCountsByInstitution() {
+        return em.createQuery(
+                "SELECT ro.institution.id, COUNT(ro) FROM ResearchOutput ro "
+                        + "WHERE ro.status = 'APPROVED' GROUP BY ro.institution.id",
+                Object[].class).getResultList();
+    }
+
+    /** Rows: [institutionId, keyword, weight] for every theme keyword of every institution. */
+    public List<Object[]> themeKeywordRows() {
+        return em.createQuery(
+                "SELECT tp.institution.id, tk.keyword, tk.weight FROM ThemeKeyword tk "
+                        + "JOIN tk.themeProfile tp",
+                Object[].class).getResultList();
     }
 }

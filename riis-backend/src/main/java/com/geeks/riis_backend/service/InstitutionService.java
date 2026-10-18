@@ -55,6 +55,7 @@ public class InstitutionService {
     private final AuditLogEntryRepository auditLogEntryRepository;
     private final ResearchOutputRepository researchOutputRepository;
     private final ThemeProfileRepository  themeProfileRepository;
+    private final com.geeks.riis_backend.repository.AnalyticsQueryRepository analyticsQueryRepository;
     private final PublicAccessPolicy      accessPolicy;
 
 
@@ -71,27 +72,39 @@ public class InstitutionService {
     }
 
 
+    // Priority 4: 3 queries in total (institutions, approved counts, theme keywords)
+    // instead of ~3 per institution. Output is unchanged: the top 5 keywords per
+    // institution by weight, and the approved output count.
     @Transactional(readOnly = true)
     public List<InstitutionSummaryDTO> listAll(String province) {
         List<Institution> list = (province != null && !province.isBlank())
                 ? institutionRepository.findByProvinceIgnoreCase(province)
                 : institutionRepository.findAll();
 
+        Map<String, Long> approvedCounts = new java.util.HashMap<>();
+        for (Object[] row : analyticsQueryRepository.approvedCountsByInstitution()) {
+            approvedCounts.put((String) row[0], ((Number) row[1]).longValue());
+        }
+
+        Map<String, List<ThemeKeywordDTO>> keywordsByInstitution = new java.util.HashMap<>();
+        for (Object[] row : analyticsQueryRepository.themeKeywordRows()) {
+            keywordsByInstitution
+                    .computeIfAbsent((String) row[0], k -> new java.util.ArrayList<>())
+                    .add(new ThemeKeywordDTO((String) row[1], ((Number) row[2]).doubleValue()));
+        }
+
         return list.stream()
                 .map(i -> {
-                    List<ThemeKeywordDTO> keywords = themeProfileRepository
-                            .findByInstitutionId(i.getId())
-                            .map(ThemeProfile::getKeywords)
-                            .map(kwds -> kwds.stream()
-                                    .map(k -> new ThemeKeywordDTO(k.getKeyword(), k.getWeight()))
-                                    .sorted((a, b) -> Double.compare(b.weight(), a.weight()))
-                                    .limit(5)
-                                    .collect(Collectors.toList()))
-                            .orElse(List.of());
+                    List<ThemeKeywordDTO> keywords = keywordsByInstitution
+                            .getOrDefault(i.getId(), List.of())
+                            .stream()
+                            .sorted((a, b) -> Double.compare(b.weight(), a.weight()))
+                            .limit(5)
+                            .collect(Collectors.toList());
                     return new InstitutionSummaryDTO(
                             i.getId(), i.getName(), i.getType(),
                             i.getProvince(), i.getEmailDomain(), i.getWhitelistStatus(),
-                            institutionRepository.countApprovedOutputs(i.getId()),
+                            approvedCounts.getOrDefault(i.getId(), 0L),
                             keywords
                     );
                 })
