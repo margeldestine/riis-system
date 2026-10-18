@@ -26,118 +26,172 @@ public class SearchService {
     private final AIProxyService aiProxyService;
     private final PublicAccessPolicy accessPolicy;
 
+    // Ranking settings (tune these using the sample query set, see the Priority 5 guide)
+    private static final int SEMANTIC_POOL = 100;
+    private static final double KEYWORD_WEIGHT = 0.4;
+    private static final double SEMANTIC_WEIGHT = 0.6;
+    private static final int RELATED_LIMIT = 5;
+    private static final int RELATED_POOL = 15;
+    private static final int RELATED_MAX_PER_INSTITUTION = 2;
+    /**
+     * A semantic match is kept only if its cosine similarity is within this distance of the best match.
+     * Smaller means stricter. Tune it with the sample query set.
+     */
+    private static final double SEMANTIC_BAND = 0.15;
+
     private float[] computeQueryEmbedding(String query) {
         return aiProxyService.computeSPECTEREmbedding(query, "");
     }
 
+    private static String normalizeMode(String mode) {
+        if (mode == null || mode.isBlank()) return "BOTH";
+        String m = mode.trim().toUpperCase();
+        return ("KEYWORD".equals(m) || "SEMANTIC".equals(m)) ? m : "BOTH";
+    }
+
     public Map<String, Object> search(String query, String mode, Map<String, Object> filters) {
-        String normalizedMode = mode == null ? "KEYWORD" : mode.trim().toUpperCase();
+        String requestedMode = normalizeMode(mode);
+        String q = query == null ? "" : query.trim();
+        boolean blank = q.isBlank();
+        Viewer viewer = accessPolicy.currentViewer();
 
-        List<Map<String, Object>> results;
+        // Two queries total (records with institutions, then all authors).
+        List<ResearchOutput> approved = researchOutputRepository.findByStatusWithInstitution(STATUS_APPROVED);
+        Map<String, List<Author>> authorsById = loadAuthors(approved);
+        Map<String, ResearchOutput> byId = new LinkedHashMap<>();
+        for (ResearchOutput o : approved) byId.put(o.getId(), o);
+
+        String effectiveMode = requestedMode;
         boolean fallback = false;
+        Map<String, Double> cosineById = new HashMap<>();
+        List<String> semanticRanking = List.of();
 
-        if ("SEMANTIC".equals(normalizedMode)) {
-            float[] embedding = computeQueryEmbedding(query);
-            if (embedding.length == 0) {
-                results = executeKeywordSearch(query, filters);
+        if (!blank && !"KEYWORD".equals(requestedMode)) {
+            float[] embedding = computeQueryEmbedding(q);
+            if (embedding == null || embedding.length == 0) {
+                effectiveMode = "KEYWORD";
                 fallback = true;
             } else {
-                results = executeSemanticSearch(embedding, filters);
-                fallback = false;
+                for (ResearchOutput o : researchOutputRepository.findSimilarForViewer(
+                        embedding, "", SEMANTIC_POOL,
+                        filterText(filters, "institutionId"), filterText(filters, "province"),
+                        filterText(filters, "researchType"), filterYear(filters), filterText(filters, "fundingSource"),
+                        viewer.admin(), viewer.institutionId())) {
+                    if (!byId.containsKey(o.getId())) continue;
+                    cosineById.put(o.getId(), computeCosineSimilarity(embedding, o.getSpecterEmbedding()));
+                }
+                cosineById = SearchRanker.withinBand(cosineById, SEMANTIC_BAND);
+                semanticRanking = SearchRanker.rank(cosineById);
             }
-        } else if ("BOTH".equals(normalizedMode)) {
-            float[] embedding = computeQueryEmbedding(query);
-            if (embedding.length == 0) {
-                results = executeKeywordSearch(query, filters);
-                fallback = true;
-            } else {
-                List<Map<String, Object>> keywordResults = executeKeywordSearch(query, filters);
-                List<Map<String, Object>> semanticResults = executeSemanticSearch(embedding, filters);
-                results = mergeAndRankResults(keywordResults, semanticResults);
-                fallback = false;
-            }
+        }
+
+        // Score every record
+        Map<String, Double> scores;
+        if (blank) {
+            scores = browseScores(byId.values(), viewer);
         } else {
-            results = executeKeywordSearch(query, filters);
-            fallback = false;
+            Map<String, Double> keywordScores = "SEMANTIC".equals(effectiveMode)
+                    ? Map.of()
+                    : SearchRanker.keywordScores(toDocs(approved, viewer, authorsById), q);
+            if ("SEMANTIC".equals(effectiveMode)) {
+                scores = cosineById;
+            } else if ("BOTH".equals(effectiveMode)) {
+                scores = SearchRanker.fuse(SearchRanker.rank(keywordScores), KEYWORD_WEIGHT,
+                        semanticRanking, SEMANTIC_WEIGHT);
+            } else {
+                scores = keywordScores;
+            }
+        }
+
+        // Filters, order, fairness
+        List<SearchRanker.Scored> ordered = new ArrayList<>();
+        for (String id : SearchRanker.rank(scores)) {
+            ResearchOutput o = byId.get(id);
+            if (o == null || !matchesFilters(o, filters, viewer)) continue;
+            ordered.add(new SearchRanker.Scored(id, accessPolicy.institutionIdOf(o), scores.get(id)));
+        }
+        boolean institutionFiltered = filterText(filters, "institutionId") != null;
+        if (!institutionFiltered) {
+            ordered = SearchRanker.diversify(ordered, SearchRanker.DEFAULT_WINDOW,
+                    SearchRanker.DEFAULT_MAX_PER_INSTITUTION);
+        }
+
+        List<Map<String, Object>> results = new ArrayList<>(ordered.size());
+        for (SearchRanker.Scored s : ordered) {
+            Map<String, Object> card = toCard(byId.get(s.id()), viewer, authorsById);
+            Double cosine = cosineById.get(s.id());
+            card.put("similarityScore", cosine == null ? null : Math.round(cosine * 1000.0) / 10.0);
+            results.add(card);
         }
 
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("results", results);
         response.put("total", results.size());
         response.put("fallback", fallback);
+        response.put("mode", effectiveMode);
+        response.put("institutionsInTop10", SearchRanker.distinctInstitutions(ordered, SearchRanker.DEFAULT_WINDOW));
         return response;
     }
 
-    public List<Map<String, Object>> executeKeywordSearch(String query, Map<String, Object> filters) {
-        Viewer viewer = accessPolicy.currentViewer();
-        // Two queries total (records + institutions, then all authors) instead of one per record.
-        List<ResearchOutput> approved = researchOutputRepository.findByStatusWithInstitution(STATUS_APPROVED);
-        Map<String, List<Author>> authorsById = loadAuthors(approved);
-        String q = query == null ? "" : query.trim().toLowerCase();
-
-        return approved.stream()
-                .filter(o -> matchesQuery(o, q, viewer, authorsById))
-                .filter(o -> matchesFilters(o, filters, viewer))
-                .map(o -> {
-                    Map<String, Object> card = toCard(o, viewer, authorsById);
-                    card.put("similarityScore", null);
-                    return card;
-                })
-                .collect(Collectors.toList());
-    }
-
-    public List<Map<String, Object>> executeSemanticSearch(float[] embedding, Map<String, Object> filters) {
-        Viewer viewer = accessPolicy.currentViewer();
-        List<ResearchOutput> similar = researchOutputRepository
-                .findSimilarBySpecterEmbedding(embedding, "00000000-0000-0000-0000-000000000000", 20);
-
-        return similar.stream()
-                .filter(o -> matchesFilters(o, filters, viewer))
-                .map(o -> {
-                    Map<String, Object> card = toCard(o, viewer);
-                    double score = computeCosineSimilarity(embedding, o.getSpecterEmbedding());
-                    card.put("similarityScore", Math.round(score * 1000.0) / 10.0);
-                    return card;
-                })
-                .collect(Collectors.toList());
-    }
-
-    public List<Map<String, Object>> mergeAndRankResults(
-            List<Map<String, Object>> keywordResults,
-            List<Map<String, Object>> semanticResults) {
-
-        Map<String, Map<String, Object>> merged = new LinkedHashMap<>();
-
-        for (int i = 0; i < keywordResults.size(); i++) {
-            Map<String, Object> r = keywordResults.get(i);
-            String id = (String) r.get("id");
-            double bm25Score = 1.0 / (i + 1);
-            r.put("mergedScore", 0.4 * bm25Score);
-            merged.put(id, r);
+    /** Empty search box: newest first, hidden years last. Equal scores so fairness spreading still applies. */
+    private Map<String, Double> browseScores(Collection<ResearchOutput> records, Viewer viewer) {
+        List<ResearchOutput> sorted = new ArrayList<>(records);
+        sorted.sort(Comparator
+                .comparing((ResearchOutput o) -> accessPolicy.viewTier(viewer, o).exposesDescriptiveMetadata()
+                                && o.getCompletionYear() != null ? o.getCompletionYear() : Integer.MIN_VALUE,
+                        Comparator.reverseOrder())
+                .thenComparing(o -> o.getTitle() == null ? "" : o.getTitle().toLowerCase()));
+        // LinkedHashMap would keep this order, but rank() sorts by score then id, so encode the order in the score.
+        Map<String, Double> scores = new LinkedHashMap<>();
+        for (int i = 0; i < sorted.size(); i++) {
+            scores.put(sorted.get(i).getId(), 1.0 - (i * 1e-9));
         }
+        return scores;
+    }
 
-        for (int i = 0; i < semanticResults.size(); i++) {
-            Map<String, Object> r = semanticResults.get(i);
-            String id = (String) r.get("id");
-            Double simScore = r.get("similarityScore") != null ?
-                    ((Number) r.get("similarityScore")).doubleValue() / 100.0 : 0.0;
-            double semanticScore = simScore;
-
-            if (merged.containsKey(id)) {
-                double existing = ((Number) merged.get(id).get("mergedScore")).doubleValue();
-                merged.get(id).put("mergedScore", existing + 0.6 * semanticScore);
-                merged.get(id).put("similarityScore", r.get("similarityScore"));
-            } else {
-                r.put("mergedScore", 0.6 * semanticScore);
-                merged.put(id, r);
+    /**
+     * Only fields the viewer may see are given to the ranker, so a hidden abstract
+     * (or hidden keywords and authors) can never be discovered by searching for words inside it.
+     */
+    private List<SearchRanker.Doc> toDocs(List<ResearchOutput> records, Viewer viewer,
+                                          Map<String, List<Author>> authorsById) {
+        List<SearchRanker.Doc> docs = new ArrayList<>(records.size());
+        for (ResearchOutput o : records) {
+            AccessVisibility tier = accessPolicy.viewTier(viewer, o);
+            String authors = "";
+            if (tier.exposesDescriptiveMetadata()) {
+                Collection<Author> list = authorsOf(o, authorsById);
+                authors = list == null ? "" : list.stream()
+                        .map(a -> a.getFullName() == null ? "" : a.getFullName())
+                        .collect(Collectors.joining(" "));
             }
+            docs.add(new SearchRanker.Doc(
+                    o.getId(),
+                    accessPolicy.institutionIdOf(o),
+                    o.getTitle(),
+                    tier.exposesDescriptiveMetadata() ? o.getKeywords() : "",
+                    authors,
+                    o.getInstitution() != null ? o.getInstitution().getName() : "",
+                    tier.exposesAbstract() ? o.getAbstractText() : ""));
         }
+        return docs;
+    }
 
-        return merged.values().stream()
-                .sorted((a, b) -> Double.compare(
-                        ((Number) b.get("mergedScore")).doubleValue(),
-                        ((Number) a.get("mergedScore")).doubleValue()))
-                .collect(Collectors.toList());
+    private static String filterText(Map<String, Object> filters, String key) {
+        if (filters == null) return null;
+        Object v = filters.get(key);
+        if (v == null || v.toString().isBlank()) return null;
+        return v.toString().trim();
+    }
+
+    private static Integer filterYear(Map<String, Object> filters) {
+        String raw = filterText(filters, "year");
+        if (raw == null) return null;
+        try {
+            return Integer.parseInt(raw);
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
     public Map<String, Object> getById(String id) {
@@ -174,29 +228,78 @@ public class SearchService {
             return List.of();
         }
 
-        if (source.getSpecterEmbedding() != null && source.getSpecterEmbedding().length > 0) {
-            return researchOutputRepository
-                    .findSimilarBySpecterEmbedding(source.getSpecterEmbedding(), id, 3)
-                    .stream()
-                    .map(o -> {
-                        double score = computeCosineSimilarity(source.getSpecterEmbedding(), o.getSpecterEmbedding());
-                        return toRelatedItem(o, viewer, Math.round(score * 1000.0) / 10.0);
-                    })
-                    .collect(Collectors.toList());
+        AccessVisibility sourceTier = accessPolicy.viewTier(viewer, source);
+        Map<String, ResearchOutput> candidates = new LinkedHashMap<>();
+        Map<String, Double> cosineById = new HashMap<>();
+        Map<String, Double> overlapById = new HashMap<>();
+        Set<String> sourceKeys = Set.of();
+
+        // Similar topic. The embedding comes from the abstract, so it is used only
+        // when the viewer is allowed to see the abstract of the source record.
+        float[] embedding = source.getSpecterEmbedding();
+        if (sourceTier.exposesAbstract() && embedding != null && embedding.length > 0) {
+            for (ResearchOutput o : researchOutputRepository.findSimilarForViewer(
+                    embedding, id, RELATED_POOL, null, null, null, null, null,
+                    viewer.admin(), viewer.institutionId())) {
+                cosineById.put(o.getId(), computeCosineSimilarity(embedding, o.getSpecterEmbedding()));
+                candidates.put(o.getId(), o);
+            }
+            cosineById = SearchRanker.withinBand(cosineById, SEMANTIC_BAND);
+            candidates.keySet().retainAll(cosineById.keySet());
         }
 
-        // Keyword fallback reads keywords, so skip it when the source hides them.
-        if (!accessPolicy.viewTier(viewer, source).exposesDescriptiveMetadata()) {
-            return List.of();
+        // Shared keywords. Needs the source keywords and the candidate keywords to be visible.
+        if (sourceTier.exposesDescriptiveMetadata()) {
+            sourceKeys = keywordSet(source.getKeywords());
+            if (!sourceKeys.isEmpty()) {
+                for (ResearchOutput o : researchOutputRepository.findByStatusWithInstitution(STATUS_APPROVED)) {
+                    if (o.getId().equals(id)) continue;
+                    if (!accessPolicy.viewTier(viewer, o).exposesDescriptiveMetadata()) continue;
+                    Set<String> shared = new LinkedHashSet<>(sourceKeys);
+                    Set<String> theirs = keywordSet(o.getKeywords());
+                    shared.retainAll(theirs);
+                    if (shared.isEmpty()) continue;
+                    Set<String> union = new HashSet<>(sourceKeys);
+                    union.addAll(theirs);
+                    overlapById.put(o.getId(), (double) shared.size() / union.size());
+                    candidates.putIfAbsent(o.getId(), o);
+                }
+            }
         }
+        if (candidates.isEmpty()) return List.of();
 
-        return researchOutputRepository.findByStatus(STATUS_APPROVED).stream()
-                .filter(o -> !o.getId().equals(id))
-                .filter(o -> accessPolicy.viewTier(viewer, o).exposesDescriptiveMetadata())
-                .filter(o -> hasKeywordOverlap(source, o))
-                .limit(3)
-                .map(o -> toRelatedItem(o, viewer, null))
-                .collect(Collectors.toList());
+        Map<String, Double> fused = SearchRanker.fuse(
+                SearchRanker.rank(overlapById), KEYWORD_WEIGHT,
+                SearchRanker.rank(cosineById), SEMANTIC_WEIGHT);
+        List<SearchRanker.Scored> ordered = new ArrayList<>();
+        for (String cid : SearchRanker.rank(fused)) {
+            ordered.add(new SearchRanker.Scored(cid, accessPolicy.institutionIdOf(candidates.get(cid)), fused.get(cid)));
+        }
+        ordered = SearchRanker.diversify(ordered, RELATED_LIMIT, RELATED_MAX_PER_INSTITUTION);
+
+        List<Map<String, Object>> items = new ArrayList<>();
+        for (SearchRanker.Scored s : ordered.subList(0, Math.min(RELATED_LIMIT, ordered.size()))) {
+            ResearchOutput o = candidates.get(s.id());
+            List<String> shared = new ArrayList<>();
+            if (!sourceKeys.isEmpty() && accessPolicy.viewTier(viewer, o).exposesDescriptiveMetadata()) {
+                for (String k : keywordSet(o.getKeywords())) {
+                    if (sourceKeys.contains(k)) shared.add(k);
+                }
+            }
+            Double cosine = cosineById.get(s.id());
+            items.add(toRelatedItem(o, viewer,
+                    cosine == null ? null : Math.round(cosine * 1000.0) / 10.0,
+                    shared.subList(0, Math.min(3, shared.size()))));
+        }
+        return items;
+    }
+
+    private static Set<String> keywordSet(String keywords) {
+        if (keywords == null || keywords.isBlank()) return Set.of();
+        return Arrays.stream(keywords.split(","))
+                .map(String::trim).map(String::toLowerCase)
+                .filter(k -> !k.isBlank())
+                .collect(Collectors.toCollection(LinkedHashSet::new));
     }
 
     private Map<String, List<Author>> loadAuthors(List<ResearchOutput> outputs) {
@@ -225,36 +328,6 @@ public class SearchService {
         }
         if (normA == 0 || normB == 0) return 0.0;
         return dot / (Math.sqrt(normA) * Math.sqrt(normB));
-    }
-
-    /**
-     * Only fields the viewer is allowed to see take part in matching, so a hidden abstract
-     * (or hidden keywords/authors) can never be discovered by searching for words inside it.
-     */
-    private boolean matchesQuery(ResearchOutput o, String q, Viewer viewer, Map<String, List<Author>> authorsById) {
-        if (q.isBlank()) return true;
-        AccessVisibility tier = accessPolicy.viewTier(viewer, o);
-
-        String title = o.getTitle() != null ? o.getTitle().toLowerCase() : "";
-        String institution = o.getInstitution() != null && o.getInstitution().getName() != null
-                ? o.getInstitution().getName().toLowerCase() : "";
-        if (title.contains(q) || institution.contains(q)) return true;
-
-        if (tier.exposesDescriptiveMetadata()) {
-            String keywords = o.getKeywords() != null ? o.getKeywords().toLowerCase() : "";
-            Collection<Author> authorList = authorsOf(o, authorsById);
-            String authors = authorList != null
-                    ? authorList.stream()
-                    .map(a -> a.getFullName() != null ? a.getFullName().toLowerCase() : "")
-                    .collect(Collectors.joining(" ")) : "";
-            if (keywords.contains(q) || authors.contains(q)) return true;
-        }
-
-        if (tier.exposesAbstract()) {
-            String abstrakt = o.getAbstractText() != null ? o.getAbstractText().toLowerCase() : "";
-            return abstrakt.contains(q);
-        }
-        return false;
     }
 
     /**
@@ -304,16 +377,6 @@ public class SearchService {
         return true;
     }
 
-    private boolean hasKeywordOverlap(ResearchOutput a, ResearchOutput b) {
-        if (a.getKeywords() == null || b.getKeywords() == null) return false;
-        Set<String> aKeys = Arrays.stream(a.getKeywords().split(","))
-                .map(String::trim).map(String::toLowerCase).collect(Collectors.toSet());
-        Set<String> bKeys = Arrays.stream(b.getKeywords().split(","))
-                .map(String::trim).map(String::toLowerCase).collect(Collectors.toSet());
-        aKeys.retainAll(bKeys);
-        return !aKeys.isEmpty();
-    }
-
     /** Same keys as before, plus "visibility" and "fullText". Hidden fields are blank, never removed. */
     private Map<String, Object> toCard(ResearchOutput o, Viewer viewer) {
         return toCard(o, viewer, null);
@@ -346,7 +409,8 @@ public class SearchService {
         return card;
     }
 
-    private Map<String, Object> toRelatedItem(ResearchOutput o, Viewer viewer, Double similarityScore) {
+    private Map<String, Object> toRelatedItem(ResearchOutput o, Viewer viewer, Double similarityScore,
+                                              List<String> sharedKeywords) {
         AccessVisibility tier = accessPolicy.viewTier(viewer, o);
         boolean metadata = tier.exposesDescriptiveMetadata();
 
@@ -358,8 +422,18 @@ public class SearchService {
         item.put("completionYear", metadata ? o.getCompletionYear() : null);
         item.put("abstractExcerpt", tier.exposesAbstract() ? truncate(o.getAbstractText(), 150) : "");
         item.put("similarityScore", similarityScore);
+        item.put("sharedKeywords", sharedKeywords);
+        item.put("reason", relatedReason(similarityScore != null, sharedKeywords));
         item.put("visibility", accessPolicy.effectiveVisibility(o).name());
         return item;
+    }
+
+    private static String relatedReason(boolean similarTopic, List<String> shared) {
+        String keywords = String.join(", ", shared);
+        if (similarTopic && !shared.isEmpty()) return "Similar topic and shared keywords: " + keywords;
+        if (similarTopic) return "Similar topic";
+        if (!shared.isEmpty()) return "Shared keywords: " + keywords;
+        return "";
     }
 
     private String truncate(String text, int maxChars) {

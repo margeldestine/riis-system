@@ -5,6 +5,13 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.geeks.riis_backend.dto.FullTextActionDTO;
@@ -73,7 +80,7 @@ class SearchServiceVisibilityTest {
 
     @Test
     void anonymousSearchCannotMatchHiddenAbstracts() {
-        when(repo.findByStatus("APPROVED")).thenReturn(List.of(
+        when(repo.findByStatusWithInstitution("APPROVED")).thenReturn(List.of(
                 record("pub", AccessVisibility.PUBLIC),
                 record("meta", AccessVisibility.METADATA_ONLY),
                 record("res", AccessVisibility.RESTRICTED)));
@@ -86,7 +93,7 @@ class SearchServiceVisibilityTest {
 
     @Test
     void restrictedCardShowsOnlyTitleAndInstitution() {
-        when(repo.findByStatus("APPROVED")).thenReturn(List.of(record("res", AccessVisibility.RESTRICTED)));
+        when(repo.findByStatusWithInstitution("APPROVED")).thenReturn(List.of(record("res", AccessVisibility.RESTRICTED)));
 
         Map<String, Object> card = results(service.search("title", "KEYWORD", null)).get(0);
 
@@ -103,7 +110,7 @@ class SearchServiceVisibilityTest {
 
     @Test
     void fullTextActionLinksToDoiUnlessRestricted() {
-        when(repo.findByStatus("APPROVED")).thenReturn(List.of(
+        when(repo.findByStatusWithInstitution("APPROVED")).thenReturn(List.of(
                 record("pub", AccessVisibility.PUBLIC),
                 record("meta", AccessVisibility.METADATA_ONLY)));
 
@@ -153,11 +160,47 @@ class SearchServiceVisibilityTest {
         SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
                 "u1", null, List.of(new SimpleGrantedAuthority("ROLE_HEI_STAFF"))));
 
-        when(repo.findByStatus("APPROVED")).thenReturn(List.of(
+        when(repo.findByStatusWithInstitution("APPROVED")).thenReturn(List.of(
                 record("pub", AccessVisibility.PUBLIC),
                 record("meta", AccessVisibility.METADATA_ONLY),
                 record("res", AccessVisibility.RESTRICTED)));
 
         assertEquals(3, results(service.search("secretword", "KEYWORD", null)).size());
+    }
+
+    @Test
+    void defaultModeIsCombinedAndFallsBackToKeywordWhenAiGivesNoEmbedding() {
+        when(repo.findByStatusWithInstitution("APPROVED")).thenReturn(List.of(record("pub", AccessVisibility.PUBLIC)));
+        when(ai.computeSPECTEREmbedding("title", "")).thenReturn(new float[0]);
+
+        Map<String, Object> response = service.search("title", null, null);
+
+        assertEquals(true, response.get("fallback"));
+        assertEquals("KEYWORD", response.get("mode"));
+        assertEquals(1, results(response).size());
+    }
+
+    @Test
+    void semanticSearchSendsViewerRulesAndFiltersToTheDatabase() {
+        when(repo.findByStatusWithInstitution("APPROVED")).thenReturn(List.of(record("pub", AccessVisibility.PUBLIC)));
+        float[] embedding = {1f, 0f};
+        when(ai.computeSPECTEREmbedding("title", "")).thenReturn(embedding);
+
+        service.search("title", "SEMANTIC", Map.of("province", "Cebu"));
+
+        // anonymous viewer: not an admin, no own institution, province filter passed into the query
+        verify(repo).findSimilarForViewer(eq(embedding), eq(""), anyInt(),
+                eq(null), eq("Cebu"), eq(null), eq(null), eq(null), eq(false), eq(null));
+    }
+
+    @Test
+    void relatedOfRestrictedRecordIsEmptyForAnonymousAndNeverUsesItsEmbedding() {
+        ResearchOutput restricted = record("res", AccessVisibility.RESTRICTED);
+        restricted.setSpecterEmbedding(new float[] {1f, 0f});
+        when(repo.findById("res")).thenReturn(Optional.of(restricted));
+
+        assertEquals(List.of(), service.getRelated("res"));
+        verify(repo, never()).findSimilarForViewer(any(), anyString(), anyInt(),
+                any(), any(), any(), any(), any(), anyBoolean(), any());
     }
 }

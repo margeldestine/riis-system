@@ -96,6 +96,41 @@ public interface ResearchOutputRepository extends JpaRepository<ResearchOutput, 
 			@Param("limit") int limit
 	);
 
+	@Query(
+			value = """
+					SELECT ro.*
+					FROM research_outputs ro
+					JOIN institutions i ON i.id = ro.institution_id
+					WHERE ro.status = 'APPROVED'
+					  AND ro.specter_embedding IS NOT NULL
+					  AND ro.id <> cast(:excludeId as text)
+					  AND (ro.visibility = 'PUBLIC'
+					       OR cast(:seeAll as boolean) = true
+					       OR ro.institution_id = cast(:viewerInstitutionId as text))
+					  AND (cast(:institutionId as text) IS NULL OR ro.institution_id = cast(:institutionId as text))
+					  AND (cast(:province as text) IS NULL OR lower(i.province) = lower(cast(:province as text)))
+					  AND (cast(:researchType as text) IS NULL OR lower(ro.research_type) = lower(cast(:researchType as text)))
+					  AND (cast(:year as integer) IS NULL OR ro.completion_year = cast(:year as integer))
+					  AND (cast(:fundingSource as text) IS NULL
+					       OR lower(ro.funding_source) LIKE lower(concat('%', cast(:fundingSource as text), '%')))
+					ORDER BY ro.specter_embedding <=> cast(:embedding as vector)
+					LIMIT :limit
+					""",
+			nativeQuery = true
+	)
+	List<ResearchOutput> findSimilarForViewer(
+			@Param("embedding") float[] embedding,
+			@Param("excludeId") String excludeId,
+			@Param("limit") int limit,
+			@Param("institutionId") String institutionId,
+			@Param("province") String province,
+			@Param("researchType") String researchType,
+			@Param("year") Integer year,
+			@Param("fundingSource") String fundingSource,
+			@Param("seeAll") boolean seeAll,
+			@Param("viewerInstitutionId") String viewerInstitutionId
+	);
+
 	@Modifying
 	@Transactional
 	@Query(value = "UPDATE research_outputs SET specter_embedding = cast(:embedding as vector) WHERE id = :id", nativeQuery = true)
@@ -133,3 +168,4 @@ public interface ResearchOutputRepository extends JpaRepository<ResearchOutput, 
 			@Param("institutionId") String institutionId
 	);
 }
+
