@@ -120,7 +120,9 @@ public class SecurityConfig {
 						.requestMatchers(HttpMethod.GET, "/api/v1/submissions/**").hasAnyAuthority("ROLE_HEI_STAFF", "HEI_STAFF", "ROLE_HEI", "HEI", "ROLE_DOST_ADMIN", "DOST_ADMIN")
 						.requestMatchers("/api/v1/admin/**").hasAnyAuthority("ROLE_DOST_ADMIN", "DOST_ADMIN")
 
-						// Priority 1: public "Request full text" form (rate limited in the controller)
+                        // Priority 3: public read of the submission model (About page). Model and label only.
+                        .requestMatchers(HttpMethod.GET, "/api/v1/public/submission-model").permitAll()
+                        // Priority 1: public "Request full text" form (rate limited in the controller)
 						.requestMatchers(HttpMethod.POST, "/api/v1/public/research/*/full-text-requests").permitAll()
 						// Priority 1: change a record's visibility (HEI staff of the owning HEI, or DOST admin; also checked in the service)
 						.requestMatchers(HttpMethod.PATCH, "/api/v1/submissions/*/visibility").hasAnyAuthority("ROLE_HEI_STAFF", "HEI_STAFF", "ROLE_DOST_ADMIN", "DOST_ADMIN")

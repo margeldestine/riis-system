@@ -15,6 +15,15 @@ import java.util.Map;
 public class AnalyticsController {
 
     private final AnalyticsService analyticsService;
+    private final com.geeks.riis_backend.service.ParticipationService participationService;
+
+    // Priority 3: whitelisted HEIs vs. HEIs with at least one submission, per province.
+    // Region-wide on purpose: the year/type filters do not apply to this metric.
+    @GetMapping("/participation")
+    @PreAuthorize("hasRole('DOST_ADMIN')")
+    public ResponseEntity<com.geeks.riis_backend.dto.ParticipationSummaryDTO> getParticipation() {
+        return ResponseEntity.ok(participationService.getParticipation());
+    }
 
     // DAS-036/037/038: all five params are optional. yearFrom/yearTo together
     // act as the date-range filter (DAS-038); province/institutionId/type

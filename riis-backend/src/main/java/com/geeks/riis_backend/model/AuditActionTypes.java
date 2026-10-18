@@ -16,4 +16,7 @@ public final class AuditActionTypes {
 
     /** target_type FULL_TEXT_REQUEST; metadata_json: { "from": "...", "to": "..." } */
     public static final String FULL_TEXT_REQUEST_STATUS_CHANGED = "FULL_TEXT_REQUEST_STATUS_CHANGED";
+
+    /** target_type SYSTEM_SETTING, target_id "submission_model"; metadata_json: { "from", "to", "note" } (Priority 3) */
+    public static final String SUBMISSION_MODEL_CHANGED = "SUBMISSION_MODEL_CHANGED";
 }
