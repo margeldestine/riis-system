@@ -18,13 +18,21 @@ public interface ResearchOutputRepository extends JpaRepository<ResearchOutput, 
 
 	Optional<ResearchOutput> findByReferenceNumber(String referenceNumber);
 
-    int countByInstitutionIdAndStatus(String institutionId, String status);
-    Page<ResearchOutput> findByInstitutionIdAndStatus(String institutionId, String status, Pageable pageable);
+	int countByInstitutionIdAndStatus(String institutionId, String status);
+	Page<ResearchOutput> findByInstitutionIdAndStatus(String institutionId, String status, Pageable pageable);
 
 	@Query("select ro from ResearchOutput ro where ro.institution.id = :institutionId and ro.status = :status")
 	List<ResearchOutput> findByInstitutionIdAndStatus(@Param("institutionId") String institutionId, @Param("status") String status);
 
 	List<ResearchOutput> findByStatus(String status);
+
+	/** Browse Research only: loads each record together with its institution in ONE query (no per-record institution lookups). */
+	@Query("select ro from ResearchOutput ro join fetch ro.institution where ro.status = :status")
+	List<ResearchOutput> findByStatusWithInstitution(@Param("status") String status);
+
+	/** Browse Research only: loads authors for many records in ONE query. Each row is [researchOutputId, Author]. */
+	@Query("select a.researchOutput.id, a from Author a where a.researchOutput.id in :ids")
+	List<Object[]> findAuthorRowsByResearchOutputIds(@Param("ids") java.util.Collection<String> ids);
 
 	@Query("select ro from ResearchOutput ro where ro.institution.id = :institutionId order by ro.createdAt desc")
 	List<ResearchOutput> findByInstitutionIdOrderByCreatedAtDesc(@Param("institutionId") String institutionId);
@@ -63,16 +71,16 @@ public interface ResearchOutputRepository extends JpaRepository<ResearchOutput, 
 			@Param("threshold") double threshold
 	);
 
-    long countByStatus(String status);
+	long countByStatus(String status);
 
-    @Query("SELECT COUNT(DISTINCT ro.institution.id) FROM ResearchOutput ro WHERE ro.status = :status AND ro.completionYear = :year")
-    long countDistinctInstitutionByStatusAndCompletionYear(@Param("status") String status, @Param("year") int year);
+	@Query("SELECT COUNT(DISTINCT ro.institution.id) FROM ResearchOutput ro WHERE ro.status = :status AND ro.completionYear = :year")
+	long countDistinctInstitutionByStatusAndCompletionYear(@Param("status") String status, @Param("year") int year);
 
-    @Query("SELECT ro.researchType, COUNT(ro) FROM ResearchOutput ro WHERE ro.status = :status GROUP BY ro.researchType")
-    List<Object[]> countByStatusGroupByResearchType(@Param("status") String status);
+	@Query("SELECT ro.researchType, COUNT(ro) FROM ResearchOutput ro WHERE ro.status = :status GROUP BY ro.researchType")
+	List<Object[]> countByStatusGroupByResearchType(@Param("status") String status);
 
-    @Query("SELECT ro.completionYear, ro.researchType, COUNT(ro) FROM ResearchOutput ro WHERE ro.status = :status GROUP BY ro.completionYear, ro.researchType ORDER BY ro.completionYear ASC")
-    List<Object[]> countByStatusGroupByYearAndType(@Param("status") String status);
+	@Query("SELECT ro.completionYear, ro.researchType, COUNT(ro) FROM ResearchOutput ro WHERE ro.status = :status GROUP BY ro.completionYear, ro.researchType ORDER BY ro.completionYear ASC")
+	List<Object[]> countByStatusGroupByYearAndType(@Param("status") String status);
 
 	@Modifying
 	@Query(value = "UPDATE research_outputs SET sbert_embedding = cast(:embedding as vector) WHERE id = :id", nativeQuery = true)
@@ -93,7 +101,7 @@ public interface ResearchOutputRepository extends JpaRepository<ResearchOutput, 
 	@Query(value = "UPDATE research_outputs SET specter_embedding = cast(:embedding as vector) WHERE id = :id", nativeQuery = true)
 	void updateSpecterEmbedding(@Param("id") String id, @Param("embedding") float[] embedding);
 
-    Page<ResearchOutput> findByStatus(String status, Pageable pageable);
+	Page<ResearchOutput> findByStatus(String status, Pageable pageable);
 
 	@Query(value = """
         SELECT title

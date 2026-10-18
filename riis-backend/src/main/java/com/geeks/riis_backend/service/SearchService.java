@@ -2,6 +2,7 @@ package com.geeks.riis_backend.service;
 
 import com.geeks.riis_backend.exception.ResourceNotFoundException;
 import com.geeks.riis_backend.model.AccessVisibility;
+import com.geeks.riis_backend.model.Author;
 import com.geeks.riis_backend.model.ResearchOutput;
 import com.geeks.riis_backend.repository.ResearchOutputRepository;
 import com.geeks.riis_backend.service.PublicAccessPolicy.Viewer;
@@ -69,14 +70,16 @@ public class SearchService {
 
     public List<Map<String, Object>> executeKeywordSearch(String query, Map<String, Object> filters) {
         Viewer viewer = accessPolicy.currentViewer();
-        List<ResearchOutput> approved = researchOutputRepository.findByStatus(STATUS_APPROVED);
+        // Two queries total (records + institutions, then all authors) instead of one per record.
+        List<ResearchOutput> approved = researchOutputRepository.findByStatusWithInstitution(STATUS_APPROVED);
+        Map<String, List<Author>> authorsById = loadAuthors(approved);
         String q = query == null ? "" : query.trim().toLowerCase();
 
         return approved.stream()
-                .filter(o -> matchesQuery(o, q, viewer))
+                .filter(o -> matchesQuery(o, q, viewer, authorsById))
                 .filter(o -> matchesFilters(o, filters, viewer))
                 .map(o -> {
-                    Map<String, Object> card = toCard(o, viewer);
+                    Map<String, Object> card = toCard(o, viewer, authorsById);
                     card.put("similarityScore", null);
                     return card;
                 })
@@ -196,6 +199,22 @@ public class SearchService {
                 .collect(Collectors.toList());
     }
 
+    private Map<String, List<Author>> loadAuthors(List<ResearchOutput> outputs) {
+        if (outputs.isEmpty()) return Map.of();
+        List<String> ids = outputs.stream().map(ResearchOutput::getId).collect(Collectors.toList());
+        Map<String, List<Author>> byId = new HashMap<>();
+        for (Object[] row : researchOutputRepository.findAuthorRowsByResearchOutputIds(ids)) {
+            byId.computeIfAbsent((String) row[0], k -> new ArrayList<>()).add((Author) row[1]);
+        }
+        return byId;
+    }
+
+    /** Uses the preloaded map when given (search list); otherwise falls back to the entity's own authors. */
+    private Collection<Author> authorsOf(ResearchOutput o, Map<String, List<Author>> authorsById) {
+        if (authorsById != null) return authorsById.getOrDefault(o.getId(), List.of());
+        return o.getAuthors();
+    }
+
     private double computeCosineSimilarity(float[] a, float[] b) {
         if (a == null || b == null || a.length != b.length) return 0.0;
         double dot = 0.0, normA = 0.0, normB = 0.0;
@@ -212,7 +231,7 @@ public class SearchService {
      * Only fields the viewer is allowed to see take part in matching, so a hidden abstract
      * (or hidden keywords/authors) can never be discovered by searching for words inside it.
      */
-    private boolean matchesQuery(ResearchOutput o, String q, Viewer viewer) {
+    private boolean matchesQuery(ResearchOutput o, String q, Viewer viewer, Map<String, List<Author>> authorsById) {
         if (q.isBlank()) return true;
         AccessVisibility tier = accessPolicy.viewTier(viewer, o);
 
@@ -223,8 +242,9 @@ public class SearchService {
 
         if (tier.exposesDescriptiveMetadata()) {
             String keywords = o.getKeywords() != null ? o.getKeywords().toLowerCase() : "";
-            String authors = o.getAuthors() != null
-                    ? o.getAuthors().stream()
+            Collection<Author> authorList = authorsOf(o, authorsById);
+            String authors = authorList != null
+                    ? authorList.stream()
                     .map(a -> a.getFullName() != null ? a.getFullName().toLowerCase() : "")
                     .collect(Collectors.joining(" ")) : "";
             if (keywords.contains(q) || authors.contains(q)) return true;
@@ -296,6 +316,10 @@ public class SearchService {
 
     /** Same keys as before, plus "visibility" and "fullText". Hidden fields are blank, never removed. */
     private Map<String, Object> toCard(ResearchOutput o, Viewer viewer) {
+        return toCard(o, viewer, null);
+    }
+
+    private Map<String, Object> toCard(ResearchOutput o, Viewer viewer, Map<String, List<Author>> authorsById) {
         AccessVisibility tier = accessPolicy.viewTier(viewer, o);
         boolean metadata = tier.exposesDescriptiveMetadata();
 
@@ -312,7 +336,8 @@ public class SearchService {
         card.put("institutionId", o.getInstitution() != null ? o.getInstitution().getId() : null);
         card.put("institutionName", o.getInstitution() != null ? o.getInstitution().getName() : null);
         card.put("province", o.getInstitution() != null ? o.getInstitution().getProvince() : null);
-        card.put("authors", metadata && o.getAuthors() != null ? o.getAuthors().stream()
+        Collection<Author> cardAuthors = metadata ? authorsOf(o, authorsById) : null;
+        card.put("authors", cardAuthors != null ? cardAuthors.stream()
                 .map(a -> Map.of("fullName", a.getFullName() != null ? a.getFullName() : "",
                         "orcidId", a.getOrcidId() != null ? a.getOrcidId() : ""))
                 .collect(Collectors.toList()) : List.of());
