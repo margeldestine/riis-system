@@ -1,27 +1,35 @@
 package com.geeks.riis_backend.service;
 
+import com.geeks.riis_backend.repository.AnalyticsQueryRepository;
+import com.geeks.riis_backend.repository.AnalyticsQueryRepository.Filter;
 import com.geeks.riis_backend.repository.InstitutionRepository;
 import com.geeks.riis_backend.repository.ResearchOutputRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Year;
 import java.util.*;
 import java.util.stream.Collectors;
 
+/**
+ * Priority 4 (dashboard performance): the research-output panels now run one
+ * grouped SQL query each (see AnalyticsQueryRepository) instead of loading every
+ * approved record and filtering/aggregating in Java. Response shapes are
+ * unchanged, so the frontend needs no changes for this step.
+ */
 @Service
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class AnalyticsService {
 
+    private final AnalyticsQueryRepository analyticsQueryRepository;
     private final ResearchOutputRepository researchOutputRepository;
     private final InstitutionRepository institutionRepository;
     private final com.geeks.riis_backend.repository.ThemeKeywordRepository themeKeywordRepository;
 
-    // The 5 fixed S&T research themes captured directly at submission via
+    // The 5 fixed S&T research themes captured at submission via
     // sAndTTheme -> research_outputs.subjectDc (see SubmissionPortal.jsx).
-    // This is now the single source of truth for thematic categorization —
-    // the automatic cluster-assignment pipeline that used to algorithmically
-    // re-derive this same grouping has been removed as redundant.
     private static final List<String> ST_THEMES = List.of(
             "Health & Medical",
             "Climate & Env",
@@ -29,70 +37,22 @@ public class AnalyticsService {
             "Education & Social",
             "Tech & Innovation"
     );
-    // ---- DAS-036/037/038: shared filter helper --------------------------
-    // Applies the optional Year-From / Year-To / Province / HEI / Type
-    // filters in-memory over the APPROVED research outputs. Kept as a
-    // single shared helper (rather than new SQL per filter combination) so
-    // every analytics panel filters consistently off the same criteria.
-    private List<com.geeks.riis_backend.model.ResearchOutput> getFilteredApprovedOutputs(
-            Integer yearFrom, Integer yearTo, String province, String institutionId, String type) {
-        return researchOutputRepository.findByStatus("APPROVED").stream()
-                .filter(ro -> yearFrom == null || (ro.getCompletionYear() != null && ro.getCompletionYear() >= yearFrom))
-                .filter(ro -> yearTo == null || (ro.getCompletionYear() != null && ro.getCompletionYear() <= yearTo))
-                .filter(ro -> province == null || province.isBlank()
-                        || (ro.getInstitution() != null && province.equalsIgnoreCase(ro.getInstitution().getProvince())))
-                .filter(ro -> institutionId == null || institutionId.isBlank()
-                        || (ro.getInstitution() != null && institutionId.equals(ro.getInstitution().getId())))
-                .filter(ro -> type == null || type.isBlank() || type.equalsIgnoreCase(ro.getResearchType()))
-                .collect(Collectors.toList());
-    }
 
-    // ---- DAS-039: metadata completeness -----------------------------
-    // "Required fields" for a fully-described research output, per the
-    // submission schema (see SubmissionRequest / ValidationService):
-    // title, authors, abstract, keywords, research type, completion year,
-    // publication venue. Note that not every one of these is enforced as
-    // mandatory at submission time for every intake path (e.g. researchType
-    // defaults when blank, and records created via
-    // ResearchOutputService#submitForUser skip completionYear/keywords/
-    // publicationVenue entirely) — this check intentionally treats all
-    // seven as "required" for the completeness metric itself, so those
-    // gaps are exactly what the metric is meant to surface.
-    //
-    // This is a distinct metric from QualityController's "completenessRate"
-    // (which is a per-institution validation-attempt pass rate derived from
-    // ValidationLog, not a per-output field check) — same name, different
-    // question. Do not merge the two without confirming that's intended.
-    private boolean hasAllRequiredMetadata(com.geeks.riis_backend.model.ResearchOutput ro) {
-        return !isBlank(ro.getTitle())
-                && ro.getAuthors() != null && !ro.getAuthors().isEmpty()
-                && !isBlank(ro.getAbstractText())
-                && !isBlank(ro.getKeywords())
-                && !isBlank(ro.getResearchType())
-                && ro.getCompletionYear() != null
-                && !isBlank(ro.getPublicationVenue());
-    }
-
-    private boolean isBlank(String value) {
-        return value == null || value.isBlank();
+    private static long num(Object o) {
+        return o == null ? 0L : ((Number) o).longValue();
     }
 
     // GET /api/v1/analytics/summary
     public Map<String, Object> getSummary(Integer yearFrom, Integer yearTo, String province, String institutionId, String type) {
-        List<com.geeks.riis_backend.model.ResearchOutput> filtered =
-                getFilteredApprovedOutputs(yearFrom, yearTo, province, institutionId, type);
-
-        long totalApproved = filtered.size();
-        long totalHeis = institutionRepository.count();
+        Filter f = Filter.of(yearFrom, yearTo, province, institutionId, type);
         int currentYear = Year.now().getValue();
-        long activeHeis = filtered.stream()
-                .filter(ro -> Objects.equals(ro.getCompletionYear(), currentYear))
-                .map(ro -> ro.getInstitution() != null ? ro.getInstitution().getId() : null)
-                .filter(Objects::nonNull)
-                .distinct()
-                .count();
+        Object[] row = analyticsQueryRepository.summaryRow(f, currentYear);
 
-        long completeCount = filtered.stream().filter(this::hasAllRequiredMetadata).count();
+        long totalApproved = num(row[0]);
+        long completeCount = num(row[1]);
+        long activeHeis = num(row[2]);
+        long totalHeis = institutionRepository.count();
+
         int completenessRate = totalApproved > 0
                 ? (int) Math.round((completeCount * 100.0) / totalApproved)
                 : 0;
@@ -109,47 +69,33 @@ public class AnalyticsService {
 
     // GET /api/v1/analytics/trend
     public List<Map<String, Object>> getTrend(Integer yearFrom, Integer yearTo, String province, String institutionId, String type) {
-        List<com.geeks.riis_backend.model.ResearchOutput> filtered =
-                getFilteredApprovedOutputs(yearFrom, yearTo, province, institutionId, type);
-
-        Map<Integer, Map<String, Long>> grouped = new TreeMap<>();
-        for (com.geeks.riis_backend.model.ResearchOutput ro : filtered) {
-            Integer year = ro.getCompletionYear();
-            String outputType = ro.getResearchType() != null ? ro.getResearchType() : "Other";
-            grouped.computeIfAbsent(year, k -> new LinkedHashMap<>())
-                    .merge(outputType, 1L, Long::sum);
+        Filter f = Filter.of(yearFrom, yearTo, province, institutionId, type);
+        // Rows arrive ordered by year; LinkedHashMap keeps that order.
+        Map<Integer, Map<String, Object>> byYear = new LinkedHashMap<>();
+        for (Object[] row : analyticsQueryRepository.trendRows(f)) {
+            Integer year = ((Number) row[0]).intValue();
+            String outputType = row[1] != null ? (String) row[1] : "Other";
+            Map<String, Object> point = byYear.computeIfAbsent(year, y -> {
+                Map<String, Object> p = new LinkedHashMap<>();
+                p.put("year", String.valueOf(y));
+                return p;
+            });
+            point.put(outputType, num(row[2]));
         }
-
-        return grouped.entrySet().stream().map(entry -> {
-            Map<String, Object> point = new LinkedHashMap<>();
-            point.put("year", String.valueOf(entry.getKey()));
-            point.putAll(entry.getValue().entrySet().stream()
-                    .collect(Collectors.toMap(Map.Entry::getKey, e -> (Object) e.getValue())));
-            return point;
-        }).collect(Collectors.toList());
+        return new ArrayList<>(byYear.values());
     }
 
     // GET /api/v1/analytics/type-distribution
     public List<Map<String, Object>> getTypeDistribution(Integer yearFrom, Integer yearTo, String province, String institutionId, String type) {
-        List<com.geeks.riis_backend.model.ResearchOutput> filtered =
-                getFilteredApprovedOutputs(yearFrom, yearTo, province, institutionId, type);
-
-        Map<String, Long> counts = new LinkedHashMap<>();
-        for (com.geeks.riis_backend.model.ResearchOutput ro : filtered) {
-            String outputType = ro.getResearchType() != null ? ro.getResearchType() : "Other";
-            counts.merge(outputType, 1L, Long::sum);
-        }
-
-        List<String> colors = List.of(
-                "#153e75", "#2563eb", "#60a5fa", "#93c5fd", "#dbeafe"
-        );
+        Filter f = Filter.of(yearFrom, yearTo, province, institutionId, type);
+        List<String> colors = List.of("#153e75", "#2563eb", "#60a5fa", "#93c5fd", "#dbeafe");
 
         List<Map<String, Object>> result = new ArrayList<>();
         int i = 0;
-        for (Map.Entry<String, Long> entry : counts.entrySet()) {
+        for (Object[] row : analyticsQueryRepository.typeCounts(f)) {
             Map<String, Object> item = new LinkedHashMap<>();
-            item.put("name", entry.getKey());
-            item.put("value", entry.getValue());
+            item.put("name", row[0] != null ? row[0] : "Other");
+            item.put("value", num(row[1]));
             item.put("color", colors.get(i % colors.size()));
             result.add(item);
             i++;
@@ -159,20 +105,21 @@ public class AnalyticsService {
 
     // GET /api/v1/analytics/hei-comparison
     public List<Map<String, Object>> getHeiComparison(Integer yearFrom, Integer yearTo, String province, String institutionId, String type) {
-        List<com.geeks.riis_backend.model.ResearchOutput> filtered =
-                getFilteredApprovedOutputs(yearFrom, yearTo, province, institutionId, type);
+        Filter f = Filter.of(yearFrom, yearTo, province, institutionId, type);
 
         Map<String, Long> countsByInstitution = new HashMap<>();
-        for (com.geeks.riis_backend.model.ResearchOutput ro : filtered) {
-            if (ro.getInstitution() == null) continue;
-            countsByInstitution.merge(ro.getInstitution().getId(), 1L, Long::sum);
+        long total = 0;
+        for (Object[] row : analyticsQueryRepository.countsByInstitution(f)) {
+            long c = num(row[1]);
+            countsByInstitution.put((String) row[0], c);
+            total += c;
         }
-        long total = filtered.size();
+        final long totalFinal = total;
 
         return institutionRepository.findAll().stream()
                 .map(institution -> {
                     long count = countsByInstitution.getOrDefault(institution.getId(), 0L);
-                    int progress = total > 0 ? (int) ((count * 100) / total) : 0;
+                    int progress = totalFinal > 0 ? (int) ((count * 100) / totalFinal) : 0;
 
                     Map<String, Object> item = new LinkedHashMap<>();
                     item.put("institutionId", institution.getId());
@@ -189,23 +136,24 @@ public class AnalyticsService {
     }
 
     // GET /api/v1/analytics/province-summary
-    // GET /api/v1/analytics/province-summary
     public List<Map<String, Object>> getProvinceSummary(Integer yearFrom, Integer yearTo, String province, String institutionId, String type) {
-        List<com.geeks.riis_backend.model.ResearchOutput> filtered =
-                getFilteredApprovedOutputs(yearFrom, yearTo, province, institutionId, type);
+        Filter f = Filter.of(yearFrom, yearTo, province, institutionId, type);
+
+        Map<String, Long> countsByProvince = new HashMap<>();
+        for (Object[] row : analyticsQueryRepository.countsByProvince(f)) {
+            if (row[0] != null) {
+                countsByProvince.put(((String) row[0]).toLowerCase(Locale.ROOT), num(row[1]));
+            }
+        }
+
         List<String> provinces = (province == null || province.isBlank())
                 ? List.of("Cebu", "Bohol", "Negros Oriental", "Siquijor")
                 : List.of(province);
 
         return provinces.stream().map(p -> {
-            long count = filtered.stream()
-                    .filter(o -> o.getInstitution() != null &&
-                            p.equalsIgnoreCase(o.getInstitution().getProvince()))
-                    .count();
-
             Map<String, Object> card = new LinkedHashMap<>();
             card.put("name", p);
-            card.put("value", count);
+            card.put("value", countsByProvince.getOrDefault(p.trim().toLowerCase(Locale.ROOT), 0L));
             return card;
         }).collect(Collectors.toList());
     }
@@ -283,35 +231,12 @@ public class AnalyticsService {
         return result;
     }
     // GET /api/v1/analytics/cluster-heatmap
-    // [MIGRATED off the removed cluster-assignment pipeline] Institution x
-    // 5-S&T-theme matrix, now grouped directly off research_outputs.subjectDc
-    // instead of joining clusters/research_output_clusters. The response
-    // shape (clusters[]/cells[] with clusterId/clusterName keys) is
-    // deliberately kept identical to the old cluster-table-backed version —
-    // "clusterId"/"clusterName" here are just the raw subjectDc string used
-    // as a stable key/label, not a foreign key into any table — so the
-    // existing AnalyticsDashboard.jsx frontend (ThematicDensityHeatmap panel,
-    // CSV/PDF export) needs zero changes to keep working against this.
-    //
-    // "clusters" in the response always lists all 5 themes, even ones with
-    // zero outputs right now, matching the old ClusterRepository.findAll()
-    // guarantee that the heatmap never shrinks below 5 columns.
-    //
-    // DAS-039-filters: yearFrom/yearTo/province/institutionId are optional.
-    // Type is NOT accepted here (unchanged scope decision) — the heatmap's
-    // x-axis is already the 5 S&T themes, so it doesn't get a Type filter.
+    // Institution x 5-S&T-theme matrix grouped directly off research_outputs.subjectDc.
+    // Response shape is unchanged: "clusterId"/"clusterName" are the raw theme string.
+    // "clusters" always lists all 5 themes, even those with zero outputs.
+    // Type is NOT accepted here (unchanged scope decision).
     public Map<String, Object> getClusterHeatmap(Integer yearFrom, Integer yearTo, String province, String institutionId) {
-        List<com.geeks.riis_backend.model.ResearchOutput> filtered =
-                getFilteredApprovedOutputs(yearFrom, yearTo, province, institutionId, null);
-
-        Map<String, Long> countsByInstitutionAndTheme = new HashMap<>();
-        for (com.geeks.riis_backend.model.ResearchOutput ro : filtered) {
-            if (ro.getInstitution() == null || ro.getSubjectDc() == null || ro.getSubjectDc().isBlank()) {
-                continue;
-            }
-            String key = ro.getInstitution().getId() + "||" + ro.getSubjectDc();
-            countsByInstitutionAndTheme.merge(key, 1L, Long::sum);
-        }
+        Filter f = Filter.of(yearFrom, yearTo, province, institutionId, null);
 
         List<Map<String, String>> clusters = ST_THEMES.stream()
                 .map(theme -> {
@@ -323,18 +248,16 @@ public class AnalyticsService {
                 .collect(Collectors.toList());
 
         List<Map<String, Object>> cells = new ArrayList<>();
-        for (Map.Entry<String, Long> entry : countsByInstitutionAndTheme.entrySet()) {
-            String[] parts = entry.getKey().split("\\|\\|", 2);
-            String theme = parts[1];
-            // Ignore any legacy/free-text subjectDc values that fall outside
-            // the 5 canonical themes, so the heatmap columns stay fixed at 5.
+        for (Object[] row : analyticsQueryRepository.themeCountsByInstitution(f)) {
+            String theme = (String) row[1];
+            // Ignore legacy/free-text subjectDc values outside the 5 canonical themes.
             if (!ST_THEMES.contains(theme)) {
                 continue;
             }
             Map<String, Object> cell = new LinkedHashMap<>();
-            cell.put("institutionId", parts[0]);
+            cell.put("institutionId", row[0]);
             cell.put("clusterId", theme);
-            cell.put("count", entry.getValue());
+            cell.put("count", num(row[2]));
             cells.add(cell);
         }
 
