@@ -326,7 +326,7 @@ export default function DiscoveryPortalPage({ embedded = false }) {
     setSearchParams(params)
 
     try {
-      const res = await apiClient.post('/search', { query: q, mode, filters }, { headers: { Authorization: undefined } })
+      const res = await apiClient.post('/search', { query: q, mode, filters })
       setResults(res.data.results || [])
       setTotal(res.data.total || 0)
       setFallback(res.data.fallback || false)
@@ -356,7 +356,7 @@ export default function DiscoveryPortalPage({ embedded = false }) {
     setRelated([])
     setRelatedLoading(true)
     try {
-      const res = await apiClient.get(`/search/related/${record.id}`, { headers: { Authorization: undefined } })
+      const res = await apiClient.get(`/search/related/${record.id}`)
       setRelated(res.data || [])
     } catch {
       setRelated([])
