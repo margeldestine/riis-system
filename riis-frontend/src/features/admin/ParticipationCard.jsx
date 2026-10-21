@@ -160,6 +160,33 @@ export default function ParticipationCard() {
           <SubmissionPolicyPanel model={model} />
         </div>
       )}
+
+      {state === 'ready' && participation && (
+        <details className="mt-4 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+          <summary className="cursor-pointer rounded font-semibold text-slate-600 outline-none focus-visible:ring-1 focus-visible:ring-[#C9A84C]">
+            How is this calculated?
+          </summary>
+          <ul className="mt-2 list-disc space-y-1 pl-4 leading-relaxed">
+            <li>
+              <span className="font-semibold text-slate-600">Whitelisted HEI:</span> an institution with an
+              active whitelist status. Only these are counted.
+            </li>
+            <li>
+              <span className="font-semibold text-slate-600">Participating:</span> a whitelisted HEI that has
+              submitted at least one research output.
+            </li>
+            <li>
+              <span className="font-semibold text-slate-600">Participation rate:</span> participating HEIs ÷
+              whitelisted HEIs × 100, rounded to one decimal (for example, 3 of 4 HEIs = 75%). The large
+              percentage covers the whole region, and each province uses only its own HEIs.
+            </li>
+            <li>
+              The filters at the top of the page do not change these numbers. The names under each province
+              are the whitelisted HEIs with no submission yet.
+            </li>
+          </ul>
+        </details>
+      )}
     </section>
   )
 }

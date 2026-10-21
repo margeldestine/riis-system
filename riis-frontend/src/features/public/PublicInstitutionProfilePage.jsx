@@ -418,7 +418,7 @@ export default function PublicInstitutionProfilePage() {
                     Research Profile
                   </h3>
                   <p className="mt-1 text-xs text-slate-400">
-                    Research areas and specializations, ranked by recent impact over last 12 months
+                    Key research topics detected by AI from this institution's submitted outputs
                   </p>
                 </div>
 
@@ -447,9 +447,14 @@ export default function PublicInstitutionProfilePage() {
                     </div>
 
                     <div className="space-y-2">
-                      <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                        Top Research Areas by Research Impact
-                      </p>
+                      <div className="flex items-center justify-between">
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                          Top Research Areas by Relevance Score
+                        </p>
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                          Score (0–10)
+                        </p>
+                      </div>
                       {profile.themeKeywords.slice(0, 6).map((tag) => (
                         <div key={tag.keyword} className="flex items-center gap-3">
                           <p className="w-40 shrink-0 text-xs text-slate-600">{tag.keyword}</p>
@@ -464,6 +469,25 @@ export default function PublicInstitutionProfilePage() {
                           </p>
                         </div>
                       ))}
+
+                      <details className="mt-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+                        <summary className="cursor-pointer font-semibold text-slate-600">
+                          How are these scores calculated?
+                        </summary>
+                        <ul className="mt-2 list-disc space-y-1 pl-4 leading-relaxed">
+                          <li>
+                            When an output is submitted, an AI model (KeyBERT) reads its title, abstract and
+                            keywords and picks the phrases that best represent it.
+                          </li>
+                          <li>
+                            The score shows how closely a phrase matches the meaning of the research text,
+                            from 0 to 10. A higher score means a stronger match.
+                          </li>
+                          <li>
+                            It measures topic relevance, not citations or impact. The strongest 6 areas are shown.
+                          </li>
+                        </ul>
+                      </details>
                     </div>
                   </div>
                 ) : (
@@ -683,8 +707,6 @@ export default function PublicInstitutionProfilePage() {
         <span style={{ fontWeight: 700, color: '#1a1a2e' }}>DASIG</span>
         <div style={{ display: 'flex', gap: 16 }}>
           <Link to="/access-policy" style={{ color: 'inherit' }}>Access Policy</Link>
-          <span>Privacy Policy</span>
-          <span>Technical Support</span><a href="http://"></a>
           <span style={{ color: '#c9a84c', fontWeight: 600 }}>DOST</span>
         </div>
       </footer>

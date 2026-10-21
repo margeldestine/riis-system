@@ -14,8 +14,6 @@ export default function PublicFooter({ className = '' }) {
         <Link to="/access-policy" className="hover:text-[#1A1A2E] hover:underline">
           Access Policy
         </Link>
-        <span>Privacy Policy</span>
-        <span>Technical Support</span>
         <span className="font-semibold text-[#C9A84C]">DOST</span>
       </div>
     </footer>

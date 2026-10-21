@@ -18,6 +18,9 @@ export const dostNavItems = [
   { icon: ClipboardList, label: 'Audit Log', to: '/dost/audit-log' },
 ]
 
+// Rows shown per page in the Submission Portal table.
+const PAGE_SIZE = 5
+
 function extractApiErrorMessage(error, fallback) {
   const data = error?.response?.data
   if (data?.message) return data.message
@@ -262,7 +265,6 @@ export default function PendingSubmissionsPage() {
   const [status, setStatus] = useState('idle')
   const [error, setError] = useState('')
   const [page, setPage] = useState(0)
-  const [totalPages, setTotalPages] = useState(1)
   const [search, setSearch] = useState('')
   const [selectedDetail, setSelectedDetail] = useState(null)
   const [detailLoading, setDetailLoading] = useState(false)
@@ -290,25 +292,30 @@ export default function PendingSubmissionsPage() {
     try {
       const [subRes, statsRes] = await Promise.all([
         apiClient.get('/admin/submissions', {
-          params: { status: 'APPROVED', page, size: 10 },
+          params: { status: 'APPROVED', page: 0, size: 1000 },
         }),
         apiClient.get('/admin/submissions/stats').catch(() => ({ data: {} })),
       ])
       const data = subRes.data
       const content = Array.isArray(data) ? data : data?.content || []
       setItems(content)
-      setTotalPages(Array.isArray(data) ? 1 : data?.totalPages || 1)
       setStats(statsRes.data || {})
       setStatus('success')
     } catch (err) {
       setError(extractApiErrorMessage(err, 'Unable to load submissions.'))
       setStatus('error')
     }
-  }, [page])
+  }, [])
 
   useEffect(() => {
     fetchSubmissions()
   }, [fetchSubmissions])
+
+  // Whenever a filter or the search text changes, go back to page 1 so the
+  // person never lands on a page that no longer exists for the new results.
+  useEffect(() => {
+    setPage(0)
+  }, [search, filterType, filterHei])
 
   const loadDetail = async (id) => {
     setDetailLoading(true)
@@ -331,6 +338,12 @@ export default function PendingSubmissionsPage() {
     const matchHei = !filterHei || item.institutionId === filterHei
     return matchSearch && matchType && matchHei
   })
+
+  // Pagination is done on the FILTERED list so every page has up to
+  // PAGE_SIZE rows and the page count matches what is actually shown.
+  const totalPages = Math.max(1, Math.ceil(filteredItems.length / PAGE_SIZE))
+  const currentPage = Math.min(page, totalPages - 1)
+  const pagedItems = filteredItems.slice(currentPage * PAGE_SIZE, (currentPage + 1) * PAGE_SIZE)
 
     const formatDate = (val) => {
     if (!val) return '—'
@@ -512,7 +525,7 @@ export default function PendingSubmissionsPage() {
                         No submissions found.
                       </td>
                     </tr>
-                  ) : filteredItems.map((item) => (
+                  ) : pagedItems.map((item) => (
                     <tr key={item.id} className="hover:bg-slate-50 transition">
                       <td className="px-6 py-4 text-xs font-mono text-slate-400">
                         {item.referenceNumber || item.id?.slice(0, 8)}
@@ -549,14 +562,13 @@ export default function PendingSubmissionsPage() {
               </table>
 
               {/* Pagination */}
-              {/* Pagination */}
               <div className="flex items-center justify-between px-6 py-4 border-t border-slate-100">
-                <p className="text-sm text-slate-500">Page {page + 1} of {totalPages}</p>
+                <p className="text-sm text-slate-500">Page {currentPage + 1} of {totalPages}</p>
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
                     onClick={() => setPage(p => Math.max(0, p - 1))}
-                    disabled={page === 0 || status === 'loading'}
+                    disabled={currentPage === 0 || status === 'loading'}
                     className="rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Previous
@@ -564,7 +576,7 @@ export default function PendingSubmissionsPage() {
                   <button
                     type="button"
                     onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
-                    disabled={page >= totalPages - 1 || status === 'loading'}
+                    disabled={currentPage >= totalPages - 1 || status === 'loading'}
                     className="rounded-md bg-[#1A1A2E] px-4 py-2 text-sm font-semibold text-white hover:bg-[#11111f] disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Next

@@ -1,7 +1,13 @@
 @import "tailwindcss";
-@plugin "daisyui";
+/* The app is designed for light mode only. Without this, daisyUI switches to
+   its dark theme when the user's browser/OS is in dark mode, which turns
+   selects, badges, inputs, etc. dark with dark text. */
+@plugin "daisyui" {
+  themes: light --default;
+}
 
 :root {
+  color-scheme: light;
   background-color: #ffffff;
   color: #0b0f19;
 }

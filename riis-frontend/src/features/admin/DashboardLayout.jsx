@@ -227,8 +227,6 @@ export default function DashboardLayout({
         <footer className="px-8 py-4 border-t border-slate-200 bg-white flex items-center justify-between text-xs text-slate-400">
           <span className="font-semibold text-[#1A1A2E]">DASIG</span>
           <div className="flex items-center gap-4">
-            <span className="hover:text-slate-600 cursor-pointer">Privacy Policy</span>
-            <span className="hover:text-slate-600 cursor-pointer">Technical Support</span>
             <span className="text-[#C9A84C] font-semibold">DOST</span>
           </div>
         </footer>

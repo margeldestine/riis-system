@@ -46,6 +46,30 @@ const ACTION_LABELS = {
   SIMILARITY_FLAG_DISPOSITION_CHANGED: 'Similarity Flag Disposition',
 }
 
+// The date filters are calendar-picker only. Typing is blocked (the browser's
+// date box otherwise accepts up to 6-digit years, e.g. 202626), and clicking
+// anywhere on the box opens the calendar. Tab still works for keyboard users.
+const MIN_DATE = '2000-01-01'
+const MAX_DATE = '2100-12-31'
+
+const pickerOnlyProps = {
+  onKeyDown: (e) => { if (e.key !== 'Tab') e.preventDefault() },
+  onPaste: (e) => e.preventDefault(),
+  onDrop: (e) => e.preventDefault(),
+  onClick: (e) => {
+    try { e.currentTarget.showPicker() } catch { /* older browsers: icon still works */ }
+  },
+}
+
+const clearButtonStyle = {
+  marginLeft: 6, padding: '4px 8px', border: 'none', background: 'transparent',
+  color: '#6b7280', fontSize: 12, fontWeight: 600, cursor: 'pointer', textDecoration: 'underline',
+}
+
+function toValidDate(value) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) && value >= MIN_DATE && value <= MAX_DATE ? value : ''
+}
+
 function formatTimestamp(iso) {
   if (!iso) return '—'
   return new Date(iso).toLocaleString('en-US', {
@@ -70,7 +94,12 @@ export default function AuditLogPage() {
     setIsLoading(true)
     setError('')
     try {
-      const data = await fetchAuditLog({ dateFrom, dateTo, actionType, page })
+      const data = await fetchAuditLog({
+        dateFrom: toValidDate(dateFrom),
+        dateTo: toValidDate(dateTo),
+        actionType,
+        page,
+      })
       const content = Array.isArray(data) ? data : data?.content || []
       setEntries(content)
       setTotalPages(Array.isArray(data) ? 1 : data?.totalPages || 1)
@@ -125,18 +154,30 @@ export default function AuditLogPage() {
             <input
               type="date"
               value={dateFrom}
+              min={MIN_DATE}
+              max={MAX_DATE}
               onChange={e => { setDateFrom(e.target.value); setPage(0) }}
-              style={{ padding: '6px 10px', border: '1.5px solid #e5e7eb', borderRadius: 7, fontSize: 13, color: '#374151' }}
+              {...pickerOnlyProps}
+              style={{ padding: '6px 10px', border: '1.5px solid #e5e7eb', borderRadius: 7, fontSize: 13, color: '#374151', cursor: 'pointer' }}
             />
+            {dateFrom && (
+              <button type="button" onClick={() => { setDateFrom(''); setPage(0) }} style={clearButtonStyle}>Clear</button>
+            )}
           </div>
           <div>
             <label style={{ fontSize: 11, color: '#9ca3af', marginRight: 6 }}>To</label>
             <input
               type="date"
               value={dateTo}
+              min={MIN_DATE}
+              max={MAX_DATE}
               onChange={e => { setDateTo(e.target.value); setPage(0) }}
-              style={{ padding: '6px 10px', border: '1.5px solid #e5e7eb', borderRadius: 7, fontSize: 13, color: '#374151' }}
+              {...pickerOnlyProps}
+              style={{ padding: '6px 10px', border: '1.5px solid #e5e7eb', borderRadius: 7, fontSize: 13, color: '#374151', cursor: 'pointer' }}
             />
+            {dateTo && (
+              <button type="button" onClick={() => { setDateTo(''); setPage(0) }} style={clearButtonStyle}>Clear</button>
+            )}
           </div>
           <select
             value={actionType}
