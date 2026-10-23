@@ -45,7 +45,7 @@ public class ResearchOutputService {
 				.orElseThrow(() -> new ResourceNotFoundException("Institution not found: " + institutionId));
 
 		output.setInstitution(institution);
-		output.setStatus("PENDING_REVIEW");
+		output.setStatus("APPROVED"); // DAS-043: no approval gate
 
 		return researchOutputRepository.save(output);
 	}

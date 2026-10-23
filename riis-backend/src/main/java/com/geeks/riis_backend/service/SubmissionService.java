@@ -38,7 +38,6 @@ import org.springframework.web.server.ResponseStatusException;
 @Transactional
 public class SubmissionService {
 
-	private static final String STATUS_PENDING_REVIEW = "PENDING_REVIEW";
 	private static final String STATUS_REQUIRES_CORRECTION = "REQUIRES_CORRECTION";
 	// DAS-043: DOST Admin manual approval gate was removed — only registered,
 	// verified HEI staff accounts can submit, so submissions are trusted at
@@ -324,7 +323,9 @@ public class SubmissionService {
 			author.setResearchOutput(output);
 		}
 
-		output.setStatus(STATUS_PENDING_REVIEW);
+		// DAS-043: no manual approval gate, so an edited record stays published.
+		// Setting PENDING_REVIEW here hid it from public search with no way back.
+		output.setStatus(STATUS_APPROVED);
 		output.setReviewedBy(null);
 		output.setReviewedAt(null);
 
@@ -406,7 +407,9 @@ public class SubmissionService {
 			author.setResearchOutput(output);
 		}
 
-		output.setStatus(STATUS_PENDING_REVIEW);
+		// DAS-043: no manual approval gate, so an edited record stays published.
+		// Setting PENDING_REVIEW here hid it from public search with no way back.
+		output.setStatus(STATUS_APPROVED);
 		output.setReviewedBy(null);
 		output.setReviewedAt(null);
 
