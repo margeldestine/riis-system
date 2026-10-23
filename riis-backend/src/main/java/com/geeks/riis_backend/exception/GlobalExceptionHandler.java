@@ -11,12 +11,14 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.server.ResponseStatusException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
 	private static final Logger logger = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
 	@ExceptionHandler(BadRequestException.class)
 	public ResponseEntity<Map<String, Object>> handleBadRequest(BadRequestException ex) {
 		return buildResponse(HttpStatus.BAD_REQUEST, ex.getMessage());
@@ -44,13 +46,10 @@ public class GlobalExceptionHandler {
 	}
 
 	/**
-	 * Handles @Valid failures on @RequestBody DTOs (e.g. the new @Size
+	 * Handles @Valid failures on @RequestBody DTOs (e.g. the @Size
 	 * constraints on SubmissionRequest's DC fields). Without this handler,
-	 * MethodArgumentNotValidException would fall through to the generic
-	 * handleUnexpected() below and incorrectly surface as a 500 with a
-	 * meaningless message, instead of a 400 explaining exactly which
-	 * field failed and why -- which is what "reject with a clear message"
-	 * actually requires.
+	 * MethodArgumentNotValidException would fall through to
+	 * handleUnexpected() below and surface as a 500.
 	 */
 	@ExceptionHandler(MethodArgumentNotValidException.class)
 	public ResponseEntity<Map<String, Object>> handleValidation(MethodArgumentNotValidException ex) {
@@ -61,6 +60,17 @@ public class GlobalExceptionHandler {
 			message = "Validation failed.";
 		}
 		return buildResponse(HttpStatus.BAD_REQUEST, message);
+	}
+
+	/**
+	 * DEF-01 / TC-2.7: uploads over spring.servlet.multipart.max-file-size
+	 * (20MB) throw MaxUploadSizeExceededException. Without this handler it
+	 * fell through to handleUnexpected() and returned HTTP 500.
+	 */
+	@ExceptionHandler(MaxUploadSizeExceededException.class)
+	public ResponseEntity<Map<String, Object>> handleMaxUploadSize(MaxUploadSizeExceededException ex) {
+		return buildResponse(HttpStatus.PAYLOAD_TOO_LARGE,
+				"The file is too large. Maximum upload size is 20 MB.");
 	}
 
 	@ExceptionHandler(ResponseStatusException.class)
