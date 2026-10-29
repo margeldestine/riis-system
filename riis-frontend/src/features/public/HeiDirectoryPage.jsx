@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import apiClient from '../../services/apiClient'
+import { Search, MapPin } from 'lucide-react'
 import PublicFooter from './PublicFooter'
 
 
@@ -50,7 +51,7 @@ function InstitutionCard({ hei, onClick }) {
   return (
     <div
       onClick={onClick}
-      className="flex cursor-pointer flex-col gap-4 rounded-xl border border-slate-200 bg-white p-6 shadow-sm transition hover:shadow-md"
+      className="flex cursor-pointer flex-col gap-4 rounded-xl border border-slate-200 bg-white p-6 shadow-sm transition hover:border-[#0F3D8F]/40 hover:shadow-md"
     >
       <div className="flex items-center gap-4">
         <div
@@ -60,10 +61,10 @@ function InstitutionCard({ hei, onClick }) {
           {initials}
         </div>
         <div className="min-w-0">
-        <p className="text-[15px] font-bold text-[#1A1A2E] leading-snug">{hei.name}</p>          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+        <p className="text-[15px] font-bold text-[#0A2A66] leading-snug">{hei.name}</p>          <div className="mt-1 flex flex-wrap items-center gap-1.5">
             <span className="text-[12px] font-medium uppercase text-slate-500">{typeLabel}</span>
             <span className="text-[12px] text-slate-400">·</span>
-            <span className="text-[12px] text-blue-600">{hei.province}</span>
+            <span className="text-[12px] text-[#1E5FC4]">{hei.province}</span>
           </div>
         </div>
       </div>
@@ -121,9 +122,9 @@ export default function HeiDirectoryPage() {
   )
 
   return (
-   <div className="min-h-screen bg-[#F4F6F9] flex flex-col" style={{ fontFamily: "'Inter', sans-serif" }}>
+   <div className="min-h-screen bg-[#F5F7FB] flex flex-col" style={{ fontFamily: "'Inter', sans-serif" }}>
       {/* Nav */}
-      <nav className="bg-white border-b border-slate-200 px-8 py-3 flex items-center justify-between">
+      <nav className="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-slate-200 px-8 py-3 shadow-sm flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className="h-8 w-8 rounded-lg bg-[#1A1A2E] flex items-center justify-center">
             <span className="text-xs font-bold text-[#C9A84C]">D</span>
@@ -149,17 +150,28 @@ export default function HeiDirectoryPage() {
         <div className="absolute inset-0" style={{ backgroundImage: 'url(/DOST_Building.png)', backgroundSize: 'cover', backgroundPosition: '50% 30%', opacity: 0.25, mixBlendMode: 'luminosity' }} />
         <div className="absolute inset-0" style={{ background: 'rgba(15, 40, 90, 0.72)' }} />
         <div className="relative z-10">
-          <h1 className="text-4xl font-bold text-white" style={{ fontFamily: "'Libre Baskerville', serif" }}>Higher Education Institutions</h1>
-          <p className="mt-2 text-sm" style={{ color: 'rgba(255,255,255,0.7)' }}>from Region VII HEIs</p>
-          <p className="mt-3 text-sm max-w-xl mx-auto" style={{ color: 'rgba(255,255,255,0.6)', lineHeight: 1.7 }}>
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-[#F5C518]">
+            <MapPin className="h-3 w-3" /> Region VII · Central Visayas
+          </span>
+          <h1 className="mt-4 text-4xl font-bold text-white md:text-5xl" style={{ fontFamily: "'Libre Baskerville', serif" }}>Higher Education Institutions</h1>
+          <div className="mx-auto mt-4 h-1 w-16 rounded-full bg-[#F5C518]" />
+          <p className="mt-4 text-base" style={{ color: 'rgba(255,255,255,0.85)' }}>from Region VII HEIs</p>
+          <p className="mt-3 text-sm max-w-xl mx-auto px-4" style={{ color: 'rgba(255,255,255,0.7)', lineHeight: 1.7 }}>
             Search through thousands of research papers, projects, and innovations from Higher Education Institutions across Central Visayas. Discover groundbreaking work in science, technology, and social development.
           </p>
-          <div className="mt-6 mx-auto flex gap-2" style={{ maxWidth: 700 }}>
-            <div className="flex-1 flex items-center gap-3 px-4 py-3 shadow-lg" style={{ background: 'rgba(255,255,255,0.12)', border: '1.5px solid rgba(255,255,255,0.25)', borderRadius: 12 }}>
-              <svg className="h-5 w-5 shrink-0" style={{ color: 'rgba(255,255,255,0.6)' }} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><circle cx="11" cy="11" r="8"/><path strokeLinecap="round" strokeLinejoin="round" d="m21 21-4.35-4.35"/></svg>
-              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search institutions by name or province..." style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', fontSize: 14, color: '#fff' }} />
+          <div className="mt-8 mx-auto flex items-center gap-2 rounded-2xl bg-white p-2 shadow-xl ring-1 ring-white/30 focus-within:ring-2 focus-within:ring-[#F5C518]" style={{ maxWidth: 700 }}>
+            <div className="flex flex-1 items-center gap-3 px-3">
+              <Search className="h-5 w-5 shrink-0 text-slate-400" />
+              <input
+                type="text"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search institutions by name or province..."
+                className="w-full bg-transparent py-2.5 text-sm text-slate-800 placeholder:text-slate-400"
+                style={{ border: 'none', outline: 'none' }}
+              />
             </div>
-            <button type="button" className="rounded-xl px-6 py-3 text-sm font-semibold text-white transition" style={{ backgroundColor: '#1a6e3c', borderRadius: 12 }}>Search</button>
+            <button type="button" className="rounded-xl px-6 py-2.5 text-sm font-semibold text-[#0A2A66] shadow-sm transition hover:brightness-110" style={{ backgroundColor: '#F5C518' }}>Search</button>
           </div>
         </div>
       </div>

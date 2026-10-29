@@ -45,7 +45,7 @@ const TIERS = [
     key: 'RESTRICTED',
     name: 'Restricted',
     icon: EyeOff,
-    accent: '#123B72',
+    accent: '#0A2A66',
     tint: 'rgba(18, 59, 114, 0.08)',
     badge: 'bg-slate-200 text-slate-700',
     summary: 'Only the title and the institution are shown.',
@@ -62,7 +62,7 @@ const MATRIX = [
 const FULL_TEXT_PATHS = [
   {
     icon: ExternalLink,
-    accent: '#123B72',
+    accent: '#0A2A66',
     tint: 'rgba(18, 59, 114, 0.08)',
     title: 'Link to the publisher',
     when: 'The record has a DOI and is Public or Metadata only.',
@@ -81,7 +81,7 @@ const FULL_TEXT_PATHS = [
 const PRIVACY = [
   {
     icon: Mail,
-    accent: '#123B72',
+    accent: '#0A2A66',
     tint: 'rgba(18, 59, 114, 0.08)',
     title: 'Your details stay narrow',
     text: 'Your name, email and reason are used only to route your request to the research office and to send you a confirmation.',
@@ -119,9 +119,9 @@ const ANIMATION_CSS = `
 function SectionHeading({ eyebrow, title, children }) {
   return (
     <div className="mx-auto mb-8 max-w-2xl text-center">
-      <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-[#C9A84C]">{eyebrow}</p>
+      <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-[#1E5FC4]">{eyebrow}</p>
       <h2
-        className="mt-2 text-2xl text-[#1A1A2E] md:text-3xl"
+        className="mt-2 text-2xl text-[#0A2A66] md:text-3xl"
         style={{ fontFamily: "'Libre Baskerville', serif", fontWeight: 700 }}
       >
         {title}
@@ -135,11 +135,11 @@ export default function AccessPolicyPage() {
   const navigate = useNavigate()
 
   return (
-    <div className="flex min-h-screen flex-col bg-[#F4F6F9]" style={{ fontFamily: "'Inter', sans-serif" }}>
+    <div className="flex min-h-screen flex-col bg-[#F5F7FB]" style={{ fontFamily: "'Inter', sans-serif" }}>
       <style>{ANIMATION_CSS}</style>
 
       {/* Nav, same as the other public pages */}
-      <nav className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 md:px-8">
+      <nav className="sticky top-0 z-30 flex items-center justify-between border-b border-slate-200 bg-white/95 px-4 py-3 shadow-sm backdrop-blur md:px-8">
         <div className="flex items-center gap-3">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#1A1A2E]">
             <span className="text-xs font-bold text-[#C9A84C]">D</span>
@@ -189,10 +189,10 @@ export default function AccessPolicyPage() {
           }}
         />
         <div className="absolute inset-0" style={{ background: 'rgba(15, 40, 90, 0.72)' }} />
-        <div className="absolute inset-x-0 bottom-0 h-px bg-[#C9A84C]" />
+        <div className="absolute inset-x-0 bottom-0 h-1.5 bg-[#F5C518]" />
 
         <div className="relative z-10 mx-auto max-w-3xl px-6">
-          <p className="policy-rise text-[11px] font-bold uppercase tracking-[0.26em] text-[#C9A84C]">DOST Region VII</p>
+          <p className="policy-rise text-[11px] font-bold uppercase tracking-[0.26em] text-[#F5C518]">DOST Region VII</p>
           <h1
             className="policy-rise policy-delay-1 mt-3 text-4xl leading-tight text-white md:text-5xl"
             style={{ fontFamily: "'Libre Baskerville', serif", fontWeight: 700 }}
@@ -212,7 +212,7 @@ export default function AccessPolicyPage() {
                 className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium text-white"
                 style={{ background: 'rgba(255,255,255,0.12)', border: '1.5px solid rgba(255,255,255,0.25)' }}
               >
-                <MapPin className="h-3.5 w-3.5 text-[#C9A84C]" />
+                <MapPin className="h-3.5 w-3.5 text-[#F5C518]" />
                 {province}
               </span>
             ))}
@@ -232,10 +232,10 @@ export default function AccessPolicyPage() {
               key={item.label}
               className="rounded-2xl border border-slate-200 bg-white p-5 text-center shadow-[0_8px_24px_rgba(15,40,90,0.10)]"
             >
-              <p className="text-4xl text-[#123B72]" style={{ fontFamily: "'Libre Baskerville', serif", fontWeight: 700 }}>
+              <p className="text-4xl text-[#0A2A66]" style={{ fontFamily: "'Libre Baskerville', serif", fontWeight: 700 }}>
                 {item.value}
               </p>
-              <p className="mt-1 text-sm font-semibold text-[#1A1A2E]">{item.label}</p>
+              <p className="mt-1 text-sm font-semibold text-[#0A2A66]">{item.label}</p>
               <p className="mt-1 text-xs leading-relaxed text-slate-500">{item.note}</p>
             </div>
           ))}
@@ -299,7 +299,7 @@ export default function AccessPolicyPage() {
                                 <span className="sr-only">Not shown:</span>
                               </span>
                             )}
-                            <span className={on ? 'text-[#1A1A2E]' : 'text-slate-400'}>{field}</span>
+                            <span className={on ? 'text-[#0A2A66]' : 'text-slate-400'}>{field}</span>
                           </li>
                         )
                       })}
@@ -315,7 +315,7 @@ export default function AccessPolicyPage() {
             style={{ background: 'rgba(201, 168, 76, 0.12)', borderColor: 'rgba(201, 168, 76, 0.4)' }}
           >
             <FileLock2 className="mt-0.5 h-5 w-5 shrink-0 text-[#B8932F]" />
-            <p className="text-sm leading-relaxed text-[#1A1A2E]">
+            <p className="text-sm leading-relaxed text-[#0A2A66]">
               <span className="font-semibold">The uploaded PDF is never shown</span>, at any level. Full text comes from
               the publisher or from the institution.
             </p>
@@ -341,7 +341,7 @@ export default function AccessPolicyPage() {
                     >
                       <Icon className="h-5 w-5" style={{ color: path.accent }} />
                     </div>
-                    <h3 className="text-base font-semibold text-[#1A1A2E]">{path.title}</h3>
+                    <h3 className="text-base font-semibold text-[#0A2A66]">{path.title}</h3>
                     <p className="mt-1 text-xs font-semibold" style={{ color: path.accent }}>
                       {path.when}
                     </p>
@@ -374,7 +374,7 @@ export default function AccessPolicyPage() {
                     >
                       <Icon className="h-5 w-5" style={{ color: item.accent }} />
                     </div>
-                    <h3 className="text-base font-semibold text-[#1A1A2E]">{item.title}</h3>
+                    <h3 className="text-base font-semibold text-[#0A2A66]">{item.title}</h3>
                     <p className="mt-2 text-sm leading-relaxed text-slate-600">{item.text}</p>
                   </div>
                 </div>
@@ -405,7 +405,7 @@ export default function AccessPolicyPage() {
               className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full"
               style={{ background: 'rgba(255,255,255,0.12)', border: '1.5px solid rgba(255,255,255,0.25)' }}
             >
-              <ShieldCheck className="h-6 w-6 text-[#C9A84C]" />
+              <ShieldCheck className="h-6 w-6 text-[#F5C518]" />
             </div>
             <h2
               className="text-2xl text-white md:text-3xl"

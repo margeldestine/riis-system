@@ -14,7 +14,7 @@ const PROVINCES = ['Cebu', 'Bohol']
 
 
 const FILTER_FIELD_CLASS =
-  'w-full rounded-lg border border-slate-200 bg-white py-2 pl-3 pr-7 text-xs text-slate-600 appearance-none transition hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#C9A84C]/60 focus:border-[#C9A84C]'
+  'w-full rounded-lg border border-slate-200 bg-white py-2 pl-3 pr-7 text-xs text-slate-700 appearance-none transition hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#0F3D8F]/40 focus:border-[#0F3D8F]'
 
 function extractApiErrorMessage(error, fallback) {
   const data = error?.response?.data
@@ -25,16 +25,8 @@ function extractApiErrorMessage(error, fallback) {
 }
 
 function TypeBadge({ type }) {
-  const colors = {
-    'Funded Project': 'bg-amber-100 text-amber-700',
-    'Journal Article': 'bg-blue-100 text-blue-700',
-    'Conference Paper': 'bg-purple-100 text-purple-700',
-    'Innovation Output': 'bg-teal-100 text-teal-700',
-    'IP Registration': 'bg-rose-100 text-rose-700',
-    'Community Extension Research': 'bg-green-100 text-green-700',
-  }
   return (
-    <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${colors[type] || 'bg-slate-100 text-slate-600'}`}>
+    <span className="inline-flex rounded-md bg-[#E8EEF9] px-2.5 py-0.5 text-xs font-semibold text-[#0F3D8F]">
       {type || '—'}
     </span>
   )
@@ -49,7 +41,7 @@ function ResultCard({ result, onSelect }) {
   const keywords = Array.isArray(result.keywords) ? result.keywords : []
 
   return (
-    <div className="group rounded-2xl border border-slate-200 border-l-4 border-l-[#C9A84C]/70 bg-white p-6 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-l-[#C9A84C] hover:shadow-lg">
+    <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm transition-colors hover:border-[#0F3D8F]/40">
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
           {/* Title */}
@@ -58,7 +50,7 @@ function ResultCard({ result, onSelect }) {
             <a  href={`https://doi.org/${result.doi}`}
               target="_blank"
               rel="noreferrer"
-                className="break-words text-lg font-semibold text-[#1A1A2E] hover:text-blue-600 leading-snug"
+                className="break-words text-lg font-semibold text-[#0A2A66] hover:text-[#1E5FC4] leading-snug"
             >
               {result.title}
             </a>
@@ -66,7 +58,7 @@ function ResultCard({ result, onSelect }) {
             <button
               type="button"
               onClick={() => onSelect(result)}
-              className="break-words text-left text-lg font-semibold text-[#1A1A2E] hover:text-blue-600 leading-snug"
+              className="break-words text-left text-lg font-semibold text-[#0A2A66] hover:text-[#1E5FC4] leading-snug"
             >
               {result.title}
             </button>
@@ -105,7 +97,7 @@ function ResultCard({ result, onSelect }) {
           {keywords.length > 0 && (
             <div className="mt-3 flex flex-wrap gap-1.5">
               {keywords.slice(0, 5).map(kw => (
-                <span key={kw} className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs text-slate-600">
+                <span key={kw} className="rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs text-slate-600">
                   {kw}
                 </span>
               ))}
@@ -147,7 +139,7 @@ function ResultCard({ result, onSelect }) {
             onClick={() => {
               navigate(`/research/${result.id}`, { state: { similarityScore: result.similarityScore ?? null } })
             }}
-            className="rounded-lg bg-[#1A1A2E] px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-[#2a2a4a] transition whitespace-nowrap"
+            className="rounded-lg bg-[#0A2A66] px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-[#0F3D8F] transition-colors whitespace-nowrap"
           >
             View Details
           </button>
@@ -399,7 +391,7 @@ export default function DiscoveryPortalPage({ embedded = false }) {
   const pagedResults = results.slice(currentPage * pageSize, (currentPage + 1) * pageSize)
 
   return (
-    <div className={embedded ? '' : 'min-h-screen bg-gradient-to-b from-[#F4F6F9] to-white'} style={{ fontFamily: "'Inter', sans-serif" }}>
+    <div className={embedded ? '' : 'min-h-screen bg-[#F5F7FB]'} style={{ fontFamily: "'Inter', sans-serif" }}>
       {/* Top nav — only shown on public page */}
       {!embedded && <nav className="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-slate-200 px-8 py-3 flex items-center justify-between shadow-sm">
         <div className="flex items-center gap-3">
@@ -512,13 +504,13 @@ export default function DiscoveryPortalPage({ embedded = false }) {
         <div className="flex gap-6">
           {/* Filter sidebar */}
           <div className="w-64 shrink-0 space-y-4 self-start lg:sticky lg:top-20">
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <div className="flex items-center gap-2 mb-5 pb-3 border-b border-slate-100">
-                <Filter className="h-4 w-4 text-[#C9A84C]" />
-                <h3 className="text-sm font-bold text-[#1A1A2E]">Refine Results</h3>
+            <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+              <div className="flex items-center gap-2 border-b-4 border-[#F5C518] bg-[#0A2A66] px-5 py-3">
+                <Filter className="h-4 w-4 text-[#F5C518]" />
+                <h3 className="text-sm font-bold text-white">Refine Results</h3>
               </div>
 
-              <div className="space-y-4 text-xs">
+              <div className="space-y-4 p-5 text-xs">
                 <div>
                   <p className="font-semibold uppercase tracking-wider text-slate-400 text-[10px] mb-2">Province</p>
                                     <div className="grid grid-cols-2 gap-2" role="group" aria-label="Filter by province">
@@ -530,13 +522,13 @@ export default function DiscoveryPortalPage({ embedded = false }) {
                           type="button"
                           aria-pressed={active}
                           onClick={() => handleFilterChange('province', active ? '' : p)}
-                          className={`inline-flex items-center justify-center gap-1 rounded-full border px-2 py-1.5 text-xs font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#C9A84C] ${
+                          className={`inline-flex items-center justify-center gap-1 rounded-full border px-2 py-1.5 text-xs font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[#0F3D8F] ${
                             active
-                              ? 'border-[#1A1A2E] bg-[#1A1A2E] text-white shadow-sm'
-                              : 'border-slate-200 bg-white text-slate-600 hover:border-[#C9A84C] hover:bg-amber-50'
+                              ? 'border-[#0A2A66] bg-[#0A2A66] text-white shadow-sm'
+                              : 'border-slate-200 bg-white text-slate-600 hover:border-[#0F3D8F] hover:bg-[#EDF2FA]'
                           }`}
                         >
-                          <MapPin className={`h-3 w-3 ${active ? 'text-[#C9A84C]' : 'text-slate-400'}`} />
+                          <MapPin className={`h-3 w-3 ${active ? 'text-[#F5C518]' : 'text-slate-400'}`} />
                           {p}
                         </button>
                       )
@@ -552,9 +544,7 @@ export default function DiscoveryPortalPage({ embedded = false }) {
                       onChange={(e) => handleFilterChange('institutionId', e.target.value)}
                       className={FILTER_FIELD_CLASS}
                     >
-                      <option value="">
-                          <option value="">Select institution</option>
-                      </option>
+                      <option value="">Select institution</option>
                       {filteredInstitutions.map(i => (
                         <option key={i.id} value={i.id}>{i.name}</option>
                       ))}
@@ -607,14 +597,14 @@ export default function DiscoveryPortalPage({ embedded = false }) {
                     value={filters.fundingSource}
                     onChange={(e) => handleFilterChange('fundingSource', e.target.value)}
                     placeholder="e.g. DOST"
-                    className="w-full rounded-lg border border-slate-200 bg-white py-2 px-3 text-xs text-slate-600 transition hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#C9A84C]/60 focus:border-[#C9A84C]"
+                    className="w-full rounded-lg border border-slate-200 bg-white py-2 px-3 text-xs text-slate-600 transition hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-[#0F3D8F]/40 focus:border-[#0F3D8F]"
                   />
                 </div>
 
                 <button
                   type="button"
                   onClick={() => handleSearch()}
-                  className="w-full rounded-lg bg-[#1A1A2E] py-2.5 text-xs font-semibold text-white shadow-sm hover:bg-[#2a2a4a] transition"
+                  className="w-full rounded-lg bg-[#F5C518] py-2.5 text-xs font-semibold text-[#0A2A66] shadow-sm hover:bg-[#E0B20F] transition-colors"
                 >
                   Apply Filters
                 </button>
@@ -632,9 +622,9 @@ export default function DiscoveryPortalPage({ embedded = false }) {
             </div>
 
             {hasSearched && (
-              <div className="rounded-2xl border border-[#C9A84C]/30 bg-gradient-to-br from-amber-50 to-white p-5 shadow-sm text-center">
-                <p className="text-3xl font-bold text-[#C9A84C]">{total}</p>
-                <p className="text-xs text-slate-500 mt-1">Research Outputs Found</p>
+              <div className="rounded-xl bg-[#0A2A66] p-5 text-center shadow-sm">
+                <p className="text-3xl font-bold text-[#F5C518]">{total}</p>
+                <p className="mt-1 text-xs text-blue-100">Research Outputs Found</p>
               </div>
             )}
           </div>
@@ -645,13 +635,13 @@ export default function DiscoveryPortalPage({ embedded = false }) {
               <p className="text-sm text-slate-500">
                 {hasSearched ? `Showing ${pagedResults.length} of ${results.length} results` : ''}
               </p>
-              <div className="flex rounded-full border border-slate-200 bg-white shadow-sm overflow-hidden text-xs">
+              <div className="flex rounded-lg border border-slate-200 bg-white shadow-sm overflow-hidden text-xs">
                 {['KEYWORD', 'SEMANTIC', 'BOTH'].map(m => (
                   <button
                     key={m}
                     type="button"
                     onClick={() => setMode(m)}
-                    className={`px-4 py-1.5 font-medium transition ${mode === m ? 'bg-[#1A1A2E] text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}
+                    className={`px-4 py-1.5 font-medium transition ${mode === m ? 'bg-[#0A2A66] text-white' : 'bg-white text-slate-500 hover:bg-[#EDF2FA]'}`}
                   >
                     {MODE_LABELS[m]}
                   </button>
@@ -662,12 +652,12 @@ export default function DiscoveryPortalPage({ embedded = false }) {
             {loading ? (
               <div className="flex items-center justify-center py-16">
                 <div className="text-center">
-                  <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#C9A84C] border-t-transparent mx-auto" />
+                  <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#0F3D8F] border-t-transparent mx-auto" />
                   <p className="mt-3 text-sm text-slate-500">Searching research outputs...</p>
                 </div>
               </div>
             ) : results.length === 0 && hasSearched ? (
-              <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white py-16 text-center">
+              <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 bg-white py-16 text-center">
                 <div className="mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-slate-100">
                   <Search className="h-8 w-8 text-slate-400" />
                 </div>
@@ -690,7 +680,7 @@ export default function DiscoveryPortalPage({ embedded = false }) {
                   type="button"
                   onClick={() => goToPage(Math.max(0, currentPage - 1))}
                   disabled={currentPage === 0}
-                  className="rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-[#EDF2FA] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Previous
                 </button>
@@ -701,7 +691,7 @@ export default function DiscoveryPortalPage({ embedded = false }) {
                   type="button"
                   onClick={() => goToPage(Math.min(totalPages - 1, currentPage + 1))}
                   disabled={currentPage >= totalPages - 1}
-                  className="rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-[#EDF2FA] disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Next
                 </button>

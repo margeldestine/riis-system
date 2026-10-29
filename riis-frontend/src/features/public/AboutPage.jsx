@@ -31,7 +31,7 @@ const BENEFITS = [
   {
     who: 'DOST Region VII',
     icon: Landmark,
-    accent: '#123B72',
+    accent: '#0A2A66',
     tint: 'rgba(18, 59, 114, 0.08)',
     points: [
       'One regional view of research outputs across HEIs, by province, type and year.',
@@ -99,9 +99,9 @@ const ANIMATION_CSS = `
 function SectionHeading({ eyebrow, title, children }) {
   return (
     <div className="mx-auto mb-8 max-w-2xl text-center">
-      <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-[#C9A84C]">{eyebrow}</p>
+      <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-[#1E5FC4]">{eyebrow}</p>
       <h2
-        className="mt-2 text-2xl text-[#1A1A2E] md:text-3xl"
+        className="mt-2 text-2xl text-[#0A2A66] md:text-3xl"
         style={{ fontFamily: "'Libre Baskerville', serif", fontWeight: 700 }}
       >
         {title}
@@ -131,11 +131,11 @@ export default function AboutPage() {
   }, [])
 
   return (
-    <div className="flex min-h-screen flex-col bg-[#F4F6F9]" style={{ fontFamily: "'Inter', sans-serif" }}>
+    <div className="flex min-h-screen flex-col bg-[#F5F7FB]" style={{ fontFamily: "'Inter', sans-serif" }}>
       <style>{ANIMATION_CSS}</style>
 
       {/* Nav, same as the other public pages */}
-      <nav className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 md:px-8">
+      <nav className="sticky top-0 z-30 flex items-center justify-between border-b border-slate-200 bg-white/95 px-4 py-3 shadow-sm backdrop-blur md:px-8">
         <div className="flex items-center gap-3">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#1A1A2E]">
             <span className="text-xs font-bold text-[#C9A84C]">D</span>
@@ -185,10 +185,10 @@ export default function AboutPage() {
           }}
         />
         <div className="absolute inset-0" style={{ background: 'rgba(15, 40, 90, 0.72)' }} />
-        <div className="absolute inset-x-0 bottom-0 h-px bg-[#C9A84C]" />
+        <div className="absolute inset-x-0 bottom-0 h-1.5 bg-[#F5C518]" />
 
         <div className="relative z-10 mx-auto max-w-3xl px-6">
-          <p className="about-rise text-[11px] font-bold uppercase tracking-[0.26em] text-[#C9A84C]">
+          <p className="about-rise text-[11px] font-bold uppercase tracking-[0.26em] text-[#F5C518]">
             DOST Region VII
           </p>
           <h1
@@ -211,7 +211,7 @@ export default function AboutPage() {
                 className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium text-white"
                 style={{ background: 'rgba(255,255,255,0.12)', border: '1.5px solid rgba(255,255,255,0.25)' }}
               >
-                <MapPin className="h-3.5 w-3.5 text-[#C9A84C]" />
+                <MapPin className="h-3.5 w-3.5 text-[#F5C518]" />
                 {province}
               </span>
             ))}
@@ -228,12 +228,12 @@ export default function AboutPage() {
               className="rounded-2xl border border-slate-200 bg-white p-5 text-center shadow-[0_8px_24px_rgba(15,40,90,0.10)]"
             >
               <p
-                className="text-4xl text-[#123B72]"
+                className="text-4xl text-[#0A2A66]"
                 style={{ fontFamily: "'Libre Baskerville', serif", fontWeight: 700 }}
               >
                 {item.value}
               </p>
-              <p className="mt-1 text-sm font-semibold text-[#1A1A2E]">{item.label}</p>
+              <p className="mt-1 text-sm font-semibold text-[#0A2A66]">{item.label}</p>
               <p className="mt-1 text-xs leading-relaxed text-slate-500">{item.note}</p>
             </div>
           ))}
@@ -253,11 +253,11 @@ export default function AboutPage() {
             <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <div
                 className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl"
-                style={{ background: 'rgba(18, 59, 114, 0.08)' }}
+                style={{ background: 'rgba(10, 42, 102, 0.08)' }}
               >
-                <Link2 className="h-5 w-5 text-[#123B72]" />
+                <Link2 className="h-5 w-5 text-[#0A2A66]" />
               </div>
-              <h3 className="text-base font-semibold text-[#1A1A2E]">Scopus and other indexes stay as they are</h3>
+              <h3 className="text-base font-semibold text-[#0A2A66]">Scopus and other indexes stay as they are</h3>
               <p className="mt-2 text-sm leading-relaxed text-slate-600">
                 DASIG complements Scopus and similar indexes. It does not replace them and it does not compete with
                 them. Papers published in indexed journals stay where they are, and DASIG links out to the publisher
@@ -272,7 +272,7 @@ export default function AboutPage() {
               >
                 <Building2 className="h-5 w-5 text-[#B8932F]" />
               </div>
-              <h3 className="text-base font-semibold text-[#1A1A2E]">What DASIG adds is the local layer</h3>
+              <h3 className="text-base font-semibold text-[#0A2A66]">What DASIG adds is the local layer</h3>
               <p className="mt-2 text-sm leading-relaxed text-slate-600">
                 Region VII studies, including theses, technical reports and institutional outputs that are hard to
                 find in international indexes, organized by institution, province and theme. DASIG does not host or
@@ -301,7 +301,7 @@ export default function AboutPage() {
                     >
                       <Icon className="h-5 w-5" style={{ color: group.accent }} />
                     </div>
-                    <h3 className="text-base font-semibold text-[#1A1A2E]">{group.who}</h3>
+                    <h3 className="text-base font-semibold text-[#0A2A66]">{group.who}</h3>
                     <ul className="mt-3 space-y-2.5">
                       {group.points.map((point) => (
                         <li key={point} className="flex gap-2.5 text-sm leading-relaxed text-slate-600">
@@ -324,18 +324,18 @@ export default function AboutPage() {
         <section>
           <SectionHeading eyebrow="How it works" title="From submission to discovery" />
           <div className="relative grid gap-5 md:grid-cols-3">
-            <div className="pointer-events-none absolute left-[16%] right-[16%] top-7 hidden h-px bg-[#C9A84C]/50 md:block" />
+            <div className="pointer-events-none absolute left-[16%] right-[16%] top-7 hidden h-px bg-[#F5C518]/50 md:block" />
             {STEPS.map((step, index) => {
               const Icon = step.icon
               return (
                 <div key={step.title} className="relative text-center">
-                  <div className="relative mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#1A1A2E] shadow-md ring-4 ring-[#F4F6F9]">
-                    <Icon className="h-6 w-6 text-[#C9A84C]" />
-                    <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-[#C9A84C] text-[10px] font-bold text-[#1A1A2E]">
+                  <div className="relative mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#0A2A66] shadow-md ring-4 ring-[#F5F7FB]">
+                    <Icon className="h-6 w-6 text-[#F5C518]" />
+                    <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-[#F5C518] text-[10px] font-bold text-[#0A2A66]">
                       {index + 1}
                     </span>
                   </div>
-                  <h3 className="mt-4 text-base font-semibold text-[#1A1A2E]">{step.title}</h3>
+                  <h3 className="mt-4 text-base font-semibold text-[#0A2A66]">{step.title}</h3>
                   <p className="mx-auto mt-2 max-w-xs text-sm leading-relaxed text-slate-600">{step.text}</p>
                 </div>
               )
@@ -362,7 +362,7 @@ export default function AboutPage() {
 
           <div className="relative z-10 mx-auto max-w-2xl">
             <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full" style={{ background: 'rgba(255,255,255,0.12)', border: '1.5px solid rgba(255,255,255,0.25)' }}>
-              <ShieldCheck className="h-6 w-6 text-[#C9A84C]" />
+              <ShieldCheck className="h-6 w-6 text-[#F5C518]" />
             </div>
             <h2
               className="text-2xl text-white md:text-3xl"
@@ -378,7 +378,7 @@ export default function AboutPage() {
                 className="mt-4 inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-semibold text-white"
                 style={{ background: 'rgba(255,255,255,0.12)', border: '1.5px solid rgba(255,255,255,0.25)' }}
               >
-                <span className="h-2 w-2 rounded-full bg-[#C9A84C]" />
+                <span className="h-2 w-2 rounded-full bg-[#F5C518]" />
                 Submission is currently recorded as {submissionModel}
               </p>
             )}
