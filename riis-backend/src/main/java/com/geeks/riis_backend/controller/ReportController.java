@@ -1,6 +1,8 @@
 package com.geeks.riis_backend.controller;
 
 import com.geeks.riis_backend.dto.ReportResultDTO;
+import com.geeks.riis_backend.dto.ReportPreviewRowDTO;
+import com.geeks.riis_backend.dto.ReportStatsDTO;
 import com.geeks.riis_backend.model.ReportJob;
 import com.geeks.riis_backend.repository.ReportJobRepository;
 import com.geeks.riis_backend.service.ReportService;
@@ -48,10 +50,16 @@ public class ReportController {
 
     @PostMapping("/preview")
     @PreAuthorize("hasAnyAuthority('ROLE_DOST_ADMIN', 'DOST_ADMIN', 'ROLE_HEI_STAFF', 'HEI_STAFF')")
-    public ResponseEntity<List<com.geeks.riis_backend.dto.SubmissionSummaryDTO>> preview(
+    public ResponseEntity<List<ReportPreviewRowDTO>> preview(
             @RequestBody ReportRequestDTO request
     ) {
         return ResponseEntity.ok(reportService.previewFilteredDataset(request));
+    }
+
+    @PostMapping("/stats")
+    @PreAuthorize("hasAnyAuthority('ROLE_DOST_ADMIN', 'DOST_ADMIN', 'ROLE_HEI_STAFF', 'HEI_STAFF')")
+    public ResponseEntity<ReportStatsDTO> stats(@RequestBody ReportRequestDTO request) {
+        return ResponseEntity.ok(reportService.buildStats(request));
     }
 
     @GetMapping("/{jobId}/status")

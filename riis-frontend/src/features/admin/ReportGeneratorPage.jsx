@@ -427,7 +427,9 @@ const handleGenerate = async () => {
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-100">
                       <th className="px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-400">Report Title</th>
+                      <th className="px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-400">Author</th>
                       <th className="px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-400">Type</th>
+                      <th className="px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-400">Subject Type</th>
                       <th className="px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-400">Year</th>
                       <th className="px-5 py-3 text-left text-[10px] font-semibold uppercase tracking-wider text-slate-400">Funding</th>
                     </tr>
@@ -438,10 +440,16 @@ const handleGenerate = async () => {
                         <td className="px-5 py-3 text-sm font-medium text-[#1A1A2E] max-w-xs">
                           <p className="line-clamp-2">{item.title || '—'}</p>
                         </td>
+                        <td className="px-5 py-3 text-sm text-slate-600 max-w-[180px]">
+                          <p className="line-clamp-2">{item.authorNames || '—'}</p>
+                        </td>
                         <td className="px-5 py-3">
                           <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-medium text-amber-700">
                             {item.researchType || 'Research'}
                           </span>
+                        </td>
+                        <td className="px-5 py-3 text-sm text-slate-600 max-w-[160px]">
+                          <p className="line-clamp-2">{item.subject || '—'}</p>
                         </td>
                         <td className="px-5 py-3 text-sm text-slate-600">{item.completionYear || '—'}</td>
                         <td className="px-5 py-3 text-sm text-slate-600">{item.fundingSource || '—'}</td>

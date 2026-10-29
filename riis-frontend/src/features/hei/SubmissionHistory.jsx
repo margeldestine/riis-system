@@ -84,6 +84,12 @@ function formatDate(value) {
   return `${year}-${month}-${day}`
 }
 
+function splitAuthorNames(value) {
+  if (!value) return []
+  const raw = Array.isArray(value) ? value : String(value).split(',')
+  return raw.map((name) => String(name).trim()).filter(Boolean)
+}
+
 function KpiCard({ value, label, accentBorderClass, accentTriangleClass }) {
   return (
     <div
@@ -119,6 +125,7 @@ export default function SubmissionHistory() {
   const [filterSubmittedBy, setFilterSubmittedBy] = useState('')
   const [filterType, setFilterType] = useState('')
   const [filterYear, setFilterYear] = useState('')
+  const [filterAuthor, setFilterAuthor] = useState('')
 
   // Colleagues at the same institution who've actually submitted
   // something -- populates the "Submitted by:" dropdown beyond just
@@ -162,6 +169,16 @@ export default function SubmissionHistory() {
     })
     return Array.from(years).sort((a, b) => Number(b) - Number(a))
   }, [items])
+
+  const authorOptions = useMemo(() => {
+    const names = new Set()
+    items.forEach((item) => {
+      splitAuthorNames(item?.authorNames).forEach((name) => names.add(name))
+    })
+    
+    if (filterAuthor) names.add(filterAuthor)
+    return Array.from(names).sort((a, b) => a.localeCompare(b))
+  }, [items, filterAuthor])
 
   const mapStatusForApi = (value) => {
     if (!value) return undefined
@@ -300,7 +317,9 @@ export default function SubmissionHistory() {
       }
 
       if (filterType && normalizeType(item?.researchType) !== normalizeType(filterType)) return false
-      if (filterYear) {
+      if (filterAuthor) {
+        const names = splitAuthorNames(item?.authorNames).map((name) => name.toLowerCase())
+        if (!names.includes(filterAuthor.toLowerCase())) return false
         const value = item?.updatedAt || item?.submittedAt
         const date = value ? new Date(value) : null
         const year = date && !Number.isNaN(date.getTime()) ? String(date.getFullYear()) : ''
@@ -421,7 +440,7 @@ export default function SubmissionHistory() {
             </button>
           </div>
 
-                    <div className="grid gap-3 md:grid-cols-3">
+                      <div className="grid gap-3 md:grid-cols-4">
             <select
               value={filterSubmittedBy}
               onChange={(event) => {
@@ -435,6 +454,21 @@ export default function SubmissionHistory() {
               {submitters.map((submitter) => (
                 <option key={submitter.id} value={submitter.id}>
                   {submitter.fullName}
+                </option>
+              ))}
+            </select>
+            <select
+              value={filterAuthor}
+              onChange={(event) => {
+                setFilterAuthor(event.target.value)
+                setPage(0)
+              }}
+              className="h-10 w-full rounded-[8px] border border-[#e5e7eb] bg-white px-3 text-sm text-slate-600 outline-none"
+            >
+              <option value="">All Authors</option>
+              {authorOptions.map((name) => (
+                <option key={name} value={name}>
+                  {name}
                 </option>
               ))}
             </select>
