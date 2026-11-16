@@ -6,7 +6,7 @@ import { heiNavItems } from './HeiDashboard'
 
 const TABS = [
   { value: 'PENDING', label: 'Pending' },
-  { value: 'FULFILLED', label: 'Fulfilled' },
+  { value: 'APPROVED', label: 'Approved' },
   { value: 'DECLINED', label: 'Declined' },
   { value: '', label: 'All' },
 ]
@@ -26,13 +26,13 @@ function formatDate(value) {
 }
 
 function badgeClass(status) {
-  if (status === 'FULFILLED') return 'bg-emerald-100 text-emerald-700'
+  if (status === 'APPROVED') return 'bg-emerald-100 text-emerald-700'
   if (status === 'DECLINED') return 'bg-red-100 text-red-700'
   return 'bg-amber-100 text-amber-700'
 }
 
 function RequestCard({ item, onUpdated }) {
-  const [action, setAction] = useState(null) // null | 'FULFILLED' | 'DECLINED'
+  const [action, setAction] = useState(null) // null | 'APPROVED' | 'DECLINED'
   const [note, setNote] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
@@ -102,10 +102,10 @@ function RequestCard({ item, onUpdated }) {
             </a>
             <button
               type="button"
-              onClick={() => setAction('FULFILLED')}
+              onClick={() => setAction('APPROVED')}
               className="rounded-[8px] bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
             >
-              Mark fulfilled
+              Mark approved
             </button>
             <button
               type="button"
@@ -122,7 +122,7 @@ function RequestCard({ item, onUpdated }) {
           {action ? (
             <div className="space-y-2 rounded-[8px] border border-[#e5e7eb] bg-slate-50 p-3">
               <p className="text-[13px] font-semibold text-[#0d1f3c]">
-                {action === 'FULFILLED' ? 'Mark as fulfilled' : 'Decline this request'}
+                {action === 'APPROVED' ? 'Mark as approved' : 'Decline this request'}
               </p>
               <textarea
                 value={note}

@@ -142,7 +142,7 @@ public class FullTextRequestService {
 
     public FullTextRequestDTO updateStatus(String actorUserId, String requestId, FullTextRequestStatus next, String note) {
         if (next == FullTextRequestStatus.PENDING) {
-            throw new BadRequestException("Status must be FULFILLED or DECLINED.");
+            throw new BadRequestException("Status must be APPROVED or DECLINED.");
         }
         User actor = loadActor(actorUserId);
         String notFound = "Full text request not found: " + requestId;
