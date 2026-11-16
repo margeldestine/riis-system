@@ -671,7 +671,7 @@ export default function InstitutionProfilePage() {
                 {[
                   { value: profile.stats?.totalApprovedOutputs ?? 0, label: 'Total Outputs' },
                   { value: Object.entries(profile.stats?.researchTypeDistribution || {}).find(([k]) => k.toLowerCase().includes('funded'))?.[1] ?? 0, label: 'Funded Projects' },
-                  { value: profile.stats?.totalUniqueAuthors ?? 0, label: 'Unique Authors' },
+                  { value: profile.stats?.totalUniqueAuthors ?? 0, label: 'Researchers' },
                 ].map((s, i) => (
                   <div key={i} className="rounded-[10px] bg-white/10 px-6 py-4">
                     <p className="text-2xl font-bold text-white">{s.value}</p>

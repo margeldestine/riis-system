@@ -414,14 +414,16 @@ const submissionSchema = z
       .int('Completion year must be a whole number.')
       .min(1900, 'Completion year must be valid.')
       .max(currentYear, `Completion year cannot exceed ${currentYear}.`),
-      fundingSource: z
+    // Requirement 5: Funding Source and Publication Venue are optional.
+    // The form's default value is '' so an untouched field passes.
+    fundingSource: z
       .string()
       .trim()
-      .min(1, 'Funding source is required.'),
-      publicationVenue: z
-    .string()
-    .trim()
-    .min(1, 'Publication venue or status is required.'),
+      .optional(),
+    publicationVenue: z
+      .string()
+      .trim()
+      .optional(),
     authors: z.array(authorSchema).min(1, 'Add at least one author.'),
     principalInvestigator: z
       .string()
@@ -461,10 +463,11 @@ const submissionSchema = z
       .string()
       .trim()
       .min(1, 'Coverage is required.'),
-      rightsDc: z
+    // Requirement 7: Rights is optional.
+    rightsDc: z
       .string()
       .trim()
-      .min(1, 'Rights is required.'),
+      .optional(),
     doi: z
       .string()
       .trim()
@@ -745,8 +748,11 @@ function BasicInfoStep({ register, errors, watchedTitle }) {
         </div>
 
         <div className="space-y-2">
-          <label className={fieldLabelClass}>
-            Funding Source <span className="text-[#C9A84C]">*</span>
+          <label className={`mb-2 flex items-center gap-2 ${fieldLabelClass}`}>
+            Funding Source
+            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium normal-case tracking-normal text-slate-400">
+              optional
+            </span>
           </label>
           <input
             {...register('fundingSource')}
@@ -757,8 +763,11 @@ function BasicInfoStep({ register, errors, watchedTitle }) {
         </div>
 
         <div className="space-y-2">
-          <label className={fieldLabelClass}>
-            Publication Venue / Status <span className="text-[#C9A84C]">*</span>
+          <label className={`mb-2 flex items-center gap-2 ${fieldLabelClass}`}>
+            Publication Venue / Status
+            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium normal-case tracking-normal text-slate-400">
+              optional
+            </span>
           </label>
           <input
             {...register('publicationVenue')}
@@ -1277,8 +1286,11 @@ function DublinCoreMetadataStep({
           </div>
 
           <div className="space-y-2">
-            <label className={fieldLabelClass}>
-              Rights (LICENSE/ACCESS) <span className="text-[#C9A84C]">*</span>
+            <label className={`mb-2 flex items-center gap-2 ${fieldLabelClass}`}>
+              Rights (LICENSE/ACCESS)
+              <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium normal-case tracking-normal text-slate-400">
+                optional
+              </span>
             </label>
             <Controller
               control={control}
@@ -1382,15 +1394,15 @@ function ReviewSubmitStep({ values, existingAttachmentKey, showVisibility }) {
     ['Research Title', values.title],
     ['Research Type', values.researchType],
     ['Completion Year', values.completionYear],
-    ['Funding Source', values.fundingSource],
-    ['Publication Venue / Status', values.publicationVenue],
+    ['Funding Source', values.fundingSource || 'Not provided'],
+    ['Publication Venue / Status', values.publicationVenue || 'Not provided'],
     ['Principal Investigator', values.principalInvestigator],
     ['Institutional Affiliation', values.institutionalAffiliation],
     ['Abstract', values.abstractText],
     ['Keywords', values.keywords],
     ['Subject', values.subjectDc],
     ['Coverage', values.coverageDc],
-    ['Rights', values.rightsDc],
+    ['Rights', values.rightsDc || 'Not provided'],
     ['DOI', values.doi || 'Not provided'],
     ['Conference URL', values.conferenceUrl || 'Not provided'],
     ['Attachment', attachmentLabel],
@@ -2086,8 +2098,9 @@ const addKeyword = () => {
       title: values.title,
       researchType: values.researchType,
       completionYear: values.completionYear,
-      fundingSource: values.fundingSource,
-      publicationVenue: values.publicationVenue,
+      // Optional fields: send null instead of '' so the database never stores empty strings.
+      fundingSource: values.fundingSource?.trim() || null,
+      publicationVenue: values.publicationVenue?.trim() || null,
       principalInvestigator: values.principalInvestigator,
       institutionalAffiliation: values.institutionalAffiliation,
       authors: values.authors.map((author) => ({
@@ -2098,7 +2111,7 @@ const addKeyword = () => {
       keywords: values.keywords,
       sAndTTheme: values.subjectDc,
       coverageDc: values.coverageDc,
-      rightsDc: values.rightsDc,
+      rightsDc: values.rightsDc?.trim() || null,
       doi: values.doi || null,
       conferenceUrl: values.conferenceUrl || null,
       attachmentKey: attachmentMeta?.fileKey || null,
@@ -2138,8 +2151,9 @@ const addKeyword = () => {
         title: values.title,
         researchType: values.researchType,
         completionYear: values.completionYear,
-        fundingSource: values.fundingSource,
-        publicationVenue: values.publicationVenue,
+        // Optional fields: send null instead of '' so the database never stores empty strings.
+        fundingSource: values.fundingSource?.trim() || null,
+        publicationVenue: values.publicationVenue?.trim() || null,
         principalInvestigator: values.principalInvestigator,
         institutionalAffiliation: values.institutionalAffiliation,
         authors: values.authors.map((author) => ({
@@ -2150,7 +2164,7 @@ const addKeyword = () => {
         keywords: values.keywords,
         sAndTTheme: values.subjectDc,
         coverageDc: values.coverageDc,
-        rightsDc: values.rightsDc,
+        rightsDc: values.rightsDc?.trim() || null,
         doi: values.doi || null,
         conferenceUrl: values.conferenceUrl || null,
         attachmentKey: attachmentMeta?.fileKey || existingAttachmentKey || null,

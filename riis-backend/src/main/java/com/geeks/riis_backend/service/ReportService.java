@@ -164,9 +164,9 @@ public class ReportService {
     private String joinAuthors(ResearchOutput o, String separator) {
         return o.getAuthors() == null ? "" :
                 o.getAuthors().stream()
-                        .map(com.geeks.riis_backend.model.Author::getFullName)
-                        .filter(name -> name != null && !name.isBlank())
-                        .collect(Collectors.joining(separator));
+                .map(com.geeks.riis_backend.model.Author::getFullName)
+                .filter(name -> name != null && !name.isBlank())
+                .collect(Collectors.joining(separator));
     }
 
     /** Prints the filters the user selected, so the report documents how it was generated. */
@@ -455,11 +455,11 @@ public class ReportService {
         for (ResearchOutput o : data) {
             String authors = o.getAuthors() == null ? "" :
                     o.getAuthors().stream().map(a -> a.getFullName() != null ? a.getFullName() : "")
-                            .collect(Collectors.joining("; "));
+                    .collect(Collectors.joining("; "));
             String orcids = o.getAuthors() == null ? "" :
                     o.getAuthors().stream().map(a -> a.getOrcidId() != null ? a.getOrcidId() : "")
-                            .filter(v -> !v.isBlank())
-                            .collect(Collectors.joining("; "));
+                    .filter(v -> !v.isBlank())
+                    .collect(Collectors.joining("; "));
             printer.printRecord(
                     o.getReferenceNumber(), o.getTitle(), o.getResearchType(),
                     o.getCompletionYear(), o.getFundingSource(), o.getPublicationVenue(),
@@ -490,18 +490,20 @@ public class ReportService {
                 new Font(Font.FontFamily.HELVETICA, 9)));
         doc.add(Chunk.NEWLINE);
 
-        // --- Section 1: Summary Table ---
+        // --- Section 1: Summary table ---
+        // Requirement 11: the report shows statistics and tables only. The research title
+        // column and the whole "Detailed Records" section (title + abstract per study) were removed.
         doc.add(new Paragraph("Summary", sectionFont));
 
         // --- Report configuration (the filters the user selected) ---
         addConfigSection(doc, request, data, sectionFont);
         doc.add(Chunk.NEWLINE);
 
-        PdfPTable summaryTable = new PdfPTable(8);
+        PdfPTable summaryTable = new PdfPTable(7);
         summaryTable.setWidthPercentage(100);
-        summaryTable.setWidths(new float[]{2f, 4f, 3f, 2f, 2.5f, 1.2f, 2f, 2.5f});
+        summaryTable.setWidths(new float[]{2f, 3.5f, 2f, 2.5f, 1.2f, 2f, 2.5f});
 
-        String[] summaryHeaders = {"Ref No.", "Title", "Author", "Type", "Subject Type", "Year", "Funding", "Institution"};
+        String[] summaryHeaders = {"Ref No.", "Author", "Type", "Subject Type", "Year", "Funding", "Institution"};
         for (String h : summaryHeaders) {
             PdfPCell cell = new PdfPCell(new Phrase(h, headerFont));
             cell.setBackgroundColor(new BaseColor(26, 26, 46));
@@ -511,7 +513,6 @@ public class ReportService {
 
         for (ResearchOutput o : data) {
             summaryTable.addCell(new PdfPCell(new Phrase(o.getReferenceNumber() != null ? o.getReferenceNumber() : "", cellFont)));
-            summaryTable.addCell(new PdfPCell(new Phrase(o.getTitle() != null ? o.getTitle() : "", cellFont)));
             summaryTable.addCell(new PdfPCell(new Phrase(joinAuthors(o, "; "), cellFont)));
             summaryTable.addCell(new PdfPCell(new Phrase(o.getResearchType() != null ? o.getResearchType() : "", cellFont)));
             summaryTable.addCell(new PdfPCell(new Phrase(o.getSubjectDc() != null ? o.getSubjectDc() : "", cellFont)));
@@ -536,74 +537,6 @@ public class ReportService {
 
         addOverviewTable(doc, stats, headerFont, cellFont);
         addAnalyticsStack(doc, stats, headerFont, cellFont, boldCellFont);
-
-        // --- Section 2: Detailed Records, ONE STUDY PER PAGE ---
-        Font recordTitleFont = new Font(Font.FontFamily.HELVETICA, 11, Font.BOLD);
-        Font recordCountFont = new Font(Font.FontFamily.HELVETICA, 8, Font.NORMAL, BaseColor.GRAY);
-        Font labelFont = new Font(Font.FontFamily.HELVETICA, 8, Font.BOLD, BaseColor.DARK_GRAY);
-        Font valueFont = new Font(Font.FontFamily.HELVETICA, 9);
-
-        int index = 1;
-        for (ResearchOutput o : data) {
-            doc.newPage();   // every study starts on a fresh page
-
-            if (index == 1) {
-                Paragraph detailedHeading = new Paragraph("Detailed Records", sectionFont);
-                detailedHeading.setSpacingAfter(8f);
-                doc.add(detailedHeading);
-            }
-
-            Paragraph recordCount = new Paragraph("Record " + index + " of " + data.size(), recordCountFont);
-            recordCount.setSpacingAfter(2f);
-            doc.add(recordCount);
-            doc.add(new Paragraph(o.getTitle() != null ? o.getTitle() : "Untitled", recordTitleFont));
-            doc.add(new Paragraph(" "));
-
-            String authors = o.getAuthors() == null ? "" :
-                    o.getAuthors().stream().map(a -> a.getFullName() != null ? a.getFullName() : "")
-                            .collect(Collectors.joining("; "));
-            String orcids = o.getAuthors() == null ? "" :
-                    o.getAuthors().stream().map(a -> a.getOrcidId() != null ? a.getOrcidId() : "")
-                            .filter(v -> !v.isBlank())
-                            .collect(Collectors.joining("; "));
-
-            PdfPTable fieldTable = new PdfPTable(2);
-            fieldTable.setWidthPercentage(100);
-            fieldTable.setWidths(new float[]{1.4f, 4f});
-            fieldTable.getDefaultCell().setBorder(Rectangle.NO_BORDER);
-
-            String[][] fields = {
-                    {"Reference No.", o.getReferenceNumber()},
-                    {"Research Type", o.getResearchType()},
-                    {"Completion Year", o.getCompletionYear() != null ? String.valueOf(o.getCompletionYear()) : ""},
-                    {"Funding Source", o.getFundingSource()},
-                    {"Publication Venue/Status", o.getPublicationVenue()},
-                    {"Institution", o.getInstitution() != null ? o.getInstitution().getName() : ""},
-                    {"Province", o.getInstitution() != null ? o.getInstitution().getProvince() : ""},
-                    {"Authors", authors},
-                    {"ORCID iD(s)", orcids},
-                    {"Abstract", o.getAbstractText()},
-                    {"Keywords", o.getKeywords()},
-                    {"Subject", o.getSubjectDc()},
-                    {"Coverage", o.getCoverageDc()},
-                    {"Rights", o.getRightsDc()},
-                    {"DOI", o.getDoi()},
-            };
-            for (String[] field : fields) {
-                PdfPCell labelCell = new PdfPCell(new Phrase(field[0], labelFont));
-                labelCell.setBorder(Rectangle.NO_BORDER);
-                labelCell.setPaddingBottom(4);
-                fieldTable.addCell(labelCell);
-
-                PdfPCell valueCell = new PdfPCell(new Phrase(field[1] != null ? field[1] : "—", valueFont));
-                valueCell.setBorder(Rectangle.NO_BORDER);
-                valueCell.setPaddingBottom(4);
-                fieldTable.addCell(valueCell);
-            }
-
-            doc.add(fieldTable);
-            index++;
-        }
 
         doc.close();
         return baos.toByteArray();
