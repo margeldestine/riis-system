@@ -1,9 +1,7 @@
 package com.geeks.riis_backend.repository;
 
-import com.geeks.riis_backend.model.SimilarityDispositionStatus;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
-import jakarta.persistence.TypedQuery;
 import org.springframework.stereotype.Repository;
 import java.util.Collection;
 
@@ -14,28 +12,6 @@ public class QualityQueryRepository {
 
     @PersistenceContext
     private EntityManager em;
-
-    public List<Object[]> overlapRows(double minScore, SimilarityDispositionStatus status) {
-        String jpql = """
-                SELECT a.id, a.similarityScore, a.detectedAt, a.notificationSent, a.status,
-                       a.dispositionNotes, a.reviewedAt, rb.fullName,
-                       nr.id, nr.referenceNumber, nr.title, ni.name,
-                       er.id, er.title, ei.name
-                FROM OverlapAlert a
-                JOIN a.newRecord nr
-                LEFT JOIN nr.institution ni
-                JOIN a.existingRecord er
-                LEFT JOIN er.institution ei
-                LEFT JOIN a.reviewedBy rb
-                WHERE a.similarityScore >= :minScore
-                """
-                + (status != null ? " AND a.status = :status" : "")
-                + " ORDER BY a.detectedAt DESC";
-        TypedQuery<Object[]> q = em.createQuery(jpql, Object[].class);
-        q.setParameter("minScore", minScore);
-        if (status != null) q.setParameter("status", status);
-        return q.getResultList();
-    }
 
     public List<Object[]> submissionRows(String status, int offset, int limit) {
         return em.createQuery("""

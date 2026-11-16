@@ -1,13 +1,9 @@
 import { useEffect, useState } from 'react'
-import { useLocation } from 'react-router-dom'
-import { AlertTriangle, CheckCircle2, Loader2, ShieldCheck, Sparkles } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Loader2, Sparkles } from 'lucide-react'
 import DashboardLayout from './DashboardLayout'
 import apiClient from '../../services/apiClient'
 import { dostNavItems } from './PendingSubmissionsPage'
 import AiQualityAssessmentPanel from './AiQualityAssessmentPanel'
-import DispositionBadge from './DispositionBadge'
-import SimilarityDispositionModal from './SimilarityDispositionModal'
-import { DISPOSITION_STATUSES, formatDateTime } from './similarityDisposition'
 
 const cardClass = 'rounded-[12px] bg-white p-[20px] shadow-[0_2px_8px_rgba(0,0,0,0.08)]'
 
@@ -31,54 +27,12 @@ function getErrorFreqBadge(errors) {
 
 export default function DataQualityDashboard() {
   const [metrics, setMetrics] = useState([])
-  const [overlaps, setOverlaps] = useState([])
   const [selectedInstitution, setSelectedInstitution] = useState(null)
   const [drilldown, setDrilldown] = useState(null)
-  const location = useLocation()
-  const [activeTab, setActiveTab] = useState('overlaps')
-
-  useEffect(() => {
-    setActiveTab('overlaps')
-  }, [location.pathname])
+  // The Similarity Flags tab was removed, so the dashboard always opens on the AI Quality Assessment tab.
+  const [activeTab, setActiveTab] = useState('assessment')
 
   const [loading, setLoading] = useState(true)
-  const [overlapsLoading, setOverlapsLoading] = useState(true)
-
-  // Pagination for the Similarity Flag Log
-  const [overlapsPage, setOverlapsPage] = useState(0)
-  const OVERLAPS_PAGE_SIZE = 5
-
-  // Disposition workflow (Refactoring Priority 2)
-  const [statusFilter, setStatusFilter] = useState('ALL')
-  const [dispositionTarget, setDispositionTarget] = useState(null) // { group, match }
-
-  const reloadOverlaps = () => {
-    setOverlapsLoading(true)
-    apiClient.get('/quality/overlaps')
-      .then(res => {
-        setOverlaps(Array.isArray(res.data) ? res.data : [])
-        setOverlapsPage(0)
-      })
-      .catch(() => {})
-      .finally(() => setOverlapsLoading(false))
-  }
-
-  // The PATCH response is the updated match; swap just that one into state.
-  const handleDispositionSaved = (updated) => {
-    setOverlaps(prev =>
-      prev.map(group => ({
-        ...group,
-        matches: group.matches.map(m => (m.alertId === updated.alertId ? updated : m)),
-      }))
-    )
-  }
-
-  const openFlagCount = overlaps.reduce(
-    (total, group) => total + group.matches.filter(m => (m.status || 'OPEN') === 'OPEN').length,
-    0
-  )
-  const groupMatchesFilter = (group) =>
-    statusFilter === 'ALL' || group.matches.some(m => (m.status || 'OPEN') === statusFilter)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -87,14 +41,6 @@ export default function DataQualityDashboard() {
       .then(res => setMetrics(Array.isArray(res.data) ? res.data : []))
       .catch(() => {})
       .finally(() => setLoading(false))
-
-    apiClient.get('/quality/overlaps', { signal: controller.signal })
-      .then(res => {
-        setOverlaps(Array.isArray(res.data) ? res.data : [])
-        setOverlapsPage(0)
-      })
-      .catch(() => {})
-      .finally(() => setOverlapsLoading(false))
 
     return () => controller.abort()
   }, [])
@@ -116,21 +62,9 @@ export default function DataQualityDashboard() {
   const sortedErrors = Object.entries(aggregatedErrors)
     .sort((a, b) => b[1] - a[1])
 
-  // Newest-detected flags first. Copy before sorting so we never mutate
-  // state directly; missing detectedAt values sink to the bottom.
-  const sortedOverlaps = overlaps.filter(groupMatchesFilter).sort(
-    (a, b) => new Date(b.detectedAt || 0) - new Date(a.detectedAt || 0)
-  )
-
-  const overlapsTotalPages = Math.max(1, Math.ceil(sortedOverlaps.length / OVERLAPS_PAGE_SIZE))
-  const pagedOverlaps = sortedOverlaps.slice(
-    overlapsPage * OVERLAPS_PAGE_SIZE,
-    overlapsPage * OVERLAPS_PAGE_SIZE + OVERLAPS_PAGE_SIZE
-  )
-
   return (
     <DashboardLayout
-      activeLabel="Similarity Flags"
+      activeLabel="Data Quality Monitor"
       userName="DOST Administrator"
       organization="DOST Region VII"
       navItems={dostNavItems}
@@ -150,7 +84,7 @@ export default function DataQualityDashboard() {
                   Data Quality Monitor
                 </h1>
                 <p className="mt-2 text-[13px] text-[#6b7280]">
-                    Monitor similarity flags and AI quality assessments across Region VII HEIs
+                    Monitor AI quality assessments across Region VII HEIs
                 </p>
               </div>
               <div className="text-right shrink-0">
@@ -162,23 +96,6 @@ export default function DataQualityDashboard() {
         </div>
 
         <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => setActiveTab('overlaps')}
-            className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition ${
-              activeTab === 'overlaps'
-                ? 'bg-[#1A1A2E] text-white'
-                : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
-            }`}
-          >
-            <AlertTriangle className="h-4 w-4" />
-            Similarity Flags
-            {overlaps.length > 0 && (
-              <span className="rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] text-white">
-                {overlaps.length}
-              </span>
-            )}
-          </button>
           <button
             type="button"
             onClick={() => setActiveTab('assessment')}
@@ -389,196 +306,6 @@ export default function DataQualityDashboard() {
                   </div>
                 ))}
               </div>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'overlaps' && (
-          <div className="space-y-4">
-            {dispositionTarget && (
-              <SimilarityDispositionModal
-                group={dispositionTarget.group}
-                match={dispositionTarget.match}
-                onClose={() => setDispositionTarget(null)}
-                onSaved={handleDispositionSaved}
-                onReload={reloadOverlaps}
-              />
-            )}
-            <div className={cardClass}>
-              <div className="flex items-center justify-between mb-4 rounded-[10px] border border-red-200 bg-red-50 px-4 py-3">
-                <div className="flex items-center gap-3">
-                  <AlertTriangle className="h-5 w-5 text-red-500 shrink-0" />
-                  <div>
-                    <h2 className="text-[15px] font-bold text-[#1A1A2E]">Similarity Flag Log</h2>
-                    <p className="text-[11px] text-slate-500 mt-0.5">
-                      Automated embedding similarity signal — not a confirmed finding of duplication or
-                      plagiarism. Each flag requires human review before any action is taken.
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 shrink-0">
-                  <span className="text-sm font-semibold text-slate-600">{overlaps.length} flagged · {openFlagCount} open</span>
-                  <span className="flex items-center gap-1.5 rounded-md bg-red-500 px-3 py-1 text-xs font-bold text-white">
-                    <span className="h-1.5 w-1.5 rounded-full bg-white" />
-                    Active
-                  </span>
-                </div>
-              </div>
-
-              <div className="mb-4 flex items-center gap-3">
-                <label htmlFor="disposition-filter" className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                  Status
-                </label>
-                <select
-                  id="disposition-filter"
-                  className="select select-bordered select-sm"
-                  value={statusFilter}
-                  onChange={(event) => {
-                    setStatusFilter(event.target.value)
-                    setOverlapsPage(0)
-                  }}
-                >
-                  <option value="ALL">All</option>
-                  {DISPOSITION_STATUSES.map(option => (
-                    <option key={option.value} value={option.value}>{option.label}</option>
-                  ))}
-                </select>
-              </div>
-
-              {overlapsLoading ? (
-                <div className="flex items-center justify-center py-10">
-                  <Loader2 className="h-5 w-5 animate-spin text-slate-400" />
-                </div>
-              ) : sortedOverlaps.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-10 text-center">
-                  <CheckCircle2 className="h-8 w-8 text-emerald-500 mb-2" />
-                  <p className="text-sm font-semibold text-slate-600">No similarity flags detected</p>
-                  <p className="text-xs text-slate-400 mt-1">All research outputs are sufficiently distinct.</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {pagedOverlaps.map((group) => {
-                    const topScore = Math.max(...group.matches.map((m) => m.similarityScore))
-                    const score = (topScore * 100).toFixed(1)
-                    const isCritical = topScore >= 0.80
-                    return (
-                      <div
-                        key={group.newRecordId}
-                        className="rounded-[12px] border-2 overflow-hidden bg-white"
-                        style={{ borderColor: '#EF4444' }}
-                      >
-                        <div className="flex items-start justify-between px-5 pt-5 pb-3">
-                          <div className="flex-1 pr-4">
-                            <h3 className="text-[15px] font-bold text-[#1A1A2E] leading-snug mb-1">
-                              {group.newRecordTitle}
-                            </h3>
-                            <div className="flex items-center gap-2 mb-2">
-                              <span className="text-[11px] text-slate-400">{group.newRecordHei}</span>
-                              {group.detectedAt && (
-                                <>
-                                  <span className="text-slate-300">•</span>
-                                  <span className="text-[11px] text-slate-400">
-                                    Detected {new Intl.DateTimeFormat('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(group.detectedAt))}
-                                  </span>
-                                </>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-4 text-[11px] text-slate-400">
-                              <span>Submitting HEI: {group.newRecordHei}</span>
-                              {group.matches.some((m) => m.notificationSent) && (
-                                <span className="text-emerald-600">✓ Notification sent</span>
-                              )}
-                            </div>
-                          </div>
-                          <div className="flex flex-col items-end gap-1 shrink-0">
-                            <span className="rounded-full px-2.5 py-0.5 text-[10px] font-bold bg-red-100 text-red-600">
-                              ● Similarity Flag
-                            </span>
-                            <span
-                              className="text-3xl font-bold text-red-500"
-                              title="Automated embedding similarity score — not a confirmed finding of duplication or plagiarism. Requires human review."
-                            >
-                              {score}%
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="px-5 py-3 bg-slate-50 border-t border-slate-100">
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">
-                            Similar Record{group.matches.length > 1 ? 's' : ''} Found
-                          </p>
-                          <div className="space-y-2">
-                            {group.matches.map((match) => (
-                              <div
-                                key={match.alertId}
-                                className="rounded-lg bg-white border border-slate-200 px-4 py-3 flex flex-wrap items-center justify-between gap-y-2"
-                              >
-                                <div className="flex items-center gap-3">
-                                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#1A1A2E] text-[10px] font-bold text-white shrink-0">
-                                    {(match.existingRecordHei || '').split(' ').filter(w => w.length > 2).map(w => w[0]).join('').slice(0, 3) || (match.existingRecordHei || '').split(' ').map(w => w[0]).join('').slice(0, 2)}
-                                  </div>
-                                  <div>
-                                    <p className="text-xs font-semibold text-[#1A1A2E]">{match.existingRecordTitle}</p>
-                                    <p className="text-[10px] text-slate-400 mt-0.5">{match.existingRecordHei}</p>
-                                  </div>
-                                </div>
-                                <div className="flex shrink-0 items-center gap-3">
-                                  <DispositionBadge status={match.status} />
-                                  <span
-                                    className="text-sm font-bold text-slate-600"
-                                    title="Automated embedding similarity score — not a confirmed finding of duplication or plagiarism."
-                                  >
-                                    {(match.similarityScore * 100).toFixed(1)}%
-                                  </span>
-                                  <button
-                                    type="button"
-                                    className="btn btn-outline btn-xs"
-                                    onClick={() => setDispositionTarget({ group, match })}
-                                  >
-                                    Review
-                                  </button>
-                                </div>
-                                {match.dispositionNotes ? (
-                                  <p className="basis-full border-t border-slate-100 pt-2 text-[11px] text-slate-500">
-                                    <span className="font-semibold text-slate-600">
-                                      {match.reviewedByName || 'A reviewer'}
-                                    </span>
-                                    {' · '}{formatDateTime(match.reviewedAt)}{' — '}{match.dispositionNotes}
-                                  </p>
-                                ) : null}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-
-              {!overlapsLoading && sortedOverlaps.length > OVERLAPS_PAGE_SIZE && (
-                <div className="flex items-center justify-between px-1 pt-4">
-                  <p className="text-sm text-slate-500">Page {overlapsPage + 1} of {overlapsTotalPages}</p>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setOverlapsPage(p => Math.max(0, p - 1))}
-                      disabled={overlapsPage === 0}
-                      className="rounded-md border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Previous
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setOverlapsPage(p => Math.min(overlapsTotalPages - 1, p + 1))}
-                      disabled={overlapsPage >= overlapsTotalPages - 1}
-                      className="rounded-md bg-[#1A1A2E] px-4 py-2 text-sm font-semibold text-white hover:bg-[#11111f] disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Next
-                    </button>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         )}

@@ -214,55 +214,6 @@ public class EmailNotificationService {
 		}
 	}
 
-	@Async
-	public java.util.concurrent.CompletableFuture<Boolean> sendOverlapDetectionAlert(
-			String toEmail,
-			String newRecordTitle,
-			String existingRecordTitle,
-			String existingRecordHei,
-			double similarityScore) {
-		if (toEmail == null || toEmail.isBlank()) {
-			log.warn("[sendOverlapDetectionAlert] Skipped -- toEmail is blank/null. newRecordTitle={}", newRecordTitle);
-			return java.util.concurrent.CompletableFuture.completedFuture(false);
-		}
-
-		try {
-			JavaMailSender mailSender = resolveMailSender("sendOverlapDetectionAlert");
-			if (mailSender == null) return java.util.concurrent.CompletableFuture.completedFuture(false);
-
-			SimpleMailMessage message = new SimpleMailMessage();
-			if (!fromEmail.isBlank()) message.setFrom(fromEmail);
-			message.setTo(toEmail);
-			message.setSubject("Similarity Flag: Related Research Output Found");
-			message.setText(
-					"A similarity flag has been raised for your recently approved research output.\n\n" +
-							"Your Research: " + newRecordTitle + "\n" +
-							"Similar Existing Research: " + existingRecordTitle + "\n" +
-							"Institution: " + existingRecordHei + "\n" +
-							"Similarity Score: " + String.format("%.1f", similarityScore * 100) + "%\n\n" +
-							"Please review this similarity flag and coordinate with the relevant institution if necessary.\n\n" +
-							"Note: This is an automated similarity signal based on text embeddings. It is intended to " +
-							"assist human reviewers and does not constitute a confirmed finding of duplication or plagiarism."
-			);
-			mailSender.send(message);
-			log.info("[sendOverlapDetectionAlert] Email sent successfully to {}", toEmail);
-			return java.util.concurrent.CompletableFuture.completedFuture(true);
-		} catch (Exception e) {
-			log.error("[sendOverlapDetectionAlert] Failed to send email to {}: {}", toEmail, e.getMessage(), e);
-			emailOutboxService.enqueue(toEmail, "Similarity Flag: Related Research Output Found",
-					"A similarity flag has been raised for your recently approved research output.\n\n" +
-							"Your Research: " + newRecordTitle + "\n" +
-							"Similar Existing Research: " + existingRecordTitle + "\n" +
-							"Institution: " + existingRecordHei + "\n" +
-							"Similarity Score: " + String.format("%.1f", similarityScore * 100) + "%\n\n" +
-							"Please review this similarity flag and coordinate with the relevant institution if necessary.\n\n" +
-							"Note: This is an automated similarity signal based on text embeddings. It is intended to " +
-							"assist human reviewers and does not constitute a confirmed finding of duplication or plagiarism.",
-					e.getMessage());
-			return java.util.concurrent.CompletableFuture.completedFuture(false);
-		}
-	}
-
 	private static String oneLine(String value) {
 		return value == null ? "" : value.replaceAll("[\\r\\n]+", " ").trim();
 	}

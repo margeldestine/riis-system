@@ -73,7 +73,7 @@ const STEPS = [
   {
     icon: ScanSearch,
     title: 'Records are checked',
-    text: 'Format and completeness checks run automatically. Similarity flags and quality reviews help DOST spot overlaps and gaps.',
+    text: 'Format and completeness checks run automatically, and quality reviews help DOST spot gaps in submitted records.',
   },
   {
     icon: BookOpen,

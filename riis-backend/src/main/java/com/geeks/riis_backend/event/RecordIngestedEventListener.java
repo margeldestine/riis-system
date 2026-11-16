@@ -3,7 +3,6 @@ package com.geeks.riis_backend.event;
 import com.geeks.riis_backend.model.ResearchOutput;
 import com.geeks.riis_backend.repository.ResearchOutputRepository;
 import com.geeks.riis_backend.service.AIProxyService;
-import com.geeks.riis_backend.service.OverlapDetectionService;
 import com.geeks.riis_backend.service.ThemeProfileService;
 import org.springframework.transaction.event.TransactionalEventListener;
 import org.springframework.transaction.event.TransactionPhase;
@@ -21,7 +20,6 @@ public class RecordIngestedEventListener {
     private final ResearchOutputRepository researchOutputRepository;
     private final AIProxyService aiProxyService;
     private final ThemeProfileService themeProfileService;
-    private final OverlapDetectionService overlapDetectionService;
 
     @Async
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
@@ -47,13 +45,10 @@ public class RecordIngestedEventListener {
             log.warn("No keywords extracted for: {}", event.referenceNumber());
         }
 
-        float[] sbertEmbedding = aiProxyService.computeSBERTEmbedding(text);
-        if (sbertEmbedding.length > 0) {
-            overlapDetectionService.detectOverlaps(output, sbertEmbedding, event.submitterEmail());
-            log.info("Overlap detection completed for: {}", event.referenceNumber());
-        } else {
-            log.warn("Empty SBERT embedding for: {}", event.referenceNumber());
-        }
+        // Requirement 16: the SBERT embedding + overlap detection step was removed here.
+        // detectOverlaps() was the ONLY code that computed and stored the SBERT embedding,
+        // and nothing else reads it (Related Research uses the SPECTER embedding below),
+        // so we also skip the SBERT call to the AI service instead of wasting a request.
 
         float[] specterEmbedding = aiProxyService.computeSPECTEREmbedding(
                 output.getTitle(), output.getAbstractText());

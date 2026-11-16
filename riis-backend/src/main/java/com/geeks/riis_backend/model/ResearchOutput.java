@@ -165,10 +165,4 @@ public class ResearchOutput {
 
 	@OneToMany(mappedBy = "researchOutput", fetch = FetchType.LAZY)
 	private Set<ValidationLog> validationLogs;
-
-	@OneToMany(mappedBy = "newRecord", fetch = FetchType.LAZY)
-	private Set<OverlapAlert> newRecordOverlapAlerts;
-
-	@OneToMany(mappedBy = "existingRecord", fetch = FetchType.LAZY)
-	private Set<OverlapAlert> existingRecordOverlapAlerts;
 }
