@@ -42,6 +42,15 @@ public class Author {
 	@Column(name = "orcid_id", length = 32)
 	private String orcidId;
 
+	// Requirement 6: each author can belong to a different school or institution.
+	@Column(name = "institution", length = 255)
+	private String institution;
+
+	// PRIVACY: personal data. Only the HEI submission views and the admin review screens may
+	// return this. Public DTOs (PublicAuthorDTO and the public search cards) never include it.
+	@Column(name = "email", length = 255)
+	private String email;
+
 	@CreationTimestamp
 	@Column(name = "created_at", nullable = false, updatable = false)
 	private LocalDateTime createdAt;

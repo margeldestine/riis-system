@@ -270,7 +270,7 @@ public class InstitutionService {
 
         List<PublicAuthorDTO> authors = (!metadata || ro.getAuthors() == null) ? List.of() :
                 ro.getAuthors().stream()
-                        .map(a -> new PublicAuthorDTO(a.getFullName(), a.getOrcidId()))
+                        .map(a -> new PublicAuthorDTO(a.getFullName(), a.getOrcidId(), a.getInstitution()))
                         .collect(Collectors.toList());
 
         String abstractText = tier.exposesAbstract() ? ro.getAbstractText() : null;

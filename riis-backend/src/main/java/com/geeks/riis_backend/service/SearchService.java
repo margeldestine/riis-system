@@ -401,8 +401,10 @@ public class SearchService {
         card.put("province", o.getInstitution() != null ? o.getInstitution().getProvince() : null);
         Collection<Author> cardAuthors = metadata ? authorsOf(o, authorsById) : null;
         card.put("authors", cardAuthors != null ? cardAuthors.stream()
+                // PRIVACY: institution is public, the author's email is NOT included here.
                 .map(a -> Map.of("fullName", a.getFullName() != null ? a.getFullName() : "",
-                        "orcidId", a.getOrcidId() != null ? a.getOrcidId() : ""))
+                        "orcidId", a.getOrcidId() != null ? a.getOrcidId() : "",
+                        "institution", a.getInstitution() != null ? a.getInstitution() : ""))
                 .collect(Collectors.toList()) : List.of());
         card.put("visibility", accessPolicy.effectiveVisibility(o).name());
         card.put("fullText", accessPolicy.fullTextAction(o));

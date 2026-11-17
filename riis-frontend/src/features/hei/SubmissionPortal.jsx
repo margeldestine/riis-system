@@ -35,6 +35,7 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080
 const currentYear = new Date().getFullYear()
 const doiPattern = /^10\.\d{4,9}\/[-._;()/:A-Z0-9]+$/i
 const orcidPattern = /^(\d{4}-){3}\d{3}[\dX]$/i
+const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const conferenceUrlPattern = /^https?:\/\/.+/i
 const alphabeticContentPattern = /[a-zA-Z]/
 const keywordPattern = /^[A-Za-z0-9./'()-]+(?:\s[A-Za-z0-9./'()-]+){0,5}$/
@@ -393,6 +394,16 @@ const authorSchema = z.object({
     .optional()
     .refine((value) => !value || orcidPattern.test(value), {
       message: 'Use the ORCID format 0000-0000-0000-0000.',
+    }),
+  // Requirement 6: each author's own institution and email (both optional).
+  institution: z.string().trim().max(255, 'Institution must be 255 characters or fewer.').optional(),
+  email: z
+    .string()
+    .trim()
+    .max(254, 'Email must be 254 characters or fewer.')
+    .optional()
+    .refine((value) => !value || emailPattern.test(value), {
+      message: 'Enter a valid email address.',
     }),
 })
 
@@ -859,6 +870,44 @@ function TeamAffiliationStep({
                         (index === 0 && hasAuthorGroupError ? 'Author(s) is required' : undefined)
                       }
                     />
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="space-y-2">
+                      <label className={`flex items-center gap-2 ${fieldLabelClass}`}>
+                        Institution
+                        <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium normal-case tracking-normal text-slate-400">
+                          optional
+                        </span>
+                      </label>
+                      <input
+                        {...register(`authors.${index}.institution`)}
+                        placeholder="e.g., University of San Carlos"
+                        maxLength={255}
+                        className={`${fieldBaseClass} ${errors.authors?.[index]?.institution ? fieldErrorClass : fieldOkClass}`}
+                      />
+                      <FieldMessage message={errors.authors?.[index]?.institution?.message} />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className={`flex items-center gap-2 ${fieldLabelClass}`}>
+                        Email address
+                        <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium normal-case tracking-normal text-slate-400">
+                          optional
+                        </span>
+                      </label>
+                      <input
+                        {...register(`authors.${index}.email`)}
+                        type="email"
+                        placeholder="author@school.edu.ph"
+                        maxLength={254}
+                        className={`${fieldBaseClass} ${errors.authors?.[index]?.email ? fieldErrorClass : fieldOkClass}`}
+                      />
+                      <FieldMessage message={errors.authors?.[index]?.email?.message} />
+                      <p className="text-[11px] text-slate-400">
+                        Visible only to your institution and DOST staff. Never shown on the public site.
+                      </p>
+                    </div>
                   </div>
 
                   <div className="space-y-2">
@@ -1458,6 +1507,8 @@ function ReviewSubmitStep({ values, existingAttachmentKey, showVisibility }) {
                       <div key={`${author.fullName}-${index}`}>
                         {author.fullName}
                         {author.orcidId ? ` (${author.orcidId})` : ''}
+                        {author.institution ? ` — ${author.institution}` : ''}
+                        {author.email ? ` · ${author.email}` : ''}
                       </div>
                     ))}
                   </div>
@@ -1597,7 +1648,7 @@ export default function SubmissionPortal({ onSubmitted }) {
       completionYear: currentYear,
       fundingSource: '',
       publicationVenue: '',
-      authors: [{ fullName: '', orcidId: '' }],
+      authors: [{ fullName: '', orcidId: '', institution: '', email: '' }],
       principalInvestigator: '',
       institutionalAffiliation: institutionName,
       abstractText: '',
@@ -1666,7 +1717,7 @@ const authorOptions = useMemo(
       completionYear: currentYear,
       fundingSource: '',
       publicationVenue: '',
-      authors: [{ fullName: '', orcidId: '' }],
+      authors: [{ fullName: '', orcidId: '', institution: '', email: '' }],
       principalInvestigator: '',
       institutionalAffiliation: institutionName,
       abstractText: '',
@@ -1719,20 +1770,22 @@ const authorOptions = useMemo(
     setEditSubmissionId(maybeId || maybeSubmission?.id || null)
 
     const mapAuthors = (value) => {
-      if (!Array.isArray(value)) return [{ fullName: '', orcidId: '' }]
+      if (!Array.isArray(value)) return [{ fullName: '', orcidId: '', institution: '', email: '' }]
       const mapped = value
         .map((author) => {
           if (typeof author === 'string') {
-            return { fullName: author.trim(), orcidId: '' }
+            return { fullName: author.trim(), orcidId: '', institution: '', email: '' }
           }
           return {
             fullName: (author?.fullName || author?.name || '').toString().trim(),
             orcidId: (author?.orcidId || author?.orcid || '').toString().trim(),
+            institution: (author?.institution || '').toString().trim(),
+            email: (author?.email || '').toString().trim(),
           }
         })
         .filter((author) => author.fullName)
 
-      return mapped.length ? mapped : [{ fullName: '', orcidId: '' }]
+      return mapped.length ? mapped : [{ fullName: '', orcidId: '', institution: '', email: '' }]
     }
 
     const hydrateFrom = (submission) => {
@@ -1795,7 +1848,7 @@ const authorOptions = useMemo(
   }, [institutionName, location?.state, reset])
 
   const addAuthor = () => {
-    append({ fullName: '', orcidId: '' })
+    append({ fullName: '', orcidId: '', institution: '', email: '' })
   }
 
   const removeAuthor = (index) => {
@@ -2106,6 +2159,8 @@ const addKeyword = () => {
       authors: values.authors.map((author) => ({
         fullName: author.fullName,
         orcid: author.orcidId || null,
+        institution: author.institution?.trim() || null,
+        email: author.email?.trim() || null,
       })),
       abstractText: values.abstractText,
       keywords: values.keywords,
@@ -2159,6 +2214,8 @@ const addKeyword = () => {
         authors: values.authors.map((author) => ({
           fullName: author.fullName,
           orcid: author.orcidId || null,
+          institution: author.institution?.trim() || null,
+          email: author.email?.trim() || null,
         })),
         abstractText: values.abstractText,
         keywords: values.keywords,

@@ -77,7 +77,8 @@ public class AdminReviewService {
         List<SubmissionAuthorRequest> authors = output.getAuthors() == null
                 ? List.of()
                 : output.getAuthors().stream()
-                .map(a -> new SubmissionAuthorRequest(a.getFullName(), a.getOrcidId()))
+                .map(a -> new SubmissionAuthorRequest(a.getFullName(), a.getOrcidId(),
+                        a.getInstitution(), a.getEmail()))
                 .toList();
 
         List<String> keywords = output.getKeywords() == null || output.getKeywords().isBlank()

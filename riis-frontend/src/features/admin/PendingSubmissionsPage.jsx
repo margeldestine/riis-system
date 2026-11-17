@@ -111,10 +111,12 @@ function SubmissionMetadataPanel({ submission }) {
           const name = a?.fullName || a?.name
           const orcid = a?.orcidId || a?.orcid
           if (!name) return null
-          return orcid ? `${name} (${orcid})` : name
+          const label = orcid ? `${name} (${orcid})` : name
+          // Admin review: institution and email are visible here (never on public pages).
+          return [label, a?.institution, a?.email].filter(Boolean).join(' — ')
         })
         .filter(Boolean)
-        .join('; ')
+        .join('\n')
     : '—'
 
   const keywords = Array.isArray(submission.keywords) ? submission.keywords : []
@@ -141,7 +143,7 @@ function SubmissionMetadataPanel({ submission }) {
           </div>
           <div>
             <p className="text-[10px] uppercase tracking-wider text-slate-400 mb-0.5">Author(s)</p>
-            <p className="text-sm font-medium text-[#1A1A2E]">{authors}</p>
+            <p className="whitespace-pre-line text-sm font-medium text-[#1A1A2E]">{authors}</p>
           </div>
           <div>
             <p className="text-[10px] uppercase tracking-wider text-slate-400 mb-0.5">Institutional Affiliation</p>

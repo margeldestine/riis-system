@@ -22,6 +22,7 @@ public class ValidationService {
     }
 
 	private static final Pattern DOI_PATTERN = Pattern.compile("^10\\.\\d{4,9}/[-._;()/:A-Z0-9]+$", Pattern.CASE_INSENSITIVE);
+	private static final Pattern EMAIL_PATTERN = Pattern.compile("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$");
 	private static final Pattern ORCID_PATTERN = Pattern.compile("^\\d{4}-\\d{4}-\\d{4}-\\d{3}[\\dX]$", Pattern.CASE_INSENSITIVE);
 
 	private static final Set<String> ALLOWED_RESEARCH_TYPES = Set.of(
@@ -100,6 +101,15 @@ public class ValidationService {
 				}
 				if (!isBlank(author.orcid()) && !ORCID_PATTERN.matcher(author.orcid().trim()).matches()) {
 					errors.add(new FieldError("authors[" + i + "].orcid", "ORCID format is invalid."));
+				}
+				// Requirement 6: institution and email are optional, but must be sane when given.
+				if (!isBlank(author.institution()) && author.institution().trim().length() > 255) {
+					errors.add(new FieldError("authors[" + i + "].institution",
+							"Author institution must be at most 255 characters."));
+				}
+				if (!isBlank(author.email())
+						&& (author.email().trim().length() > 254 || !EMAIL_PATTERN.matcher(author.email().trim()).matches())) {
+					errors.add(new FieldError("authors[" + i + "].email", "Author email is invalid."));
 				}
 			}
 		}

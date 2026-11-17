@@ -193,9 +193,14 @@ export default function SubmissionDetailsDrawer({
 
   const authorsLabel = Array.isArray(details?.authors)
     ? details.authors
-        .map((author) => author?.fullName || author?.name || author)
+        .map((author) => {
+          const name = author?.fullName || author?.name || author
+          if (!name || typeof name !== 'string') return null
+          // This drawer is HEI-only, so showing the author's institution and email is allowed here.
+          return [name, author?.institution, author?.email].filter(Boolean).join(' — ')
+        })
         .filter(Boolean)
-        .join(', ')
+        .join('\n')
     : details?.authors
 
   if (!open) return null
@@ -275,7 +280,7 @@ export default function SubmissionDetailsDrawer({
                   label="Submitted"
                   value={formatDate(details.submittedAt || details.createdAt || details.submissionDate)}
                 />
-                <DetailField label="Authors" value={authorsLabel} span />
+                <DetailField label="Authors" value={authorsLabel} span valueClassName="whitespace-pre-line" />
                 <DetailField label="Subject" value={details.subjectDc || details.sAndTTheme} />
                 <DetailField label="Coverage" value={details.coverageDc} />
                 <DetailField label="Rights" value={details.rightsDc} />

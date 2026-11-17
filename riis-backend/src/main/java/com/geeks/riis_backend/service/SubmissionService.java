@@ -212,7 +212,8 @@ public class SubmissionService {
 		List<SubmissionAuthorRequest> authors = output.getAuthors() == null
 				? List.of()
 				: output.getAuthors().stream()
-				.map(author -> new SubmissionAuthorRequest(author.getFullName(), author.getOrcidId()))
+				.map(author -> new SubmissionAuthorRequest(author.getFullName(), author.getOrcidId(),
+						author.getInstitution(), author.getEmail()))
 				.toList();
 
 		List<String> keywords = parseKeywords(output.getKeywords());
@@ -470,6 +471,8 @@ public class SubmissionService {
 			mapped.add(Author.builder()
 					.fullName(author.fullName().trim())
 					.orcidId(isBlank(author.orcid()) ? null : author.orcid().trim())
+					.institution(isBlank(author.institution()) ? null : author.institution().trim())
+					.email(isBlank(author.email()) ? null : author.email().trim())
 					.build());
 		}
 		return mapped;
