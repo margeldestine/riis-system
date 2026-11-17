@@ -81,8 +81,10 @@ public class SubmissionService {
 		// via a presigned URL -- that upload never touched this application,
 		// so the key can't be trusted until we've actually checked what
 		// landed in the bucket matches what was promised (PDF, under 20MB).
+		S3UploadService.AttachmentDetails attachment = null;
 		if (dto.attachmentKey() != null && !dto.attachmentKey().isBlank()) {
-			s3UploadService.verifyUploadedPdf(dto.attachmentKey());
+			requireOwnAttachmentKey(institution.getId(), dto.attachmentKey().trim());
+			attachment = s3UploadService.verifyUploadedPdf(dto.attachmentKey().trim());
 		}
 
 		String referenceNumber = generateReferenceNumber();
@@ -112,12 +114,16 @@ public class SubmissionService {
 				.subjectDc(dto.sAndTTheme())
 				.coverageDc(dto.coverageDc())
 				.rightsDc(dto.rightsDc())
+				.languageDc(isBlank(dto.languageDc()) ? null : dto.languageDc().trim())
 				.researchType(isBlank(dto.researchType()) ? DEFAULT_RESEARCH_TYPE : dto.researchType().trim())
 				.fundingSource(dto.fundingSource())
 				.publicationVenue(dto.publicationVenue())
 				.principalInvestigator(isBlank(dto.principalInvestigator()) ? null : dto.principalInvestigator().trim())
 				.institutionalAffiliation(isBlank(dto.institutionalAffiliation()) ? null : dto.institutionalAffiliation().trim())
 				.s3PdfKey(dto.attachmentKey())
+				.attachmentFileName(attachment == null ? null : attachment.fileName())
+				.attachmentContentType(attachment == null ? null : attachment.contentType())
+				.attachmentSizeBytes(attachment == null ? null : attachment.sizeBytes())
 				.visibility(visibility)
 				.status(STATUS_APPROVED)
 				.authors(authors)
@@ -251,6 +257,9 @@ public class SubmissionService {
 				output.getIdentifierDc(),
 				output.getCorrectionNotes(),
 				output.getS3PdfKey(),
+				output.getAttachmentFileName(),
+				output.getAttachmentContentType(),
+				output.getAttachmentSizeBytes(),
 				validationErrorCount,
 				output.getVisibility() == null ? null : output.getVisibility().name()
 		);
@@ -296,6 +305,7 @@ public class SubmissionService {
 		output.setSubjectDc(dto.sAndTTheme());
 		output.setCoverageDc(dto.coverageDc());
 		output.setRightsDc(dto.rightsDc());
+		output.setLanguageDc(isBlank(dto.languageDc()) ? null : dto.languageDc().trim());
 		output.setResearchType(isBlank(dto.researchType()) ? DEFAULT_RESEARCH_TYPE : dto.researchType().trim());
 		output.setFundingSource(dto.fundingSource());
 		output.setPublicationVenue(dto.publicationVenue());
@@ -305,7 +315,7 @@ public class SubmissionService {
 		output.setInstitutionalAffiliation(
 				isBlank(dto.institutionalAffiliation()) ? null : dto.institutionalAffiliation().trim());
 
-		output.setS3PdfKey(dto.attachmentKey());
+		applyAttachment(output, institution.getId(), dto.attachmentKey());
 		output.setKeywords(dto.keywords() == null ? null : dto.keywords().stream()
 				.filter(value -> value != null && !value.isBlank())
 				.map(String::trim)
@@ -379,6 +389,7 @@ public class SubmissionService {
 		output.setSubjectDc(dto.sAndTTheme());
 		output.setCoverageDc(dto.coverageDc());
 		output.setRightsDc(dto.rightsDc());
+		output.setLanguageDc(isBlank(dto.languageDc()) ? null : dto.languageDc().trim());
 		output.setResearchType(isBlank(dto.researchType()) ? DEFAULT_RESEARCH_TYPE : dto.researchType().trim());
 		output.setFundingSource(dto.fundingSource());
 		output.setPublicationVenue(dto.publicationVenue());
@@ -389,7 +400,7 @@ public class SubmissionService {
 		output.setInstitutionalAffiliation(
 				isBlank(dto.institutionalAffiliation()) ? null : dto.institutionalAffiliation().trim());
 
-		output.setS3PdfKey(dto.attachmentKey());
+		applyAttachment(output, institution.getId(), dto.attachmentKey());
 		output.setKeywords(dto.keywords() == null ? null : dto.keywords().stream()
 				.filter(value -> value != null && !value.isBlank())
 				.map(String::trim)
@@ -459,6 +470,54 @@ public class SubmissionService {
 			throw new ResourceNotFoundException("No attachment found for submission: " + submissionId);
 		}
 		return attachmentKey;
+	}
+
+	/**
+	 * Sets (or clears) the PDF on an EXISTING record and keeps the stored file details in step.
+	 * - No key: the attachment is cleared.
+	 * - Same key as before: nothing to verify. If the details were never saved (a record from before
+	 *   they existed), read them from S3 now.
+	 * - A new key: it must live in this institution's own folder and pass the same PDF and size
+	 *   check as a first submission. Before this step the edit flows trusted whatever key the
+	 *   browser sent.
+	 */
+	private void applyAttachment(ResearchOutput output, String institutionId, String newKey) {
+		String key = isBlank(newKey) ? null : newKey.trim();
+		if (key == null) {
+			output.setS3PdfKey(null);
+			output.setAttachmentFileName(null);
+			output.setAttachmentContentType(null);
+			output.setAttachmentSizeBytes(null);
+			return;
+		}
+		if (key.equals(output.getS3PdfKey())) {
+			if (output.getAttachmentSizeBytes() == null) {
+				copyAttachmentDetails(output, s3UploadService.describeObject(key));
+			}
+			return;
+		}
+		requireOwnAttachmentKey(institutionId, key);
+		S3UploadService.AttachmentDetails details = s3UploadService.verifyUploadedPdf(key);
+		output.setS3PdfKey(key);
+		copyAttachmentDetails(output, details);
+	}
+
+	private void copyAttachmentDetails(ResearchOutput output, S3UploadService.AttachmentDetails details) {
+		if (details == null) {
+			return;
+		}
+		output.setAttachmentFileName(details.fileName());
+		output.setAttachmentContentType(details.contentType());
+		output.setAttachmentSizeBytes(details.sizeBytes());
+	}
+
+	/** Uploads are stored under "<institutionId>/submissions/", so any other key is not this institution's file. */
+	private void requireOwnAttachmentKey(String institutionId, String key) {
+		if (!key.startsWith(institutionId + "/submissions/") || key.contains("..")) {
+			throw new SubmissionValidationException(List.of(
+					new com.geeks.riis_backend.dto.FieldError("attachment", "The attachment does not belong to your institution.")
+			));
+		}
 	}
 
 	private Set<Author> mapAuthors(List<SubmissionAuthorRequest> authors) {

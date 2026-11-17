@@ -38,6 +38,8 @@ const orcidPattern = /^(\d{4}-){3}\d{3}[\dX]$/i
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const conferenceUrlPattern = /^https?:\/\/.+/i
 const alphabeticContentPattern = /[a-zA-Z]/
+// Requirement 2: languages offered in the Metadata step. "Other" lets the submitter stay unspecific.
+const LANGUAGE_OPTIONS = ['English', 'Filipino', 'Cebuano', 'Other']
 const keywordPattern = /^[A-Za-z0-9./'()-]+(?:\s[A-Za-z0-9./'()-]+){0,5}$/
 
 
@@ -348,7 +350,7 @@ const stepDefinitions = [
   {
     id: 4,
     label: 'Metadata & Attachments',
-    fields: ['subjectDc', 'coverageDc', 'rightsDc', 'doi', 'conferenceUrl', 'attachment', 'visibility'],
+    fields: ['subjectDc', 'coverageDc', 'rightsDc', 'languageDc', 'doi', 'conferenceUrl', 'attachment', 'visibility'],
   },
   {
     id: 5,
@@ -479,6 +481,8 @@ const submissionSchema = z
       .string()
       .trim()
       .optional(),
+    // Requirement 2: language of the document (optional).
+    languageDc: z.string().trim().optional(),
     doi: z
       .string()
       .trim()
@@ -1365,6 +1369,24 @@ function DublinCoreMetadataStep({
           </div>
 
           <div className="space-y-2">
+            <label className={fieldLabelClass}>
+              Language of the document <span className="font-normal text-[#9ca3af]">(optional)</span>
+            </label>
+            <select
+              {...register('languageDc')}
+              className={`${fieldBaseClass} ${errors.languageDc ? fieldErrorClass : fieldOkClass}`}
+            >
+              <option value="">Select a language</option>
+              {LANGUAGE_OPTIONS.map((language) => (
+                <option key={language} value={language}>
+                  {language}
+                </option>
+              ))}
+            </select>
+            <FieldMessage message={errors.languageDc?.message} />
+          </div>
+
+          <div className="space-y-2">
             <label className={`mb-2 flex items-center gap-2 ${fieldLabelClass}`}>
               DOI
               <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium normal-case tracking-normal text-slate-400">
@@ -1452,6 +1474,7 @@ function ReviewSubmitStep({ values, existingAttachmentKey, showVisibility }) {
     ['Subject', values.subjectDc],
     ['Coverage', values.coverageDc],
     ['Rights', values.rightsDc || 'Not provided'],
+    ['Language', values.languageDc || 'Not provided'],
     ['DOI', values.doi || 'Not provided'],
     ['Conference URL', values.conferenceUrl || 'Not provided'],
     ['Attachment', attachmentLabel],
@@ -1656,6 +1679,7 @@ export default function SubmissionPortal({ onSubmitted }) {
       subjectDc: '',
       coverageDc: '',
       rightsDc: '',
+      languageDc: 'English',
       doi: '',
       conferenceUrl: '',
       attachment: null,
@@ -1725,6 +1749,7 @@ const authorOptions = useMemo(
       subjectDc: '',
       coverageDc: '',
       rightsDc: '',
+      languageDc: 'English',
       doi: '',
       conferenceUrl: '',
       attachment: null,
@@ -1810,6 +1835,7 @@ const authorOptions = useMemo(
         subjectDc: submission.subjectDc || submission.sAndTTheme || '',
         coverageDc: submission.coverageDc || '',
         rightsDc: submission.rightsDc || '',
+        languageDc: submission.languageDc || '',
         doi: submission.doi || '',
         conferenceUrl: submission.conferenceUrl || '',
         attachment: null,
@@ -2167,6 +2193,7 @@ const addKeyword = () => {
       sAndTTheme: values.subjectDc,
       coverageDc: values.coverageDc,
       rightsDc: values.rightsDc?.trim() || null,
+      languageDc: values.languageDc?.trim() || null,
       doi: values.doi || null,
       conferenceUrl: values.conferenceUrl || null,
       attachmentKey: attachmentMeta?.fileKey || null,
@@ -2222,6 +2249,7 @@ const addKeyword = () => {
         sAndTTheme: values.subjectDc,
         coverageDc: values.coverageDc,
         rightsDc: values.rightsDc?.trim() || null,
+        languageDc: values.languageDc?.trim() || null,
         doi: values.doi || null,
         conferenceUrl: values.conferenceUrl || null,
         attachmentKey: attachmentMeta?.fileKey || existingAttachmentKey || null,

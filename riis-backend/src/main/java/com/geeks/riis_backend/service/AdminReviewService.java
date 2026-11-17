@@ -123,6 +123,9 @@ public class AdminReviewService {
                 output.getIdentifierDc(),
                 output.getCorrectionNotes(),
                 output.getS3PdfKey(),
+                output.getAttachmentFileName(),
+                output.getAttachmentContentType(),
+                output.getAttachmentSizeBytes(),
                 validationErrorCount,
                 output.getVisibility() == null ? null : output.getVisibility().name()
         );

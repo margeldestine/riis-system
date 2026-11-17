@@ -26,6 +26,16 @@ public interface ResearchOutputRepository extends JpaRepository<ResearchOutput, 
 
 	List<ResearchOutput> findByStatus(String status);
 
+	// Requirement 2: records that have a PDF but no saved file details yet (used by the one-time backfill).
+	List<ResearchOutput> findByS3PdfKeyIsNotNullAndAttachmentSizeBytesIsNull();
+
+	@Modifying
+	@Transactional
+	@Query("UPDATE ResearchOutput ro SET ro.attachmentFileName = :fileName, ro.attachmentContentType = :contentType, "
+			+ "ro.attachmentSizeBytes = :sizeBytes WHERE ro.id = :id")
+	int updateAttachmentDetails(@Param("id") String id, @Param("fileName") String fileName,
+			@Param("contentType") String contentType, @Param("sizeBytes") Long sizeBytes);
+
 	/** Browse Research only: loads each record together with its institution in ONE query (no per-record institution lookups). */
 	@Query("select ro from ResearchOutput ro join fetch ro.institution where ro.status = :status")
 	List<ResearchOutput> findByStatusWithInstitution(@Param("status") String status);

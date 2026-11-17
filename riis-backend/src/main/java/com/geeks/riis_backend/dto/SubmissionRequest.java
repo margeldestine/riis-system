@@ -32,6 +32,10 @@ public record SubmissionRequest(
 		@Size(max = 500, message = "Rights must be at most 500 characters.")
 		String rightsDc,
 
+		// Requirement 2: language of the document (for example "English" or "Cebuano"). Optional.
+		@Size(max = 100, message = "Language must be at most 100 characters.")
+		String languageDc,
+
 		String conferenceUrl,
 		String principalInvestigator,
 		String institutionalAffiliation,

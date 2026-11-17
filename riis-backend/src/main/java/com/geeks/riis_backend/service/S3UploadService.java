@@ -121,7 +121,7 @@ public class S3UploadService {
 	 * either check, so a rejected upload doesn't linger in the bucket
 	 * under a plausible-looking key.
 	 */
-	public void verifyUploadedPdf(String objectKey) {
+	public AttachmentDetails verifyUploadedPdf(String objectKey) {
 		if (bucketName.isBlank()) {
 			throw new BadRequestException("S3 bucket is not configured.");
 		}
@@ -152,6 +152,40 @@ public class S3UploadService {
 			}
 			throw new BadRequestException("Uploaded file exceeds the maximum allowed size of 20MB.");
 		}
+
+		// Requirement 2: the HEAD response already told us the size and type, so hand them back
+		// to the caller instead of asking S3 a second time. Both values were checked above.
+		return new AttachmentDetails(fileNameFromKey(objectKey), contentType, head.contentLength());
+	}
+
+	/**
+	 * Reads an object's size and content type WITHOUT judging it. Used to fill in the details of
+	 * records submitted before those columns existed. Returns null when the object is missing or
+	 * unreadable, so one bad key never stops a batch.
+	 */
+	public AttachmentDetails describeObject(String objectKey) {
+		if (bucketName.isBlank() || objectKey == null || objectKey.isBlank()) {
+			return null;
+		}
+		try {
+			HeadObjectResponse head = s3Client.headObject(HeadObjectRequest.builder()
+					.bucket(bucketName)
+					.key(objectKey.trim())
+					.build());
+			String contentType = head.contentType() == null ? null : head.contentType().trim().toLowerCase();
+			long sizeBytes = head.contentLength() == null ? 0L : head.contentLength();
+			return new AttachmentDetails(fileNameFromKey(objectKey), contentType, sizeBytes);
+		} catch (Exception e) {
+			log.warn("Could not read the details of {}: {}", objectKey, e.getMessage());
+			return null;
+		}
+	}
+
+	/** "inst/submissions/2026/a1b2c3d4-My_Paper.pdf" becomes "My_Paper.pdf" (drops the folder and the 8-character id). */
+	static String fileNameFromKey(String objectKey) {
+		String key = objectKey.trim();
+		String base = key.substring(key.lastIndexOf('/') + 1);
+		return base.replaceFirst("^[a-fA-F0-9]{8}-", "");
 	}
 
 	private void deleteObjectQuietly(String objectKey) {
@@ -282,4 +316,7 @@ public class S3UploadService {
 	}
 
 	public record PresignedUpload(String uploadUrl, String objectKey) {}
+
+	/** What the record page shows in its "Documents" summary: file name, type and size. */
+	public record AttachmentDetails(String fileName, String contentType, long sizeBytes) {}
 }

@@ -33,6 +33,9 @@ public record SubmissionDetailDTO(
 		String identifierDc,
 		String correctionNotes,
 		String s3PdfKey,
+		String attachmentFileName,
+		String attachmentContentType,
+		Long attachmentSizeBytes,
 		int validationErrorCount,
 		String visibility
 ) {}

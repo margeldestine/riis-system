@@ -215,6 +215,19 @@ public class SearchService {
         card.put("rightsDc", metadata ? o.getRightsDc() : null);
         card.put("publisherDc", metadata ? o.getPublisherDc() : null);
         card.put("contributorDc", metadata ? o.getContributorDc() : null);
+        card.put("languageDc", metadata ? o.getLanguageDc() : null);
+        // Requirement 2: summary of the attached document (name, type, size, language).
+        // The S3 key stays hidden, and a restricted record shows no document details either.
+        List<Map<String, Object>> documents = new ArrayList<>();
+        if (metadata && o.getAttachmentFileName() != null) {
+            Map<String, Object> document = new LinkedHashMap<>();
+            document.put("fileName", o.getAttachmentFileName());
+            document.put("contentType", o.getAttachmentContentType());
+            document.put("sizeBytes", o.getAttachmentSizeBytes());
+            document.put("language", o.getLanguageDc());
+            documents.add(document);
+        }
+        card.put("documents", documents);
         // s3PdfKey is intentionally NEVER returned. The raw PDF is not exposed through any public endpoint.
         return card;
     }

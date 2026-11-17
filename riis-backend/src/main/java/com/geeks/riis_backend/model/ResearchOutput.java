@@ -124,6 +124,17 @@ public class ResearchOutput {
 	@Column(name = "s3_pdf_key", length = 1024)
 	private String s3PdfKey;
 
+	// Requirement 2: details of the attached PDF, saved at submission so the record page does not
+	// have to ask S3 on every view. The S3 key itself is never exposed publicly.
+	@Column(name = "attachment_file_name", length = 255)
+	private String attachmentFileName;
+
+	@Column(name = "attachment_content_type", length = 100)
+	private String attachmentContentType;
+
+	@Column(name = "attachment_size_bytes")
+	private Long attachmentSizeBytes;
+
 	@Enumerated(EnumType.STRING)
 	@Column(name = "visibility", nullable = false, length = 16)
 	@Builder.Default
