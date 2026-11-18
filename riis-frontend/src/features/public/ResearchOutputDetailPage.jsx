@@ -8,6 +8,7 @@ import PublicFooter from './PublicFooter'
 import VisibilityBadge from './VisibilityBadge'
 import RelatedResearchList from './RelatedResearchList'
 import CitePanel from './CitePanel'
+import DocumentsSummary from './DocumentsSummary'
 import { isAbstractWithheld, safeExternalUrl } from './accessTiers'
 
 
@@ -34,10 +35,10 @@ function TypeBadge({ type }) {
   )
 }
 
-function MetaField({ label, value, children }) {
+function MetaField({ label, value, children, className }) {
   if (!value && !children) return null
   return (
-    <div>
+    <div className={className}>
       <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-0.5">{label}</p>
       {children || <p className="text-sm font-medium text-[#1A1A2E]">{value}</p>}
     </div>
@@ -73,7 +74,6 @@ export default function ResearchOutputDetailPage() {
 
   const keywords = Array.isArray(record?.keywords) ? record.keywords : []
   const authors = Array.isArray(record?.authors) ? record.authors : []
-  const principalInvestigator = authors[0]?.fullName || '—'
   const abstractWithheld = isAbstractWithheld(record)
   // RESTRICTED records come back with only the title and institution (owners/admins get everything).
   const metadataWithheld =
@@ -170,26 +170,6 @@ export default function ResearchOutputDetailPage() {
                   ) : null}
 
                   <div className="grid grid-cols-3 gap-x-8 gap-y-5">
-                    <MetaField label="Content Authors">
-                      <div className="space-y-0.5">
-                        {authors.length > 0 ? authors.map((a, i) => (
-                          <p key={i} className="text-sm font-medium text-[#1A1A2E]">
-                            {a.fullName}
-                            {a.orcidId && (
-                              <a
-                                href={`https://orcid.org/${a.orcidId}`}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="ml-1 text-[#A6CE39] text-xs font-bold hover:underline"
-                              >
-                                iD
-                              </a>
-                            )}
-                          </p>
-                        )) : <p className="text-sm text-slate-400">—</p>}
-                      </div>
-                    </MetaField>
-
                     <MetaField label="Funding Source" value={record.fundingSource} />
 
                     <MetaField label="DOI">
@@ -221,14 +201,37 @@ export default function ResearchOutputDetailPage() {
                     ) : null}
 
                     <MetaField label="DC Coverage" value={record.coverageDc} />
-                    {authors.length > 0 ? (
-                      <MetaField label="Principal Investigator" value={principalInvestigator} />
-                    ) : null}
                     <MetaField label="Has License" value={record.rightsDc} />
 
                     {record.subjectDc && (
                       <MetaField label="S&T Cluster" value={record.subjectDc} />
                     )}
+
+                    {/* Requirements 6 and 14: the authors close the metadata, the principal author first, each with
+                        their own institution. Emails are never part of the public response. */}
+                    <MetaField label="Authors" className="col-span-3">
+                      {authors.length > 0 ? (
+                        <p className="text-sm text-[#1A1A2E]">
+                          {authors.map((a, i) => (
+                            <span key={i}>
+                              <span className="font-medium">{a.fullName}</span>
+                              {a.institution ? <span className="text-slate-500"> ({a.institution})</span> : null}
+                              {a.orcidId && (
+                                <a
+                                  href={`https://orcid.org/${a.orcidId}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="ml-1.5 text-[#A6CE39] text-xs font-bold hover:underline"
+                                >
+                                  iD
+                                </a>
+                              )}
+                              {i < authors.length - 1 ? ', ' : ''}
+                            </span>
+                          ))}
+                        </p>
+                      ) : <p className="text-sm text-slate-400">—</p>}
+                    </MetaField>
                   </div>
                 </div>
 
@@ -253,6 +256,9 @@ export default function ResearchOutputDetailPage() {
                     </p>
                   </div>
                 ) : null}
+
+                {/* Requirement 2: summary of the attached document (name, type, size, language) */}
+                {!metadataWithheld ? <DocumentsSummary documents={record.documents} /> : null}
 
                 {/* Keywords */}
                 {keywords.length > 0 && (

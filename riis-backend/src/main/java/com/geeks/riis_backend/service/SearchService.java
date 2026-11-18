@@ -300,9 +300,13 @@ public class SearchService {
                 }
             }
             Double cosine = cosineById.get(s.id());
+            List<String> sharedTop = shared.subList(0, Math.min(3, shared.size()));
+            boolean bothShowMetadata = sourceTier.exposesDescriptiveMetadata()
+                    && accessPolicy.viewTier(viewer, o).exposesDescriptiveMetadata();
             items.add(toRelatedItem(o, viewer,
                     cosine == null ? null : Math.round(cosine * 1000.0) / 10.0,
-                    shared.subList(0, Math.min(3, shared.size()))));
+                    sharedTop,
+                    relatedReasons(source, o, cosine != null, sharedTop, bothShowMetadata)));
         }
         return items;
     }
@@ -327,8 +331,11 @@ public class SearchService {
 
     /** Uses the preloaded map when given (search list); otherwise falls back to the entity's own authors. */
     private Collection<Author> authorsOf(ResearchOutput o, Map<String, List<Author>> authorsById) {
-        if (authorsById != null) return authorsById.getOrDefault(o.getId(), List.of());
-        return o.getAuthors();
+        // Authors are kept in a set, so sort them first: the order is then the same on every load.
+        Collection<Author> raw = authorsById != null
+                ? authorsById.getOrDefault(o.getId(), List.of())
+                : o.getAuthors();
+        return AuthorOrdering.stableOrder(raw, Author::getCreatedAt, Author::getId);
     }
 
     private double computeCosineSimilarity(float[] a, float[] b) {
@@ -416,7 +423,11 @@ public class SearchService {
         card.put("institutionId", o.getInstitution() != null ? o.getInstitution().getId() : null);
         card.put("institutionName", o.getInstitution() != null ? o.getInstitution().getName() : null);
         card.put("province", o.getInstitution() != null ? o.getInstitution().getProvince() : null);
-        Collection<Author> cardAuthors = metadata ? authorsOf(o, authorsById) : null;
+        // Requirement 14: the principal author comes first, so every public view (and every citation built
+        // from it) lists that person first. Records where nobody matches keep the stored order.
+        List<Author> cardAuthors = metadata
+                ? AuthorOrdering.principalFirst(authorsOf(o, authorsById), Author::getFullName, o.getPrincipalInvestigator())
+                : null;
         card.put("authors", cardAuthors != null ? cardAuthors.stream()
                 // PRIVACY: institution is public, the author's email is NOT included here.
                 .map(a -> Map.of("fullName", a.getFullName() != null ? a.getFullName() : "",
@@ -429,7 +440,7 @@ public class SearchService {
     }
 
     private Map<String, Object> toRelatedItem(ResearchOutput o, Viewer viewer, Double similarityScore,
-                                              List<String> sharedKeywords) {
+                                              List<String> sharedKeywords, List<Map<String, String>> reasons) {
         AccessVisibility tier = accessPolicy.viewTier(viewer, o);
         boolean metadata = tier.exposesDescriptiveMetadata();
 
@@ -443,8 +454,43 @@ public class SearchService {
         item.put("similarityScore", similarityScore);
         item.put("sharedKeywords", sharedKeywords);
         item.put("reason", relatedReason(similarityScore != null, sharedKeywords));
+        // Requirement 13: the same reasons as short labels, so the page can show them as chips.
+        item.put("reasons", reasons);
+        // The citation count is shown next to each related record (metadata tier only).
+        item.put("citationCount", metadata ? o.getCitationCount() : null);
+        item.put("citationSource", metadata ? o.getCitationSource() : null);
+        item.put("citationCheckedAt", metadata ? o.getCitationCheckedAt() : null);
         item.put("visibility", accessPolicy.effectiveVisibility(o).name());
         return item;
+    }
+
+    /**
+     * Why a record is suggested, as short labels (requirement 13): "Similar topic", "Shares theme: X",
+     * "Shared keywords: a, b" and "Same institution". The theme is descriptive metadata, so it is only
+     * compared and shown when the viewer may see it for BOTH records. The institution is always public.
+     */
+    private static List<Map<String, String>> relatedReasons(ResearchOutput source, ResearchOutput candidate,
+                                                            boolean similarTopic, List<String> shared,
+                                                            boolean bothShowMetadata) {
+        List<Map<String, String>> reasons = new ArrayList<>();
+        if (similarTopic) {
+            reasons.add(Map.of("kind", "topic", "text", "Similar topic"));
+        }
+        if (bothShowMetadata) {
+            String theme = source.getSubjectDc() == null ? "" : source.getSubjectDc().trim();
+            String theirTheme = candidate.getSubjectDc() == null ? "" : candidate.getSubjectDc().trim();
+            if (!theme.isEmpty() && theme.equalsIgnoreCase(theirTheme)) {
+                reasons.add(Map.of("kind", "theme", "text", "Shares theme: " + theme));
+            }
+        }
+        if (!shared.isEmpty()) {
+            reasons.add(Map.of("kind", "keywords", "text", "Shared keywords: " + String.join(", ", shared)));
+        }
+        if (source.getInstitution() != null && candidate.getInstitution() != null
+                && Objects.equals(source.getInstitution().getId(), candidate.getInstitution().getId())) {
+            reasons.add(Map.of("kind", "institution", "text", "Same institution"));
+        }
+        return reasons;
     }
 
     private static String relatedReason(boolean similarTopic, List<String> shared) {
