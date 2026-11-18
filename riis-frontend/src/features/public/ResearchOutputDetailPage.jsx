@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ArrowLeft, ExternalLink, Copy, EyeOff, Lock } from 'lucide-react'
+import { ArrowLeft, ExternalLink, EyeOff, Lock } from 'lucide-react'
 import apiClient from '../../services/apiClient'
 import CitationBadge from '../../components/CitationBadge'
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom'
@@ -7,6 +7,7 @@ import FullTextAction from './FullTextAction'
 import PublicFooter from './PublicFooter'
 import VisibilityBadge from './VisibilityBadge'
 import RelatedResearchList from './RelatedResearchList'
+import CitePanel from './CitePanel'
 import { isAbstractWithheld, safeExternalUrl } from './accessTiers'
 
 
@@ -53,8 +54,6 @@ export default function ResearchOutputDetailPage() {
   const [related, setRelated] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [copied, setCopied] = useState(false)
-
   useEffect(() => {
     if (!id) return
     setLoading(true)
@@ -71,26 +70,6 @@ export default function ResearchOutputDetailPage() {
       .catch((err) => setError(extractApiErrorMessage(err, 'Unable to load research record.')))
       .finally(() => setLoading(false))
   }, [id])
-
-  const handleCopyCitation = () => {
-    if (!record) return
-    const authors = Array.isArray(record.authors)
-      ? record.authors.map(a => a.fullName).filter(Boolean).join(', ')
-      : ''
-    // Hidden fields come back empty, so build the citation from whatever is actually shown.
-    const parts = [
-      authors,
-      record.completionYear ? `(${record.completionYear})` : '',
-      record.title ? `${record.title}.` : '',
-      record.publicationVenue || record.institutionName ? `${record.publicationVenue || record.institutionName}.` : '',
-      record.doi ? `https://doi.org/${record.doi}` : '',
-    ]
-    const citation = parts.filter(Boolean).join(' ')
-    navigator.clipboard.writeText(citation).then(() => {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    })
-  }
 
   const keywords = Array.isArray(record?.keywords) ? record.keywords : []
   const authors = Array.isArray(record?.authors) ? record.authors : []
@@ -293,6 +272,9 @@ export default function ResearchOutputDetailPage() {
                     </div>
                   </div>
                 )}
+
+                {/* Requirement 12: citation generator (APA 7, MLA 9, IEEE, Chicago 17, Vancouver) */}
+                {!metadataWithheld ? <CitePanel record={record} /> : null}
               </div>
 
               {/* Right sidebar */}
@@ -312,15 +294,6 @@ export default function ResearchOutputDetailPage() {
                       Read the access policy
                     </Link>
                   </p>
-
-                  <button
-                    type="button"
-                    onClick={handleCopyCitation}
-                    className="flex items-center justify-center gap-2 w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition"
-                  >
-                    <Copy className="h-4 w-4" />
-                    {copied ? 'Copied!' : 'Copy Citation'}
-                  </button>
                 </div>
 
                   {/* Relevance */}

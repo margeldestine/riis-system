@@ -4,6 +4,7 @@ import { Search, Filter, X, ChevronDown, ExternalLink, MapPin } from 'lucide-rea
 import apiClient from '../../services/apiClient'
 import CitationBadge from '../../components/CitationBadge'
 import FullTextAction from './FullTextAction'
+import CitationQuickCopy from './CitationQuickCopy'
 import PublicFooter from './PublicFooter'
 import VisibilityBadge from './VisibilityBadge'
 import RelatedResearchList from './RelatedResearchList'
@@ -147,6 +148,7 @@ function ResultCard({ result, onSelect }) {
             View Details
           </button>
           <FullTextAction record={result} variant="card" />
+          <CitationQuickCopy record={result} />
         </div>
       </div>
     </div>
