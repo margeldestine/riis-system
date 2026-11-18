@@ -135,6 +135,18 @@ public class ResearchOutput {
 	@Column(name = "attachment_size_bytes")
 	private Long attachmentSizeBytes;
 
+	// Requirement 1: worldwide citation count. NULL means "not available" (no DOI, or not checked yet),
+	// which is different from 0 ("checked, nobody has cited it").
+	@Column(name = "citation_count")
+	private Integer citationCount;
+
+	// Where the number came from, for example "openalex". Different services report different counts.
+	@Column(name = "citation_source", length = 32)
+	private String citationSource;
+
+	@Column(name = "citation_checked_at")
+	private LocalDateTime citationCheckedAt;
+
 	@Enumerated(EnumType.STRING)
 	@Column(name = "visibility", nullable = false, length = 16)
 	@Builder.Default

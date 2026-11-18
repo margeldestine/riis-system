@@ -178,9 +178,17 @@ public class InstitutionService {
                         Collectors.collectingAndThen(Collectors.counting(), Long::intValue)
                 ));
 
+        // Requirement 1 ("summary of citations"): total citations across the institution's approved records.
+        long totalCitations = allApproved.stream()
+                .map(ResearchOutput::getCitationCount)
+                .filter(java.util.Objects::nonNull)
+                .mapToLong(Integer::longValue)
+                .sum();
+
         InstitutionStatsDTO stats = new InstitutionStatsDTO(
                 totalApproved,
                 (int) uniqueAuthors,
+                totalCitations,
                 typeDistribution
         );
 

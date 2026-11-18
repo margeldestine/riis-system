@@ -3,6 +3,7 @@ package com.geeks.riis_backend.repository;
 import com.geeks.riis_backend.model.ResearchOutput;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -28,6 +29,32 @@ public interface ResearchOutputRepository extends JpaRepository<ResearchOutput, 
 
 	// Requirement 2: records that have a PDF but no saved file details yet (used by the one-time backfill).
 	List<ResearchOutput> findByS3PdfKeyIsNotNullAndAttachmentSizeBytesIsNull();
+
+	/** Only the id and DOI, so the citation job does not load whole records (with their embeddings). */
+	interface CitationCandidate {
+		String getId();
+		String getDoi();
+	}
+
+	// Requirement 1: approved records that have a DOI and were never checked, or not checked since the cutoff.
+	@Query("SELECT ro.id AS id, ro.doi AS doi FROM ResearchOutput ro "
+			+ "WHERE ro.status = 'APPROVED' AND ro.doi IS NOT NULL AND ro.doi <> '' "
+			+ "AND (ro.citationCheckedAt IS NULL OR ro.citationCheckedAt < :cutoff)")
+	List<CitationCandidate> findCitationCandidates(@Param("cutoff") LocalDateTime cutoff);
+
+	@Modifying
+	@Transactional
+	@Query("UPDATE ResearchOutput ro SET ro.citationCount = :count, ro.citationSource = :source, "
+			+ "ro.citationCheckedAt = :checkedAt WHERE ro.id = :id")
+	int updateCitation(@Param("id") String id, @Param("count") Integer count,
+			@Param("source") String source, @Param("checkedAt") LocalDateTime checkedAt);
+
+	// DOI not known to the service: remember that we asked, but keep any count we already had.
+	@Modifying
+	@Transactional
+	@Query("UPDATE ResearchOutput ro SET ro.citationSource = :source, ro.citationCheckedAt = :checkedAt WHERE ro.id = :id")
+	int markCitationChecked(@Param("id") String id, @Param("source") String source,
+			@Param("checkedAt") LocalDateTime checkedAt);
 
 	@Modifying
 	@Transactional

@@ -126,6 +126,9 @@ public class AdminReviewService {
                 output.getAttachmentFileName(),
                 output.getAttachmentContentType(),
                 output.getAttachmentSizeBytes(),
+                output.getCitationCount(),
+                output.getCitationSource(),
+                output.getCitationCheckedAt(),
                 validationErrorCount,
                 output.getVisibility() == null ? null : output.getVisibility().name()
         );

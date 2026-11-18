@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Search, Filter, X, ChevronDown, ExternalLink, MapPin } from 'lucide-react'
 import apiClient from '../../services/apiClient'
+import CitationBadge from '../../components/CitationBadge'
 import FullTextAction from './FullTextAction'
 import PublicFooter from './PublicFooter'
 import VisibilityBadge from './VisibilityBadge'
@@ -81,6 +82,8 @@ function ResultCard({ result, onSelect }) {
                 {result.fundingSource || result.institutionName}
               </span>
             ) : null}
+            {/* Requirement 1: worldwide citation count (only shown when there is one) */}
+            <CitationBadge record={result} />
           </div>
 
           {/* Abstract */}

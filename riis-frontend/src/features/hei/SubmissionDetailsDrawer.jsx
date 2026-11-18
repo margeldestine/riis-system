@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { AlertTriangle, CheckCircle2, ExternalLink, X, XCircle } from 'lucide-react'
 import apiClient from '../../services/apiClient'
 import VisibilityEditor from './VisibilityEditor'
+import { formatCitationSummary } from '../../components/citationFormat'
 
 function extractApiErrorMessage(error, fallbackMessage) {
   const data = error?.response?.data
@@ -272,6 +273,7 @@ export default function SubmissionDetailsDrawer({
               <div className="grid grid-cols-1 gap-x-6 gap-y-4 rounded-[10px] border border-[#e5e7eb] bg-[#f8fafc] p-5 sm:grid-cols-2">
                 <DetailField label="Type" value={details.researchType || details.type} />
                 <DetailField label="Completion Year" value={details.completionYear || details.year} />
+                <DetailField label="Citations (Worldwide)" value={formatCitationSummary(details)} />
                 <DetailField
                   label="Publication Venue"
                   value={details.publicationVenue || details.publicationVenueStatus}

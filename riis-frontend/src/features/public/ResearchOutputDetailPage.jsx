@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ArrowLeft, ExternalLink, Copy, EyeOff, Lock } from 'lucide-react'
 import apiClient from '../../services/apiClient'
+import CitationBadge from '../../components/CitationBadge'
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom'
 import FullTextAction from './FullTextAction'
 import PublicFooter from './PublicFooter'
@@ -226,6 +227,10 @@ export default function ResearchOutputDetailPage() {
                       ) : record.doi ? (
                         <p className="text-sm text-slate-600">{record.doi}</p>
                       ) : <p className="text-sm text-slate-400">—</p>}
+                    </MetaField>
+
+                    <MetaField label="Citations (Worldwide)">
+                      {metadataWithheld ? <p className="text-sm text-slate-500">Restricted</p> : <CitationBadge record={record} variant="full" />}
                     </MetaField>
 
                     <MetaField label="Completion Year" value={record.completionYear} />

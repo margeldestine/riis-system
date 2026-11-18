@@ -7,6 +7,7 @@ import {
 } from 'lucide-react'
 import DashboardLayout from './DashboardLayout'
 import apiClient from '../../services/apiClient'
+import { formatCitationSummary } from '../../components/citationFormat'
 
 export const dostNavItems = [
   { icon: BarChart3, label: 'Analytics Dashboard', to: '/dost/dashboard' },
@@ -168,6 +169,10 @@ function SubmissionMetadataPanel({ submission }) {
           <div>
             <p className="text-[10px] uppercase tracking-wider text-slate-400 mb-0.5">DOI</p>
             <p className="text-sm font-medium text-[#1A1A2E]">{submission.doi || '—'}</p>
+          </div>
+          <div>
+            <p className="text-[10px] uppercase tracking-wider text-slate-400 mb-0.5">Citations (Worldwide)</p>
+            <p className="text-sm font-medium text-[#1A1A2E]">{formatCitationSummary(submission)}</p>
           </div>
           <div>
             <p className="text-[10px] uppercase tracking-wider text-slate-400 mb-0.5">Conference URL</p>

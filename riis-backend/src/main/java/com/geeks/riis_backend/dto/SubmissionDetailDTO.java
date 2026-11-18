@@ -36,6 +36,9 @@ public record SubmissionDetailDTO(
 		String attachmentFileName,
 		String attachmentContentType,
 		Long attachmentSizeBytes,
+		Integer citationCount,
+		String citationSource,
+		LocalDateTime citationCheckedAt,
 		int validationErrorCount,
 		String visibility
 ) {}

@@ -407,6 +407,10 @@ public class SearchService {
         card.put("fundingSource", metadata ? o.getFundingSource() : null);
         card.put("publicationVenue", metadata ? o.getPublicationVenue() : null);
         card.put("doi", metadata ? o.getDoi() : null);
+        // Requirement 1: worldwide citation count. null = not available (shown as such, never as 0).
+        card.put("citationCount", metadata ? o.getCitationCount() : null);
+        card.put("citationSource", metadata ? o.getCitationSource() : null);
+        card.put("citationCheckedAt", metadata ? o.getCitationCheckedAt() : null);
         card.put("abstractExcerpt", tier.exposesAbstract() ? truncate(o.getAbstractText(), 200) : "");
         card.put("keywords", metadata ? parseKeywords(o.getKeywords()) : List.of());
         card.put("institutionId", o.getInstitution() != null ? o.getInstitution().getId() : null);
