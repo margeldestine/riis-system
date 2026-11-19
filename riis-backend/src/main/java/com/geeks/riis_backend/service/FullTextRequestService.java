@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.geeks.riis_backend.dto.FullTextRequestCreateDTO;
 import com.geeks.riis_backend.dto.FullTextRequestDTO;
+import com.geeks.riis_backend.event.FullTextRequestApprovedEvent;
 import com.geeks.riis_backend.exception.BadRequestException;
 import com.geeks.riis_backend.exception.ResourceNotFoundException;
 import com.geeks.riis_backend.model.AuditActionTypes;
@@ -21,6 +22,7 @@ import java.util.List;
 import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -29,7 +31,9 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * "Request full text": stored, emailed to the SUBMITTING research officer (plus the HEI's
  * office address when it is a real email), and tracked in an inbox.
- * DASIG never attaches or serves the PDF. The HEI replies to the requester itself and records the outcome here.
+ * When the HEI marks a request Approved, DASIG emails the requester the PDF (attached) and a link
+ * to the record page (see FullTextApprovalListener). DASIG never offers the PDF for public
+ * download.
  */
 @Slf4j
 @Service
@@ -44,6 +48,7 @@ public class FullTextRequestService {
     private final UserRepository userRepository;
     private final AuditLogService auditLogService;
     private final EmailNotificationService emailNotificationService;
+    private final ApplicationEventPublisher eventPublisher;
 
     /** Public submit. Silent no-op for bots (honeypot) and for repeat requests that are still pending. */
     public void create(String recordId, FullTextRequestCreateDTO dto) {
@@ -173,6 +178,24 @@ public class FullTextRequestService {
                 "Full text request marked " + next.getLabel() + ".",
                 metadata);
 
+        if (next == FullTextRequestStatus.APPROVED) {
+            // Requirement 10: email the PDF and the record link to the requester. The listener only runs
+            // after this transaction is saved, so a mail problem can never undo the approval.
+            ResearchOutput output = saved.getResearchOutput();
+            eventPublisher.publishEvent(new FullTextRequestApprovedEvent(
+                    saved.getId(),
+                    saved.getRequesterName(),
+                    saved.getRequesterEmail(),
+                    output.getId(),
+                    output.getTitle(),
+                    output.getReferenceNumber(),
+                    saved.getInstitution().getName(),
+                    replyToFor(actor, saved.getInstitution()),
+                    output.getS3PdfKey(),
+                    output.getAttachmentFileName(),
+                    output.getAttachmentSizeBytes()));
+        }
+
         return toDto(saved);
     }
 
@@ -227,6 +250,14 @@ public class FullTextRequestService {
                     .forEach(recipients::add);
         }
         return List.copyOf(recipients);
+    }
+
+    /** Replies to the approval email should reach the person who approved, else the institution's contact address. */
+    private String replyToFor(User actor, Institution institution) {
+        if (isRealEmail(actor.getEmail())) {
+            return actor.getEmail().trim();
+        }
+        return isRealEmail(institution.getContactEmail()) ? institution.getContactEmail().trim() : null;
     }
 
     private boolean isRealEmail(String value) {

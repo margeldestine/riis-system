@@ -275,7 +275,7 @@ export default function AboutPage() {
               <h3 className="text-base font-semibold text-[#0A2A66]">What DASIG adds is the local layer</h3>
               <p className="mt-2 text-sm leading-relaxed text-slate-600">
                 Region VII studies, including theses, technical reports and institutional outputs that are hard to
-                find in international indexes, organized by institution, province and theme. DASIG does not host or
+                find in international indexes, organized by institution, province and theme. DASIG does not publish or
                 sell full-text papers.
               </p>
             </div>

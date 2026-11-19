@@ -37,6 +37,9 @@ app:
       access-token-ttl-seconds: ${JWT_ACCESS_TOKEN_TTL_SECONDS:3600}
       remember-me-ttl-seconds: 2592000   # 30 days
     password-reset-token-ttl-minutes: 30
+  fulltext:
+    # Requirement 10: the approval email attaches the PDF up to this size (default 15 MB).
+    max-attachment-bytes: ${FULLTEXT_MAX_ATTACHMENT_BYTES:15728640}
   frontend:
     base-url: ${FRONTEND_BASE_URL:http://localhost:5173}
     allowed-origins: ${FRONTEND_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:5174,http://localhost:5175}

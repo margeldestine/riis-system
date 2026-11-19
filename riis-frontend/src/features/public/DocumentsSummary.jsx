@@ -2,8 +2,8 @@ import { FileText } from 'lucide-react'
 import { documentTypeLabel, formatFileSize } from './documentFormat'
 
 // Requirement 2: the "Documents" card on the public record page. It summarises the attached file
-// (name, type, size and language). The file itself is never offered here: DASIG does not host the
-// full text, and the owning institution decides who gets it.
+// (name, type, size and language). The file itself is never offered here: it is not available for
+// public download, and the owning institution decides who gets it (by email, once it approves a request).
 export default function DocumentsSummary({ documents }) {
   const list = Array.isArray(documents) ? documents.filter((doc) => doc?.fileName) : []
   if (list.length === 0) return null
@@ -45,7 +45,7 @@ export default function DocumentsSummary({ documents }) {
       </ul>
 
       <p className="mt-3 text-xs text-slate-400">
-        DASIG does not host the file. Use Request full text to ask the owning institution for it.
+        The file is not available for public download. Use Request full text to ask the owning institution for it.
       </p>
     </div>
   )

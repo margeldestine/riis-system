@@ -248,7 +248,7 @@ export default function AccessPolicyPage() {
           <SectionHeading eyebrow="What DASIG is" title="A regional research database">
             DASIG is the research database of DOST Region VII. It keeps records of research outputs from higher
             education institutions (HEIs) so they are easier to find. It complements publishers and indexes such as
-            Scopus and is not a replacement for them. It does not host or sell full-text papers.
+            Scopus and is not a replacement for them. It does not publish or sell full-text papers.
           </SectionHeading>
         </section>
 
@@ -353,8 +353,9 @@ export default function AccessPolicyPage() {
           </div>
 
           <p className="mx-auto mt-5 max-w-2xl text-center text-sm leading-relaxed text-slate-500">
-            DASIG never attaches or serves the PDF. Please give a short reason for your request, and expect that some
-            requests may be declined.
+            DASIG does not offer the PDF for public download. When a research office approves a request, DASIG emails
+            the PDF and a link to the record to the requester. Please give a short reason for your request, and expect
+            that some requests may be declined.
           </p>
         </section>
 

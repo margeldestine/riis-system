@@ -116,7 +116,9 @@ function RequestCard({ item, onUpdated }) {
             </button>
           </div>
           <p className="text-[12px] text-slate-500">
-            DASIG does not send the full text. Reply to the requester yourself, then record the outcome here.
+            When you mark a request as approved, DASIG emails the PDF and a link to the record to the requester
+            automatically. A file over 15 MB is not attached: the email then has the link only and asks the requester
+            to reply to you.
           </p>
 
           {action ? (
@@ -124,6 +126,12 @@ function RequestCard({ item, onUpdated }) {
               <p className="text-[13px] font-semibold text-[#0d1f3c]">
                 {action === 'APPROVED' ? 'Mark as approved' : 'Decline this request'}
               </p>
+              {action === 'APPROVED' ? (
+                <p className="text-[12px] text-slate-600">
+                  DASIG will email the PDF and a link to the record to {item.requesterName} now. Replies go to you.
+                  The note below is not sent to the requester.
+                </p>
+              ) : null}
               <textarea
                 value={note}
                 onChange={(event) => setNote(event.target.value)}

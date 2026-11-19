@@ -125,9 +125,9 @@ export default function RequestFullTextModal({ record, institutionName, onClose 
         ) : (
           <form onSubmit={handleSubmit} className="space-y-3" noValidate>
             <p className="text-xs text-slate-500">
-              DASIG does not host the full text. Your request goes to the research office of{' '}
+              The full text is not available for public download. Your request goes to the research office of{' '}
               <strong>{institutionName || record.institutionName || 'the owning institution'}</strong>, which decides
-              whether to share it. Your details are used only for this request.
+              whether to share it, and emails you the PDF if it does. Your details are used only for this request.
             </p>
 
             <div>

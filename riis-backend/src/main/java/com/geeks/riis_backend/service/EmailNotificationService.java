@@ -1,9 +1,12 @@
 package com.geeks.riis_backend.service;
 
+import jakarta.mail.internet.MimeMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.mail.SimpleMailMessage;
 import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
@@ -236,8 +239,8 @@ public class EmailNotificationService {
 				+ (requesterAffiliation == null || requesterAffiliation.isBlank()
 				? "" : "Affiliation: " + oneLine(requesterAffiliation) + "\n")
 				+ "\nReason for request:\n" + purpose + "\n\n"
-				+ "Please reply directly to the requester if you approve. DASIG does not send or host the full text.\n"
-				+ "You can record the outcome in the DASIG research-office inbox.";
+				+ "To approve, open the DASIG research-office inbox and mark the request as Approved. DASIG then emails the PDF and a link to the record to the requester.\n"
+				+ "You can also reply to the requester directly.";
 		try {
 			JavaMailSender mailSender = resolveMailSender("sendFullTextRequestToResearchOffice");
 			if (mailSender == null) return;
@@ -266,7 +269,7 @@ public class EmailNotificationService {
 		String body = "Hi " + oneLine(requesterName) + ",\n\n"
 				+ "Your request for the full text of \"" + oneLine(recordTitle) + "\" was sent to the research office of "
 				+ oneLine(institutionName) + ".\n\n"
-				+ "They will contact you directly if the request is approved. DASIG does not host or send the full text.";
+				+ "If the research office approves your request, you will receive an email with the PDF attached, or a link to the record when the file is too large to attach. DASIG does not offer the full text for public download.";
 		try {
 			JavaMailSender mailSender = resolveMailSender("sendFullTextRequestConfirmation");
 			if (mailSender == null) return;
@@ -280,6 +283,43 @@ public class EmailNotificationService {
 		} catch (Exception e) {
 			log.error("[sendFullTextRequestConfirmation] Failed to send to {}: {}", toEmail, e.getMessage(), e);
 			emailOutboxService.enqueue(toEmail, subject, body, e.getMessage());
+		}
+	}
+
+	/**
+	 * Requirement 10: the approval email to the requester. The PDF is attached when there is one.
+	 * Called from FullTextApprovalListener, which already runs in its own thread, so this is not @Async.
+	 *
+	 * @param replyTo   where a reply should go (the research office). May be null.
+	 * @param retryBody the text-only wording used if sending fails. The retry queue (EmailOutboxService)
+	 *                  can only store text, so it can never carry the PDF.
+	 * @param pdf       the file to attach, or null to send the link-only version
+	 */
+	public void sendFullTextApproved(String toEmail, String replyTo, String subject, String body, String retryBody,
+			byte[] pdf, String attachmentName) {
+		if (toEmail == null || toEmail.isBlank()) {
+			log.warn("[sendFullTextApproved] Skipped -- the requester email is blank.");
+			return;
+		}
+		try {
+			JavaMailSender mailSender = resolveMailSender("sendFullTextApproved");
+			if (mailSender == null) return;
+
+			MimeMessage message = mailSender.createMimeMessage();
+			MimeMessageHelper helper = new MimeMessageHelper(message, pdf != null, "UTF-8");
+			if (!fromEmail.isBlank()) helper.setFrom(fromEmail);
+			helper.setTo(toEmail);
+			if (replyTo != null && !replyTo.isBlank()) helper.setReplyTo(replyTo.trim());
+			helper.setSubject(subject);
+			helper.setText(body, false);
+			if (pdf != null) {
+				helper.addAttachment(attachmentName, new ByteArrayResource(pdf), "application/pdf");
+			}
+			mailSender.send(message);
+			log.info("[sendFullTextApproved] Email sent (attachment: {})", pdf != null);
+		} catch (Exception e) {
+			log.error("[sendFullTextApproved] Failed to send: {}", e.getMessage(), e);
+			emailOutboxService.enqueue(toEmail, subject, retryBody, e.getMessage());
 		}
 	}
 

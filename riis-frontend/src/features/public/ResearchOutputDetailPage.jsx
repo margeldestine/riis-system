@@ -294,8 +294,8 @@ export default function ResearchOutputDetailPage() {
                   <FullTextAction record={record} variant="panel" />
 
                   <p className="text-xs text-slate-400 leading-relaxed">
-                    DASIG organizes Region VII research and does not host the full text. The owning institution decides
-                    whether to share it.{' '}
+                    The full text is not available for public download. The owning institution decides whether to
+                    share it and, if it does, emails you the PDF.{' '}
                     <Link to="/access-policy" className="text-blue-600 hover:underline">
                       Read the access policy
                     </Link>
