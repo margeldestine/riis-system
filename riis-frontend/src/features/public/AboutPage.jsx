@@ -15,6 +15,7 @@ import {
 } from 'lucide-react'
 import apiClient from '../../services/apiClient'
 import PublicFooter from './PublicFooter'
+import PublicHeader from './PublicHeader'
 
 // DRAFT WORDING: have DOST Region VII review this text before it is treated as official.
 // It lists only what the system does today. No funding or support is promised.
@@ -134,43 +135,8 @@ export default function AboutPage() {
     <div className="flex min-h-screen flex-col bg-[#F5F7FB]" style={{ fontFamily: "'Inter', sans-serif" }}>
       <style>{ANIMATION_CSS}</style>
 
-      {/* Nav, same as the other public pages */}
-      <nav className="sticky top-0 z-30 flex items-center justify-between border-b border-slate-200 bg-white/95 px-4 py-3 shadow-sm backdrop-blur md:px-8">
-        <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#1A1A2E]">
-            <span className="text-xs font-bold text-[#C9A84C]">D</span>
-          </div>
-          <div>
-            <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-400">
-              Republic of the Philippines
-            </p>
-            <p className="text-xs font-bold text-[#1A1A2E]">DASIG Research Information System</p>
-          </div>
-        </div>
-        <div className="hidden items-center gap-6 md:flex">
-          <button type="button" onClick={() => navigate('/')} className="text-sm text-slate-500 hover:text-[#1A1A2E]">
-            Browse Research
-          </button>
-          <button type="button" onClick={() => navigate('/discover')} className="text-sm text-slate-500 hover:text-[#1A1A2E]">
-            HEI Directory
-          </button>
-          <button type="button" className="border-b-2 border-[#1A1A2E] pb-0.5 text-sm font-semibold text-[#1A1A2E]">
-            About
-          </button>
-        </div>
-        <div className="flex items-center gap-3">
-          <button type="button" onClick={() => navigate('/login')} className="text-sm font-semibold text-[#1A1A2E] hover:text-slate-600">
-            Login
-          </button>
-          <button
-            type="button"
-            onClick={() => navigate('/register')}
-            className="rounded-lg bg-[#1A1A2E] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#11111f]"
-          >
-            Register
-          </button>
-        </div>
-      </nav>
+      {/* Top nav, with the always-visible search bar (requirement 4) */}
+      <PublicHeader activeLabel="About" />
 
       {/* Hero: DOST building photo under the same faded blue wash as the directory page */}
       <header className="relative overflow-hidden pb-24 pt-16 text-center md:pb-28 md:pt-20" style={{ background: '#1a3a6b' }}>

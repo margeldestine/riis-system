@@ -9,6 +9,7 @@ import VisibilityBadge from './VisibilityBadge'
 import RelatedResearchList from './RelatedResearchList'
 import CitePanel from './CitePanel'
 import DocumentsSummary from './DocumentsSummary'
+import PublicHeader from './PublicHeader'
 import { isAbstractWithheld, safeExternalUrl } from './accessTiers'
 
 
@@ -87,6 +88,9 @@ export default function ResearchOutputDetailPage() {
 
   return (
     <div className="min-h-screen bg-[#F4F6F9] font-sans flex flex-col">
+      {/* Requirement 4: this page had no top bar, so there was no way to search without going back first. */}
+      <PublicHeader activeLabel="Browse Research" />
+
       <div className="relative overflow-hidden" style={{ background: '#1a3a6b' }}>
         <div
           className="absolute inset-0"

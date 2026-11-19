@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { BarChart3, Building2, Calendar, ChevronDown, FileText, Globe, MapPin, User } from 'lucide-react'
 import apiClient from '../../services/apiClient'
+import PublicHeader from './PublicHeader'
 import FullTextAction from './FullTextAction'
 import { Link } from 'react-router-dom'
 import VisibilityBadge from './VisibilityBadge'
@@ -339,27 +340,8 @@ export default function PublicInstitutionProfilePage() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#f8fafc', fontFamily: 'system-ui, sans-serif', display: 'flex', flexDirection: 'column' }}>
-      {/* Nav */}
-      <nav style={{ background: '#fff', borderBottom: '1px solid #e2e8f0', padding: '12px 40px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ width: 36, height: 36, borderRadius: 8, background: '#1a1a2e', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <span style={{ color: '#c9a84c', fontWeight: 800, fontSize: 14 }}>D</span>
-          </div>
-          <div>
-            <p style={{ margin: 0, fontSize: 9, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#94a3b8' }}>Republic of the Philippines</p>
-            <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: '#1a1a2e' }}>DASIG Research Information System</p>
-          </div>
-        </div>
-        <div style={{ display: 'flex', gap: 24 }}>
-          <button onClick={() => navigate('/')} style={{ border: 'none', background: 'transparent', fontSize: 14, color: '#64748b', cursor: 'pointer', fontWeight: 500 }}>Browse Research</button>
-          <button onClick={() => navigate('/discover')} style={{ border: 'none', background: 'transparent', fontSize: 14, color: '#1a1a2e', fontWeight: 700, cursor: 'pointer', borderBottom: '2px solid #1a1a2e', paddingBottom: 2 }}>HEI Directory</button>
-          <button onClick={() => navigate('/about')} style={{ border: 'none', background: 'transparent', fontSize: 14, color: '#64748b', cursor: 'pointer', fontWeight: 500 }}>About</button>
-        </div>
-        <div style={{ display: 'flex', gap: 12 }}>
-          <button onClick={() => navigate('/login')} style={{ border: 'none', background: 'transparent', fontSize: 14, fontWeight: 600, color: '#1a1a2e', cursor: 'pointer' }}>Login</button>
-          <button onClick={() => navigate('/register')} style={{ border: 'none', background: '#1a1a2e', color: '#fff', borderRadius: 8, padding: '8px 18px', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>Register</button>
-        </div>
-      </nav>
+      {/* Top nav, with the always-visible search bar (requirement 4) */}
+      <PublicHeader activeLabel="HEI Directory" />
 
       {/* Breadcrumb */}
       <div style={{ padding: '12px 40px', fontSize: 13, color: '#94a3b8' }}>

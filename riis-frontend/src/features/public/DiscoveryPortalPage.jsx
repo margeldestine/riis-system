@@ -6,6 +6,7 @@ import CitationBadge from '../../components/CitationBadge'
 import FullTextAction from './FullTextAction'
 import CitationQuickCopy from './CitationQuickCopy'
 import PublicFooter from './PublicFooter'
+import PublicHeader from './PublicHeader'
 import VisibilityBadge from './VisibilityBadge'
 import RelatedResearchList from './RelatedResearchList'
 import { isAbstractWithheld } from './accessTiers'
@@ -268,7 +269,6 @@ function RelatedDrawer({ open, record, related, relatedLoading, onClose }) {
 }
 
 export default function DiscoveryPortalPage({ embedded = false }) {
-  const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
 
   const [query, setQuery] = useState(searchParams.get('q') || '')
@@ -397,47 +397,13 @@ export default function DiscoveryPortalPage({ embedded = false }) {
 
   return (
     <div className={embedded ? '' : 'min-h-screen bg-[#F5F7FB]'} style={{ fontFamily: "'Inter', sans-serif" }}>
-      {/* Top nav — only shown on public page */}
-      {!embedded && <nav className="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-slate-200 px-8 py-3 flex items-center justify-between shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="h-8 w-8 rounded-lg bg-[#1A1A2E] flex items-center justify-center">
-            <span className="text-xs font-bold text-[#C9A84C]">D</span>
-          </div>
-          <div>
-            <p className="text-[9px] font-semibold uppercase tracking-wider text-slate-400">
-              Republic of the Philippines
-            </p>
-            <p className="text-xs font-bold text-[#1A1A2E]">DASIG Research Information System</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-6">
-          <button type="button" className="text-sm font-semibold text-[#1A1A2E] border-b-2 border-[#1A1A2E] pb-0.5">
-            Browse Research
-          </button>
-          <button type="button" onClick={() => navigate('/discover')} className="text-sm text-slate-500 hover:text-[#1A1A2E]">
-          HEI Directory
-        </button>
-          <button type="button" onClick={() => navigate('/about')} className="text-sm text-slate-500 hover:text-[#1A1A2E]">
-            About
-          </button>
-        </div>
-        <div className="flex items-center gap-3">
-          <button
-            type="button"
-            onClick={() => navigate('/login')}
-            className="text-sm font-semibold text-[#1A1A2E] hover:text-slate-600"
-          >
-            Login
-          </button>
-          <button
-            type="button"
-            onClick={() => navigate('/register')}
-            className="rounded-lg bg-[#1A1A2E] px-4 py-2 text-sm font-semibold text-white hover:bg-[#11111f] transition"
-          >
-            Register
-          </button>
-        </div>
-      </nav>}
+      {/* Top nav, only shown on the public page. Requirement 4: its search bar is the same search as the box below. */}
+      {!embedded && (
+        <PublicHeader
+          activeLabel="Browse Research"
+          search={{ value: query, onChange: setQuery, onSubmit: () => handleSearch(undefined, 0) }}
+        />
+      )}
 
       {/* Hero section */}
       <div className={`relative py-16 text-center overflow-hidden ${embedded ? '-mx-[32px] -mt-[32px] w-[calc(100%+64px)]' : ''}`} style={{ background: '#1a3a6b' }}>
