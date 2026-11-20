@@ -46,8 +46,9 @@ function MetaField({ label, value, children, className }) {
   )
 }
 
-export default function ResearchOutputDetailPage() {
+export default function ResearchOutputDetailPage({ embedded = false }) {
   const { id } = useParams()
+  const detailBasePath = embedded ? '/hei/research' : '/research'
   const navigate = useNavigate()
   const location = useLocation()
   const similarityScore = location.state?.similarityScore ?? null
@@ -87,11 +88,14 @@ export default function ResearchOutputDetailPage() {
   const academicYearLabel = `${new Date().getFullYear() - 1}-${new Date().getFullYear()}`
 
   return (
-    <div className="min-h-screen bg-[#F4F6F9] font-sans flex flex-col">
+        <div className={embedded ? 'font-sans flex flex-col' : 'min-h-screen bg-[#F4F6F9] font-sans flex flex-col'}>
       {/* Requirement 4: this page had no top bar, so there was no way to search without going back first. */}
-      <PublicHeader activeLabel="Browse Research" />
+      {!embedded && <PublicHeader activeLabel="Browse Research" hideBrand />}
 
-      <div className="relative overflow-hidden" style={{ background: '#1a3a6b' }}>
+      <div
+        className={`relative overflow-hidden ${embedded ? '-mx-[32px] -mt-[32px] w-[calc(100%+64px)]' : ''}`}
+        style={{ background: '#1a3a6b' }}
+      >
         <div
           className="absolute inset-0"
           style={{
@@ -334,7 +338,7 @@ export default function ResearchOutputDetailPage() {
                     </p>
                     <RelatedResearchList
                       related={related}
-                      onSelect={(newId) => navigate(`/research/${newId}`)}
+                      onSelect={(newId) => navigate(`${detailBasePath}/${newId}`)}
                     />
                   </div>
                 )}
@@ -344,7 +348,7 @@ export default function ResearchOutputDetailPage() {
         </>
       ) : null}
 
-      <PublicFooter className="mt-auto" />
+      {!embedded && <PublicFooter className="mt-auto" />}
     </div>
   )
 }

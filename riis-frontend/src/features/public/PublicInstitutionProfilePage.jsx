@@ -341,7 +341,7 @@ export default function PublicInstitutionProfilePage() {
   return (
     <div style={{ minHeight: '100vh', background: '#f8fafc', fontFamily: 'system-ui, sans-serif', display: 'flex', flexDirection: 'column' }}>
       {/* Top nav, with the always-visible search bar (requirement 4) */}
-      <PublicHeader activeLabel="HEI Directory" />
+            <PublicHeader activeLabel="HEI Directory" hideBrand />
 
       {/* Breadcrumb */}
       <div style={{ padding: '12px 40px', fontSize: 13, color: '#94a3b8' }}>

@@ -35,7 +35,7 @@ function TypeBadge({ type }) {
   )
 }
 
-function ResultCard({ result, onSelect }) {
+function ResultCard({ result, onSelect, detailBasePath = '/research' }) {
   const navigate = useNavigate()
    const authors = Array.isArray(result.authors)
     ? result.authors.map(a => a.fullName).filter(Boolean).join(', ')
@@ -142,7 +142,7 @@ function ResultCard({ result, onSelect }) {
           <button
             type="button"
             onClick={() => {
-              navigate(`/research/${result.id}`, { state: { similarityScore: result.similarityScore ?? null } })
+              navigate(`${detailBasePath}/${result.id}`, { state: { similarityScore: result.similarityScore ?? null } })
             }}
             className="rounded-lg bg-[#0A2A66] px-3.5 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-[#0F3D8F] transition-colors whitespace-nowrap"
           >
@@ -399,10 +399,7 @@ export default function DiscoveryPortalPage({ embedded = false }) {
     <div className={embedded ? '' : 'min-h-screen bg-[#F5F7FB]'} style={{ fontFamily: "'Inter', sans-serif" }}>
       {/* Top nav, only shown on the public page. Requirement 4: its search bar is the same search as the box below. */}
       {!embedded && (
-        <PublicHeader
-          activeLabel="Browse Research"
-          search={{ value: query, onChange: setQuery, onSubmit: () => handleSearch(undefined, 0) }}
-        />
+        <PublicHeader activeLabel="Browse Research" hideSearch />
       )}
 
       {/* Hero section */}
@@ -419,18 +416,18 @@ export default function DiscoveryPortalPage({ embedded = false }) {
         />
         <div className="absolute inset-0" style={{ background: 'rgba(15, 40, 90, 0.72)' }} />
         <div className="relative z-10">
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-[#E8CF85]">
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-[#F5C518]">
             <MapPin className="h-3 w-3" /> Region VII · Central Visayas
           </span>
           <h1 className="mt-4 text-4xl font-bold text-white md:text-5xl" style={{ fontFamily: "'Libre Baskerville', serif" }}>Explore Research Outputs</h1>
-          <div className="mx-auto mt-4 h-1 w-16 rounded-full bg-[#C9A84C]" />
+          <div className="mx-auto mt-4 h-1 w-16 rounded-full bg-[#F5C518]" />
           <p className="mt-4 text-base" style={{ color: 'rgba(255,255,255,0.85)' }}>from Region VII HEIs</p>
           <p className="mt-3 text-sm max-w-xl mx-auto px-4" style={{ color: 'rgba(255,255,255,0.7)', lineHeight: 1.7 }}>
             Search through thousands of research papers, projects, and innovations from Higher Education Institutions
             across Central Visayas. Discover groundbreaking work in science, technology, and social development.
           </p>
 
-          <div className="mt-8 mx-auto flex items-center gap-2 rounded-2xl bg-white p-2 shadow-xl ring-1 ring-white/30 focus-within:ring-2 focus-within:ring-[#C9A84C]" style={{ maxWidth: 700 }}>
+          <div className="mt-8 mx-auto flex items-center gap-2 rounded-2xl bg-white p-2 shadow-xl ring-1 ring-white/30 focus-within:ring-2 focus-within:ring-[#F5C518]" style={{ maxWidth: 700 }}>
             <div className="flex flex-1 items-center gap-3 px-3">
               <Search className="h-5 w-5 shrink-0 text-slate-400" />
               <input
@@ -637,10 +634,11 @@ export default function DiscoveryPortalPage({ embedded = false }) {
               </div>
             ) : (
               pagedResults.map(result => (
-                <ResultCard
+                  <ResultCard
                   key={result.id}
                   result={result}
                   onSelect={handleSelectRecord}
+                  detailBasePath={embedded ? '/hei/research' : '/research'}
                 />
               ))
             )}

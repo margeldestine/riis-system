@@ -58,6 +58,19 @@ function HeiDiscoveryPage() {
   )
 }
 
+function HeiResearchDetailPage() {
+  return (
+    <DashboardLayout
+      activeLabel="Browse Research"
+      userName="HEI Research User"
+      organization="Higher Education Institution"
+      navItems={heiNavItems}
+    >
+      <ResearchOutputDetailPage embedded />
+    </DashboardLayout>
+  )
+}
+
 function App() {
   return (
     <BrowserRouter>
@@ -127,9 +140,15 @@ function App() {
         <Route path="/hei/browse-research" element={
           <ProtectedRoute allowedRole="HEI_STAFF"><HeiDiscoveryPage /></ProtectedRoute>
         } />
+
+        <Route path="/hei/research/:id" element={
+        <ProtectedRoute allowedRole="HEI_STAFF"><HeiResearchDetailPage /></ProtectedRoute>
+        } />
         
       </Routes>
     </BrowserRouter>
+
+    
   )
 }
 

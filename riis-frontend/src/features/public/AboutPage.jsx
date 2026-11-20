@@ -136,7 +136,7 @@ export default function AboutPage() {
       <style>{ANIMATION_CSS}</style>
 
       {/* Top nav, with the always-visible search bar (requirement 4) */}
-      <PublicHeader activeLabel="About" />
+      <PublicHeader activeLabel="About" hideSearch/>
 
       {/* Hero: DOST building photo under the same faded blue wash as the directory page */}
       <header className="relative overflow-hidden pb-24 pt-16 text-center md:pb-28 md:pt-20" style={{ background: '#1a3a6b' }}>

@@ -125,7 +125,7 @@ export default function HeiDirectoryPage() {
   return (
    <div className="min-h-screen bg-[#F5F7FB] flex flex-col" style={{ fontFamily: "'Inter', sans-serif" }}>
       {/* Top nav, with the always-visible search bar (requirement 4) */}
-      <PublicHeader activeLabel="HEI Directory" />
+            <PublicHeader activeLabel="HEI Directory" hideSearch />
 
       {/* Hero */}
       <div className="relative py-16 text-center overflow-hidden" style={{ background: '#1a3a6b' }}>

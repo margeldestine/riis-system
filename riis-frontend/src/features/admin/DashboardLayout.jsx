@@ -7,6 +7,7 @@ import {
   FileText,
   FolderKanban,
   Users,
+  LogOut,
 } from 'lucide-react'
 import '@fontsource/libre-baskerville'
 import { useState } from 'react'
@@ -166,11 +167,11 @@ export default function DashboardLayout({
       <aside
         className="hidden h-screen w-[240px] shrink-0 bg-[#0D1B2A] px-5 py-5 lg:flex lg:flex-col"
         style={{
-            backgroundImage:
-              "linear-gradient(rgba(13, 31, 60, 0.85), rgba(13, 31, 60, 0.85)), url('/DOST_Building.png')",
-            backgroundSize: 'cover',
-            backgroundPosition: '50% 30%',
-          }}
+          backgroundImage:
+            "linear-gradient(rgba(13, 31, 60, 0.85), rgba(13, 31, 60, 0.85)), url('/DOST_Building.png')",
+          backgroundSize: 'cover',
+          backgroundPosition: '50% 30%',
+        }}
       >
         <div className="flex items-center gap-3">
           <img
@@ -233,36 +234,70 @@ export default function DashboardLayout({
       </main>
 
       {showSignOutDialog ? (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/45 px-4">
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center px-4"
+          onClick={() => setShowSignOutDialog(false)}
+        >
           <div
             role="dialog"
             aria-modal="true"
-            className="w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
+            aria-labelledby="signout-title"
+            onClick={(e) => e.stopPropagation()}
+            className="relative isolate w-full max-w-md overflow-hidden rounded-2xl border border-white/15 bg-[#0D1B2A] text-center shadow-[0_20px_60px_rgba(13,31,60,0.45)]"
           >
-            <div className="bg-[#0d1f3c] px-6 py-5">
-              <p
-                className="mt-1 text-[18px] font-bold text-white"
+            {/* blurred background (same look as the sidebar) */}
+            <div
+              aria-hidden="true"
+              className="absolute inset-0 -z-10 scale-110 blur-[3px]"
+              style={{
+                backgroundImage:
+                  "linear-gradient(rgba(13, 31, 60, 0.85), rgba(13, 31, 60, 0.85)), url('/DOST_Building.png')",
+                backgroundSize: 'cover',
+                backgroundPosition: '50% 30%',
+              }}
+            />
+
+            {/* gold accent line */}
+            {/* gold accent line */}
+            <div className="h-1 w-full bg-gradient-to-r from-transparent via-[#C9A84C] to-transparent" />
+
+            <div className="px-8 pb-2 pt-8">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-[#C9A84C]/60 bg-white/10">
+                <LogOut className="h-6 w-6 text-[#C9A84C]" />
+              </div>
+
+              <p className="mt-5 text-[10px] font-semibold uppercase tracking-[0.3em] text-[#C9A84C]">
+                DASIG · Secure Session
+              </p>
+              <h3
+                id="signout-title"
+                className="mt-2 text-[22px] font-bold leading-snug text-white"
                 style={{ fontFamily: "'Libre Baskerville', serif" }}
               >
-                Sign out?
-              </p>
-              <p className="mt-2 text-sm text-white/70">
+                Sign out of your account?
+              </h3>
+              <p className="mt-3 text-sm leading-relaxed text-white/75">
+                You are signed in as{' '}
+                <span className="font-semibold text-white">{displayUserName}</span>.
+                <br />
                 You will be returned to the login page.
               </p>
             </div>
-            <div className="h-px w-full bg-[#c9a84c]" />
-            <div className="flex items-center justify-end gap-3 px-6 py-5">
+
+            <div className="mx-8 mt-6 h-px bg-white/15" />
+
+            <div className="flex items-center gap-3 px-8 py-6">
               <button
                 type="button"
                 onClick={() => setShowSignOutDialog(false)}
-                className="rounded-[8px] border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+                className="h-11 flex-1 rounded-[8px] border border-white/30 bg-white/10 text-sm font-semibold text-white transition hover:bg-white/20"
               >
-                Cancel
+                Stay Signed In
               </button>
               <button
                 type="button"
                 onClick={handleSignOut}
-                className="rounded-[8px] bg-[#1A1A2E] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#11111f]"
+                className="h-11 flex-1 rounded-[8px] bg-[#C9A84C] text-sm font-semibold text-[#0d1f3c] shadow-sm transition hover:bg-[#d8b95c]"
               >
                 Sign Out
               </button>
