@@ -314,7 +314,7 @@ function OutputFullDetailView({ output, onBack }) {
           <button
             type="button"
             onClick={onBack}
-            className="flex items-center gap-1.5 text-xs text-white/60 hover:text-white/90 transition mb-5"
+            className="back-link flex items-center gap-1.5 text-xs text-white/60 hover:text-white/90 transition mb-5"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
             Back to Research Outputs

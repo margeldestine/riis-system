@@ -21,3 +21,114 @@ body {
 * {
   font-family: 'Inter', sans-serif;
 }
+
+/* ==========================================================================
+   UI polish (requirement 15): hover, press and focus feedback, and shared classes.
+   Everything here sits in a Tailwind layer, so a class written on an element (for example
+   hover:bg-slate-50) always wins over these defaults.
+   ========================================================================== */
+
+@layer base {
+  /* Tailwind 4 leaves buttons with the plain arrow cursor, so show the hand on anything clickable. */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  [role="tab"],
+  [role="menuitem"],
+  summary,
+  select:not(:disabled) {
+    cursor: pointer;
+  }
+
+  button:disabled,
+  [aria-disabled="true"] {
+    cursor: not-allowed;
+  }
+
+  /* One short, soft transition for everything clickable. */
+  a,
+  button,
+  [role="button"],
+  [role="tab"],
+  [role="menuitem"] {
+    transition-property: color, background-color, border-color, box-shadow, transform, opacity, filter;
+    transition-duration: 150ms;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  /* A gentle hover (a little darker) and a small press (a little smaller). */
+  button:not(:disabled):hover,
+  [role="button"]:not([aria-disabled="true"]):hover {
+    filter: brightness(0.96);
+  }
+
+  button:not(:disabled):active,
+  [role="button"]:not([aria-disabled="true"]):active {
+    transform: scale(0.98);
+  }
+
+  /* The same gold focus ring everywhere, for keyboard users only. */
+  a:focus-visible,
+  button:focus-visible,
+  [role="button"]:focus-visible,
+  [role="tab"]:focus-visible,
+  [role="menuitem"]:focus-visible,
+  summary:focus-visible {
+    outline: 2px solid #c9a84c;
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  /* A card that lifts a little when the pointer is over it. Add it to any clickable card. */
+  .card-hover {
+    transition: box-shadow 200ms ease, border-color 200ms ease, transform 200ms ease;
+  }
+
+  .card-hover:hover {
+    transform: translateY(-2px);
+    border-color: #cbd5e1;
+    box-shadow: 0 12px 24px -14px rgb(15 23 42 / 0.35);
+  }
+
+  /* A back link: the whole link, arrow included, slides a little to the left on hover or focus. */
+  .back-link:hover,
+  .back-link:focus-visible {
+    transform: translateX(-3px);
+  }
+
+  /* A short fade-in for menus and pop-ups. */
+  .fade-in {
+    animation: dasig-fade-in 150ms ease-out both;
+  }
+}
+
+@keyframes dasig-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* People who ask their system for less motion get no sliding, lifting or fading, only instant changes. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .card-hover:hover,
+  .back-link:hover,
+  .back-link:focus-visible,
+  button:not(:disabled):active,
+  [role="button"]:not([aria-disabled="true"]):active {
+    transform: none;
+  }
+}

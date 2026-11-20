@@ -55,7 +55,7 @@ function OutputCard({ output, isOwnInstitution }) {
   }
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-3 border-l-4 border-l-emerald-500">
+    <div className="card-hover rounded-xl border border-slate-200 bg-white p-5 space-y-3 border-l-4 border-l-emerald-500">
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           {output.doi ? (
@@ -345,7 +345,7 @@ export default function PublicInstitutionProfilePage() {
 
       {/* Breadcrumb */}
       <div style={{ padding: '12px 40px', fontSize: 13, color: '#94a3b8' }}>
-        <button onClick={() => navigate('/discover')} style={{ border: 'none', background: 'transparent', color: '#94a3b8', cursor: 'pointer', fontSize: 13, padding: 0 }}>← Return to Institutions</button>
+        <button className="back-link" onClick={() => navigate('/discover')} style={{ border: 'none', background: 'transparent', color: '#94a3b8', cursor: 'pointer', fontSize: 13, padding: 0 }}>← Return to Institutions</button>
       </div>
 
       {status === 'loading' && !profile && (

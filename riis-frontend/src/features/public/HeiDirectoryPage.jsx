@@ -52,7 +52,7 @@ function InstitutionCard({ hei, onClick }) {
   return (
     <div
       onClick={onClick}
-      className="flex cursor-pointer flex-col gap-4 rounded-xl border border-slate-200 bg-white p-6 shadow-sm transition hover:border-[#0F3D8F]/40 hover:shadow-md"
+      className="flex cursor-pointer flex-col gap-4 rounded-xl border border-slate-200 bg-white p-6 shadow-sm card-hover hover:border-[#0F3D8F]/40"
     >
       <div className="flex items-center gap-4">
         <div

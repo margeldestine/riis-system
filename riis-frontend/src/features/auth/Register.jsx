@@ -189,7 +189,7 @@ export default function Register() {
             ) : null}
             <Link
               to="/login"
-              className="inline-flex items-center gap-2 text-sm font-medium text-gray-500 hover:text-gray-900"
+              className="back-link inline-flex items-center gap-2 text-sm font-medium text-gray-500 hover:text-gray-900"
             >
               <ChevronLeft className="h-4 w-4" />
               Back to Sign In

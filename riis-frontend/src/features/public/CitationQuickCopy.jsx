@@ -58,7 +58,7 @@ export default function CitationQuickCopy({ record }) {
       {open ? (
         <div
           role="menu"
-          className="absolute right-0 z-20 mt-1 w-full min-w-[9rem] rounded-lg border border-slate-200 bg-white py-1 shadow-lg"
+          className="fade-in absolute right-0 z-20 mt-1 w-full min-w-[9rem] rounded-lg border border-slate-200 bg-white py-1 shadow-lg"
         >
           {CITATION_STYLES.map((style) => (
             <button

@@ -44,7 +44,7 @@ function ResultCard({ result, onSelect }) {
   const keywords = Array.isArray(result.keywords) ? result.keywords : []
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm transition-colors hover:border-[#0F3D8F]/40">
+    <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm card-hover hover:border-[#0F3D8F]/40">
       <div className="flex items-start justify-between gap-4">
         <div className="flex-1 min-w-0">
           {/* Title */}
