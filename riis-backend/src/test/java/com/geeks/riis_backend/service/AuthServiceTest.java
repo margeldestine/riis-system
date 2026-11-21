@@ -8,7 +8,6 @@ import static org.mockito.Mockito.when;
 
 import com.geeks.riis_backend.dto.LoginRequest;
 import com.geeks.riis_backend.dto.LoginResponse;
-import com.geeks.riis_backend.exception.ResourceNotFoundException;
 import com.geeks.riis_backend.model.Institution;
 import com.geeks.riis_backend.model.User;
 import com.geeks.riis_backend.repository.InstitutionRepository;
@@ -92,9 +91,12 @@ class AuthServiceTest {
 
 		when(userRepository.findByEmail("missing@cit.edu")).thenReturn(Optional.empty());
 
-		assertThrows(ResourceNotFoundException.class, () ->
+		ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
 				authService.login(new LoginRequest("missing@cit.edu", "any-password", false))
 		);
+
+		assertEquals(HttpStatus.UNAUTHORIZED, ex.getStatusCode());
+		assertEquals("Invalid credentials.", ex.getReason());
 	}
 
 	@Test
